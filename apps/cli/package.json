@@ -1,0 +1,25 @@
+{
+  "name": "@stride/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "stride": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "@stride/core": "workspace:*",
+    "@stride/schemas": "workspace:*",
+    "commander": "^15.0.0",
+    "dotenv": "^17.4.2",
+    "picocolors": "^1.1.1"
+  }
+}

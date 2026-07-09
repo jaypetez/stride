@@ -1,0 +1,39 @@
+{
+  "name": "stride",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Your Strava agentic coach — a local-first, open-source AI running coach.",
+  "license": "Apache-2.0",
+  "author": "Jayson Petersen and Stride contributors",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaypetez/stride.git"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "dev": "turbo run dev"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.3",
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.0",
+    "turbo": "^2.10.4",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
