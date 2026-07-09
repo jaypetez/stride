@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 360" width="100%" role="img" aria-label="Stride — your Strava agentic coach: an animated GPS route rising into a fitness trend, with a pulsing heart rate.">
+  <title>Stride — your Strava agentic coach</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d1526"/>
+      <stop offset="1" stop-color="#0a1120"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FC5200"/>
+      <stop offset="1" stop-color="#FF9A3D"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+    <linearGradient id="cyanArea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2b45" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#111a2e" stop-opacity="0.2"/>
+    </linearGradient>
+    <radialGradient id="dotGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFC38A"/>
+      <stop offset="0.5" stop-color="#FC5200"/>
+      <stop offset="1" stop-color="#FC5200" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="wmClip"><text x="150" y="152" class="wm">stride</text></clipPath>
+    <clipPath id="card"><rect x="8" y="8" width="1184" height="344" rx="22"/></clipPath>
+
+    <style>
+      .wm { font-family: 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 96px; letter-spacing: -3px; }
+      .tag { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; font-size: 23px; fill: #93a4bd; }
+      .chip-t { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 16px; fill: #cdd8ea; }
+      .metric { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 700; fill: #e6edf6; }
+      .metric-s { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; font-weight: 500; font-size: 13px; fill: #7f8ea6; }
+
+      .draw { stroke-dasharray: 2200; stroke-dashoffset: 2200; animation: draw 2.4s ease-out forwards; }
+      .route { animation-delay: 0.3s; }
+      .fit { animation-delay: 1.15s; }
+      .rise { opacity: 0; animation: rise 0.8s ease-out forwards; }
+      .d1 { animation-delay: 0.15s; } .d2 { animation-delay: 0.45s; }
+      .d3 { animation-delay: 1.0s; } .d4 { animation-delay: 1.15s; } .d5 { animation-delay: 1.3s; }
+      .fade { opacity: 0; animation: fadein 1s ease forwards 1.3s; }
+
+      .shine { animation: shimmer 4.5s ease-in-out 1.4s infinite; }
+      .heart { transform-box: fill-box; transform-origin: center; animation: beat 1.15s ease-in-out infinite; }
+      .float { animation: floaty 5s ease-in-out infinite; }
+      .ecg { stroke-dasharray: 26 300; animation: blip 1.15s linear infinite; }
+      .tw { opacity: 0; animation: tw 2.6s ease-in-out infinite; }
+      .tw2 { animation-delay: 0.5s; } .tw3 { animation-delay: 1.0s; } .tw4 { animation-delay: 1.5s; }
+
+      @keyframes draw { to { stroke-dashoffset: 0; } }
+      @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes fadein { to { opacity: 1; } }
+      @keyframes shimmer { 0% { transform: translateX(-130px) skewX(-22deg); } 55%,100% { transform: translateX(360px) skewX(-22deg); } }
+      @keyframes beat { 0%,100% { transform: scale(1); } 15% { transform: scale(1.22); } 30% { transform: scale(1.02); } 45% { transform: scale(1.14); } }
+      @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+      @keyframes blip { to { stroke-dashoffset: -326; } }
+      @keyframes tw { 0%,100% { opacity: 0; } 50% { opacity: 1; } }
+    </style>
+  </defs>
+
+  <!-- Card -->
+  <rect x="8" y="8" width="1184" height="344" rx="22" fill="url(#bg)" stroke="#22304d" stroke-width="1.5"/>
+  <rect x="8" y="8" width="1184" height="344" rx="22" fill="none" stroke="#FC5200" stroke-opacity="0.10" stroke-width="1.5"/>
+
+  <g clip-path="url(#card)">
+    <!-- faint grid -->
+    <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="1">
+      <line x1="560" y1="96" x2="1150" y2="96"/>
+      <line x1="560" y1="156" x2="1150" y2="156"/>
+      <line x1="560" y1="216" x2="1150" y2="216"/>
+      <line x1="560" y1="276" x2="1150" y2="276"/>
+    </g>
+
+    <!-- elevation terrain -->
+    <path class="fade" d="M540,300 L604,272 L672,300 L742,252 L818,288 L902,244 L992,286 L1078,250 L1160,282 L1160,340 L540,340 Z"
+          fill="url(#hill)"/>
+    <path class="fade" d="M540,300 L604,272 L672,300 L742,252 L818,288 L902,244 L992,286 L1078,250 L1160,282"
+          fill="none" stroke="#31456b" stroke-width="1.5" stroke-opacity="0.7"/>
+
+    <!-- rising fitness area + line (CTL-style) -->
+    <path class="fade" d="M566,300 C700,292 780,250 866,236 C980,214 1052,168 1132,120 L1132,320 L566,320 Z" fill="url(#cyanArea)"/>
+    <path id="fitPath" class="draw fit" d="M566,300 C700,292 780,250 866,236 C980,214 1052,168 1132,120"
+          fill="none" stroke="url(#cyan)" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- data dots on the fitness curve -->
+    <g fill="#7fe7f5">
+      <circle class="tw" cx="700" cy="285" r="3.2"/>
+      <circle class="tw tw2" cx="820" cy="245" r="3.2"/>
+      <circle class="tw tw3" cx="960" cy="205" r="3.2"/>
+      <circle class="tw tw4" cx="1090" cy="150" r="3.2"/>
+    </g>
+
+    <!-- GPS route (the run) -->
+    <path id="routePath" class="draw route" d="M566,238 C636,222 664,150 742,158 C812,165 828,232 902,214 C980,196 1004,120 1104,140"
+          fill="none" stroke="url(#orange)" stroke-width="4.5" stroke-linecap="round" filter="url(#soft)"/>
+
+    <!-- traveling runner dot along the route -->
+    <g>
+      <circle r="13" fill="url(#dotGlow)">
+        <animateMotion dur="5.5s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+          <mpath xlink:href="#routePath"/>
+        </animateMotion>
+      </circle>
+      <circle r="4.5" fill="#fff">
+        <animateMotion dur="5.5s" repeatCount="indefinite" rotate="auto">
+          <mpath xlink:href="#routePath"/>
+        </animateMotion>
+      </circle>
+    </g>
+
+    <!-- heart rate cluster (top-right) -->
+    <g class="float">
+      <polyline class="ecg" points="978,70 1006,70 1014,50 1026,90 1038,60 1046,70 1070,70"
+                fill="none" stroke="#FF7A45" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="translate(1104,58)">
+        <path class="heart" d="M0,7 C0,2 -4,-1 -8,-1 C-14,-1 -16,5 -16,8 C-16,14 -8,19 0,25 C8,19 16,14 16,8 C16,5 14,-1 8,-1 C4,-1 0,2 0,7 Z" fill="#FC5200"/>
+      </g>
+      <text class="metric" x="1128" y="58" font-size="22">148</text>
+      <text class="metric-s" x="1128" y="74">bpm</text>
+    </g>
+
+    <!-- ================= Left: wordmark ================= -->
+    <!-- striding chevrons -->
+    <g fill="none" stroke="url(#orange)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+      <path class="rise d1" d="M70,108 l22,22 l-22,22"/>
+      <path class="rise d1" d="M98,108 l22,22 l-22,22" opacity="0.6"/>
+      <path class="rise d1" d="M126,108 l22,22 l-22,22" opacity="0.3"/>
+    </g>
+
+    <text x="170" y="152" class="wm" fill="#f2f6fc">stride</text>
+    <g clip-path="url(#wmClip)">
+      <rect class="shine" x="150" y="60" width="70" height="110" fill="#ffffff" opacity="0.28"/>
+    </g>
+
+    <path class="draw" d="M172,172 L470,172" fill="none" stroke="url(#orange)" stroke-width="4" stroke-linecap="round" style="animation-delay:0.7s"/>
+
+    <text x="174" y="204" class="tag rise d2">your Strava agentic coach</text>
+
+    <!-- feature chips -->
+    <g>
+      <g class="rise d3">
+        <rect x="174" y="232" width="118" height="36" rx="18" fill="#16233b" stroke="#2b3d5e"/>
+        <circle cx="196" cy="250" r="4" fill="#FC5200"/>
+        <text x="210" y="255" class="chip-t">analyze</text>
+      </g>
+      <g class="rise d4">
+        <rect x="302" y="232" width="118" height="36" rx="18" fill="#16233b" stroke="#2b3d5e"/>
+        <circle cx="324" cy="250" r="4" fill="#22D3EE"/>
+        <text x="338" y="255" class="chip-t">suggest</text>
+      </g>
+      <g class="rise d5">
+        <rect x="430" y="232" width="96" height="36" rx="18" fill="#16233b" stroke="#2b3d5e"/>
+        <circle cx="452" cy="250" r="4" fill="#34D399"/>
+        <text x="466" y="255" class="chip-t">plan</text>
+      </g>
+    </g>
+  </g>
+</svg>

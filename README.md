@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/stride-hero.svg" alt="Stride — your Strava agentic coach" width="100%">
+</p>
+
 # Stride
 
 > Your Strava agentic coach — a local-first, open-source AI running coach.
