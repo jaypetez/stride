@@ -18,13 +18,25 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:watch": "turbo watch test",
+    "test:affected": "turbo run test --filter=...[origin/main]",
+    "coverage": "turbo run test -- --coverage",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "dev": "turbo run dev"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify": "node scripts/smoke.mjs",
+    "dev": "turbo run dev",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,json}": "biome check --write --no-errors-on-unmatched"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@types/node": "^26.1.1",
+    "@vitest/coverage-v8": "^4.1.10",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
     "tsup": "^8.5.1",
     "tsx": "^4.23.0",
     "turbo": "^2.10.4",

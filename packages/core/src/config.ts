@@ -28,6 +28,12 @@ export interface StrideConfig {
   /** Directory for the local store and OAuth token file. */
   dataDir: string;
   apiPort: number;
+  /**
+   * Optional fixed "now" (ISO-8601) sourced from STRIDE_NOW. When set, the apps
+   * thread it into the coach as the reference clock so demo `next`/`plan`
+   * outputs are byte-reproducible (essential for agentic diffing).
+   */
+  now?: string;
 }
 
 export const DEFAULT_MODELS: ModelConfig = {
@@ -59,7 +65,13 @@ export function loadConfig(env: Env = {}): StrideConfig {
     },
     dataDir: env.STRIDE_DATA_DIR ?? '.stride',
     apiPort: env.STRIDE_API_PORT ? Number(env.STRIDE_API_PORT) : 8720,
+    now: env.STRIDE_NOW,
   };
+}
+
+/** Resolve the reference clock (ISO): the fixed STRIDE_NOW if set, else real now. */
+export function resolveNowIso(config: StrideConfig): string {
+  return config.now ?? new Date().toISOString();
 }
 
 export function assertStravaConfigured(config: StrideConfig): void {

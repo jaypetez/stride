@@ -12,6 +12,7 @@ import {
   latestAcwr,
   latestPmc,
   rampRatePerWeek,
+  resolveNowIso,
   suggestNextWorkout,
   toDailyLoads,
 } from '@stride/core';
@@ -49,7 +50,11 @@ async function loadCtx(state: McpState, demo: boolean): Promise<Ctx> {
   return { profile, activities, goal };
 }
 
-const deps = (state: McpState) => ({ llm: state.llm, models: state.config.models });
+const deps = (state: McpState) => ({
+  llm: state.llm,
+  models: state.config.models,
+  nowIso: state.config.now ? () => resolveNowIso(state.config) : undefined,
+});
 
 export async function toolTrainingLoad(state: McpState, demo: boolean): Promise<ToolResult> {
   const { profile, activities } = await loadCtx(state, demo);
@@ -110,7 +115,7 @@ export async function toolNext(state: McpState, demo: boolean): Promise<ToolResu
     activities,
     profile,
     goal,
-    asOfDate: new Date().toISOString(),
+    asOfDate: resolveNowIso(state.config),
   });
   const workout = await suggestNextWorkout({ context, profile, deps: deps(state) });
   return { text: `${workout.title}: ${workout.rationale}`, data: workout };
@@ -128,7 +133,7 @@ export async function toolPlan(
     date: args.date ?? storedGoal?.date,
   });
   const weeks = args.weeks ?? 8;
-  const startDate = args.start ?? new Date().toISOString().slice(0, 10);
+  const startDate = args.start ?? resolveNowIso(state.config).slice(0, 10);
   const context = buildCoachContext({ activities, profile, goal });
   const { plan, validation } = await generatePlan({
     profile,

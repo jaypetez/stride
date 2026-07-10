@@ -7,6 +7,7 @@
 export * from './coach/index';
 export * from './config';
 export * from './fixtures';
+export * from './log';
 export * from './science/index';
 export * from './store/index';
 export * from './strava/index';

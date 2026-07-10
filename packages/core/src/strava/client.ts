@@ -1,8 +1,11 @@
 import type { Activity, ActivityStreams } from '@stride/schemas';
 import type { StravaConfig } from '../config';
+import { createLogger } from '../log';
 import { mapActivity, mapStreams } from './mapper';
 import { type FetchLike, refreshTokens } from './oauth';
 import type { RateLimitStatus, StravaTokens } from './types';
+
+const log = createLogger('strava');
 
 export class StravaRateLimitError extends Error {
   constructor(public readonly status: RateLimitStatus | undefined) {
@@ -108,7 +111,11 @@ export class StravaClient {
       headers: { Authorization: `Bearer ${this.tokens.accessToken}` },
     });
     this.updateRateLimit(res.headers);
-    if (res.status === 429) throw new StravaRateLimitError(this.rateLimit);
+    log.debug('strava request', { path, status: res.status, usage: this.rateLimit?.shortUsage });
+    if (res.status === 429) {
+      log.warn('strava rate limit hit (429)', { path, status: this.rateLimit });
+      throw new StravaRateLimitError(this.rateLimit);
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new StravaApiError(res.status, `Strava API ${path} failed (${res.status}): ${text}`);

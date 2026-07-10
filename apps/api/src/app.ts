@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { zValidator } from '@hono/zod-validator';
 import {
   analyzeWorkout,
@@ -5,6 +6,7 @@ import {
   buildCoachContext,
   buildPmcSeries,
   computeActivityMetrics,
+  createLogger,
   DEMO_PROFILE,
   demoActivity,
   demoHistory,
@@ -12,7 +14,10 @@ import {
   latestAcwr,
   latestPmc,
   rampRatePerWeek,
+  resolveNowIso,
   STRIDE_CORE_VERSION,
+  StravaApiError,
+  StravaRateLimitError,
   suggestNextWorkout,
   syncStrava,
   toDailyLoads,
@@ -23,6 +28,8 @@ import { cors } from 'hono/cors';
 import { z } from 'zod';
 import type { ApiState } from './state';
 
+const log = createLogger('api');
+
 const PlanBody = z.object({
   race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
   weeks: z.number().int().positive().max(52).optional(),
@@ -31,18 +38,40 @@ const PlanBody = z.object({
   demo: z.boolean().optional(),
 });
 
-const nowIso = () => new Date().toISOString();
-
 export function buildApp(state: ApiState) {
   const { store, llm, config } = state;
-  const deps = { llm, models: config.models };
+  const nowIso = () => resolveNowIso(config);
+  const deps = {
+    llm,
+    models: config.models,
+    nowIso: config.now ? () => resolveNowIso(config) : undefined,
+  };
 
   async function loadProfile(): Promise<AthleteProfile> {
     return (await store.loadProfile()) ?? AthleteProfile.parse({});
   }
 
-  const app = new Hono();
+  const app = new Hono<{ Variables: { requestId: string } }>();
   app.use('*', cors());
+  app.use('*', async (c, next) => {
+    const id = c.req.header('x-request-id') ?? randomUUID();
+    c.set('requestId', id);
+    c.header('x-request-id', id);
+    await next();
+  });
+
+  app.onError((err, c) => {
+    const requestId = c.get('requestId');
+    log.error('request failed', {
+      method: c.req.method,
+      path: c.req.path,
+      requestId,
+      err: String(err),
+    });
+    if (err instanceof StravaRateLimitError) return c.json({ error: err.message, requestId }, 429);
+    if (err instanceof StravaApiError) return c.json({ error: err.message, requestId }, 502);
+    return c.json({ error: err.message || 'Internal Server Error', requestId }, 500);
+  });
 
   app.get('/health', (c) => c.json({ status: 'ok', version: STRIDE_CORE_VERSION }));
 

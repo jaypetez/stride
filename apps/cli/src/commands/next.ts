@@ -11,10 +11,10 @@ import {
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
-import { getProfile, loadApp, todayIso } from '../app';
+import { coachDeps, getProfile, loadApp, todayIso } from '../app';
 import { dim, errorMsg, heading, printDisclaimer, printWorkout } from '../ui';
 
-export async function nextCommand(opts: { demo?: boolean }): Promise<void> {
+export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Promise<void> {
   const app = loadApp();
 
   let profile: AthleteProfile = DEMO_PROFILE;
@@ -34,7 +34,24 @@ export async function nextCommand(opts: { demo?: boolean }): Promise<void> {
     goal = (await app.store.loadGoal()) ?? undefined;
   }
 
-  const context = buildCoachContext({ activities, profile, goal, asOfDate: todayIso() });
+  const context = buildCoachContext({ activities, profile, goal, asOfDate: todayIso(app.config) });
+  const workout = await suggestNextWorkout({ context, profile, deps: coachDeps(app) });
+
+  if (opts.json) {
+    console.log(
+      JSON.stringify(
+        {
+          fitness: context.fitness,
+          acwr: context.acwr,
+          weeklyDistribution: context.weeklyDistribution,
+          workout,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
 
   heading('Current form');
   if (context.fitness) {
@@ -50,11 +67,6 @@ export async function nextCommand(opts: { demo?: boolean }): Promise<void> {
     );
   }
 
-  const workout = await suggestNextWorkout({
-    context,
-    profile,
-    deps: { llm: app.llm, models: app.config.models },
-  });
   printWorkout(workout);
   printDisclaimer();
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for an LLM-written rationale.)');

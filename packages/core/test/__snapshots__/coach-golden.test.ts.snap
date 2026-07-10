@@ -1,0 +1,106 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`coach golden snapshots (deterministic, offline) > analyzes a demo workout the same way every time 1`] = `
+{
+  "explanation": "This 45-minute run carried a training load of 54.9 TSS (via rtss). You averaged 6:05/km (grade-adjusted 5:51/km). At 140 bpm average, your efficiency factor was 1.2. Aerobic decoupling was 1.1%, indicating strong aerobic durability — pace held steady relative to heart rate. Intensity split: 100% easy / 0% moderate / 0% hard.",
+  "headline": "Demo Rolling-Hills Run · 7.4 km · 54.9 TSS · IF 0.855",
+}
+`;
+
+exports[`coach golden snapshots (deterministic, offline) > builds a stable periodized 10k plan 1`] = `
+[
+  {
+    "phase": "base",
+    "sessions": [
+      "easy",
+      "easy",
+      "easy",
+      "easy",
+      "long",
+    ],
+    "targetTss": 192,
+    "week": 1,
+  },
+  {
+    "phase": "base",
+    "sessions": [
+      "easy",
+      "easy",
+      "easy",
+      "easy",
+      "long",
+    ],
+    "targetTss": 198,
+    "week": 2,
+  },
+  {
+    "phase": "base",
+    "sessions": [
+      "easy",
+      "easy",
+      "easy",
+      "easy",
+      "long",
+    ],
+    "targetTss": 205,
+    "week": 3,
+  },
+  {
+    "phase": "recovery",
+    "sessions": [
+      "easy",
+      "easy",
+      "easy",
+      "long",
+    ],
+    "targetTss": 130,
+    "week": 4,
+  },
+  {
+    "phase": "build",
+    "sessions": [
+      "threshold",
+      "easy",
+      "easy",
+      "tempo",
+      "long",
+    ],
+    "targetTss": 254,
+    "week": 5,
+  },
+  {
+    "phase": "peak",
+    "sessions": [
+      "interval",
+      "easy",
+      "tempo",
+      "easy",
+      "long",
+    ],
+    "targetTss": 263,
+    "week": 6,
+  },
+  {
+    "phase": "taper",
+    "sessions": [
+      "threshold",
+      "easy",
+      "easy",
+      "easy",
+    ],
+    "targetTss": 112,
+    "week": 7,
+  },
+  {
+    "phase": "taper",
+    "sessions": [
+      "threshold",
+      "easy",
+      "easy",
+      "easy",
+    ],
+    "targetTss": 112,
+    "week": 8,
+  },
+]
+`;

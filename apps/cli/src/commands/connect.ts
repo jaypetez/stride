@@ -101,7 +101,7 @@ export async function connectCommand(): Promise<void> {
           : profile.name,
         sex: athlete.sex === 'M' ? 'male' : athlete.sex === 'F' ? 'female' : profile.sex,
         weightKg: athlete.weight ?? profile.weightKg,
-        updatedAt: todayIso(),
+        updatedAt: todayIso(app.config),
       }),
     );
   } catch {

@@ -9,6 +9,7 @@ import type {
   WorkoutSuggestion,
 } from '@stride/schemas';
 import { DEFAULT_MODELS, type ModelConfig } from '../config';
+import { createLogger } from '../log';
 import { computeActivityMetrics, formatPace } from '../science/index';
 import type { CoachLLM } from './anthropic';
 import { repairPlan, validatePlan } from './guardrail';
@@ -28,6 +29,8 @@ export interface CoachDeps {
   /** Injectable clock returning an ISO timestamp (for deterministic tests). */
   nowIso?: () => string;
 }
+
+const log = createLogger('coach');
 
 function models(deps?: CoachDeps): ModelConfig {
   return deps?.models ?? DEFAULT_MODELS;
@@ -107,8 +110,10 @@ export async function analyzeWorkout(params: {
         prompt: buildAnalyzePrompt(activity, metrics, context),
       });
       if (text) explanation = text;
-    } catch {
-      // Fall back to the deterministic explanation on any LLM error.
+    } catch (err) {
+      log.debug('LLM analysis enrichment failed; using deterministic explanation', {
+        err: String(err),
+      });
     }
   }
 
@@ -151,8 +156,10 @@ export async function suggestNextWorkout(params: {
         maxTokens: 400,
       });
       if (text) suggestion.rationale = text;
-    } catch {
-      // keep deterministic rationale
+    } catch (err) {
+      log.debug('LLM next-workout rationale failed; using deterministic rationale', {
+        err: String(err),
+      });
     }
   }
   return suggestion;
@@ -188,8 +195,8 @@ export async function generatePlan(params: {
         maxTokens: 500,
       });
       if (summary) plan = { ...plan, summary };
-    } catch {
-      // keep deterministic summary
+    } catch (err) {
+      log.debug('LLM plan summary failed; using deterministic summary', { err: String(err) });
     }
   }
 

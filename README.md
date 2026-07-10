@@ -61,16 +61,20 @@ packages/
 
 | Command | What it does |
 |---|---|
+| `pnpm check` | The gate: lint → typecheck → test → build (run before committing) |
+| `pnpm verify` | Runtime smoke: boots the API, drives the MCP stdio protocol, and runs the CLI — all offline |
 | `pnpm build` | Build all packages and apps (Turborepo) |
 | `pnpm typecheck` | Type-check the workspace |
 | `pnpm test` | Run unit/integration tests (Vitest) |
+| `pnpm coverage` | Test with V8 coverage |
 | `pnpm lint` | Biome lint + format check |
 | `pnpm format` | Auto-fix formatting |
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-Security issues: [SECURITY.md](SECURITY.md).
+Security issues: [SECURITY.md](SECURITY.md). **AI coding agents:** start with
+[AGENTS.md](AGENTS.md) — the machine-readable command manifest and conventions.
 
 ## Disclaimer
 
