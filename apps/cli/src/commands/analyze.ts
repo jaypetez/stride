@@ -7,7 +7,7 @@ import {
   demoHistory,
 } from '@stride/core';
 import { type Activity, RaceGoal, type RaceGoal as RaceGoalType } from '@stride/schemas';
-import { getProfile, loadApp, mostRecent } from '../app';
+import { coachDeps, getProfile, loadApp, mostRecent } from '../app';
 import {
   dim,
   errorMsg,
@@ -18,7 +18,11 @@ import {
   printMetrics,
 } from '../ui';
 
-export async function analyzeCommand(opts: { demo?: boolean; id?: string }): Promise<void> {
+export async function analyzeCommand(opts: {
+  demo?: boolean;
+  id?: string;
+  json?: boolean;
+}): Promise<void> {
   const app = loadApp();
 
   let activity: Activity | undefined;
@@ -47,15 +51,14 @@ export async function analyzeCommand(opts: { demo?: boolean; id?: string }): Pro
 
   const context = buildCoachContext({ activities, profile, goal, asOfDate: activity.startDate });
   const metrics = computeActivityMetrics(activity, profile);
+  const result = await analyzeWorkout({ activity, profile, context, deps: coachDeps(app) });
+
+  if (opts.json) {
+    console.log(JSON.stringify({ metrics, analysis: result }, null, 2));
+    return;
+  }
+
   printMetrics(activity, metrics);
-
-  const result = await analyzeWorkout({
-    activity,
-    profile,
-    context,
-    deps: { llm: app.llm, models: app.config.models },
-  });
-
   heading('Coach');
   console.log(`  ${result.explanation}`);
   printFlags(result.flags);

@@ -24,6 +24,7 @@ apps/web/dist/
 
 # Local Stride data (synced Strava data + OAuth tokens — NEVER commit)
 .stride/
+.stride-smoke/
 *.stride-token
 tokens.json
 

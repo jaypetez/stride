@@ -5,7 +5,7 @@ import {
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
-import { getProfile, loadApp, todayKey } from '../app';
+import { coachDeps, getProfile, loadApp, todayKey } from '../app';
 import { dim, errorMsg, printDisclaimer, printPlan, success } from '../ui';
 
 const RACE_CHOICES = ['5k', '10k', 'half', 'marathon'];
@@ -16,6 +16,7 @@ export async function planCommand(opts: {
   weeks?: string;
   start?: string;
   date?: string;
+  json?: boolean;
 }): Promise<void> {
   const app = loadApp();
 
@@ -43,7 +44,7 @@ export async function planCommand(opts: {
     date: opts.date ?? storedGoal?.date,
   });
   const weeks = opts.weeks ? Math.max(1, Math.min(52, Number(opts.weeks))) : 8;
-  const startDate = opts.start ?? todayKey();
+  const startDate = opts.start ?? todayKey(app.config);
 
   const context = buildCoachContext({ activities, profile, goal });
   const { plan, validation } = await generatePlan({
@@ -52,15 +53,20 @@ export async function planCommand(opts: {
     weeks,
     startDate,
     context,
-    deps: { llm: app.llm, models: app.config.models },
+    deps: coachDeps(app),
   });
 
   if (!opts.demo) {
     await app.store.savePlan(plan);
     await app.store.saveGoal(goal);
-    success(`Saved plan to ${app.store.dir}`);
   }
 
+  if (opts.json) {
+    console.log(JSON.stringify({ plan, validation }, null, 2));
+    return;
+  }
+
+  if (!opts.demo) success(`Saved plan to ${app.store.dir}`);
   printPlan(plan, validation);
   printDisclaimer();
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for an LLM-written plan overview.)');

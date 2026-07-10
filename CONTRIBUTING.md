@@ -30,18 +30,21 @@ cd stride
 pnpm install
 cp .env.example .env    # fill in your own Strava + Anthropic credentials
 
-pnpm build        # build all packages/apps
-pnpm typecheck    # type-check the workspace
+pnpm check        # the gate: lint -> typecheck -> test -> build (run before committing)
+pnpm verify       # runtime smoke: boots API + MCP + CLI, offline, and asserts
 pnpm test         # run unit/integration tests
 pnpm lint         # Biome lint + format check
 pnpm format       # auto-fix formatting
 ```
 
-Run the CLI in dev without a build:
+A Husky pre-commit hook runs the gate automatically. Run the CLI in dev without a build:
 
 ```bash
 pnpm --filter @stride/cli dev -- analyze --demo
 ```
+
+> AI coding agents: [AGENTS.md](AGENTS.md) is the machine-readable command
+> manifest, conventions, and gotchas — read it first.
 
 ## Repository layout
 

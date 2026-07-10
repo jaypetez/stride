@@ -44,5 +44,11 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Coverage
+        run: pnpm coverage
+
       - name: Build
         run: pnpm build
+
+      - name: Verify (runtime smoke)
+        run: pnpm verify

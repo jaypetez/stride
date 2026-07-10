@@ -1,8 +1,10 @@
 import {
+  type CoachDeps,
   type CoachLLM,
   createCoachLLM,
   LocalStore,
   loadConfig,
+  resolveNowIso,
   type StrideConfig,
 } from '@stride/core';
 import { type Activity, AthleteProfile } from '@stride/schemas';
@@ -31,10 +33,20 @@ export function mostRecent(activities: Activity[]): Activity | undefined {
   return [...activities].sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
 }
 
-export function todayIso(): string {
-  return new Date().toISOString();
+/** Reference clock (ISO). Fixed via STRIDE_NOW when set, else real now. */
+export function todayIso(config: StrideConfig): string {
+  return resolveNowIso(config);
 }
 
-export function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+export function todayKey(config: StrideConfig): string {
+  return resolveNowIso(config).slice(0, 10);
+}
+
+/** Coach dependencies, including a fixed clock when STRIDE_NOW is set. */
+export function coachDeps(app: App): CoachDeps {
+  return {
+    llm: app.llm,
+    models: app.config.models,
+    nowIso: app.config.now ? () => resolveNowIso(app.config) : undefined,
+  };
 }
