@@ -12,7 +12,7 @@ import { DEFAULT_MODELS, type ModelConfig } from '../config';
 import { createLogger } from '../log';
 import { computeActivityMetrics, formatPace } from '../science/index';
 import type { CoachLLM } from './anthropic';
-import { repairPlan, validatePlan } from './guardrail';
+import { type PlanGuardrailContext, repairPlan, validatePlan } from './guardrail';
 import { buildPlanSkeleton, makeSession, proposeNextWorkout } from './planner';
 import {
   buildAnalyzePrompt,
@@ -179,10 +179,16 @@ export async function generatePlan(params: {
   const planId = `plan-${startDate}-${weeks}w`;
 
   let plan = buildPlanSkeleton({ profile, goal, weeks, startDate, planId, createdAt });
-  let validation = validatePlan(plan);
+  // GOAL §7 ramp cap uses CTL when we know current fitness; else cold-start TSS.
+  const guardrailCtx: PlanGuardrailContext = {
+    seedCtl: context?.fitness?.ctl,
+    seedAtl: context?.fitness?.atl,
+    experienceLevel: profile.experienceLevel,
+  };
+  let validation = validatePlan(plan, guardrailCtx);
   if (!validation.valid) {
-    plan = repairPlan(plan).plan;
-    validation = validatePlan(plan);
+    plan = repairPlan(plan, guardrailCtx).plan;
+    validation = { ...validatePlan(plan, guardrailCtx), repaired: true };
   }
 
   const llm = deps?.llm;
