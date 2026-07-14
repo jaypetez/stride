@@ -1,12 +1,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { LocalStore } from '@stride/core';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeCommand } from '../src/commands/analyze';
 import { doctorCommand } from '../src/commands/doctor';
 import { nextCommand } from '../src/commands/next';
 import { planCommand } from '../src/commands/plan';
-import { profileCommand } from '../src/commands/profile';
+import { disconnectCommand, profileCommand } from '../src/commands/profile';
 
 // Every command calls loadApp() -> loadConfig(process.env). We point the data
 // dir at a throwaway tmp path and pin the clock via STRIDE_NOW so demo output is
@@ -29,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 afterAll(() => {
@@ -99,5 +101,35 @@ describe('profileCommand', () => {
   it('prints the athlete profile without throwing', async () => {
     await expect(profileCommand()).resolves.toBeUndefined();
     expect(output()).toContain('Athlete profile');
+  });
+});
+
+describe('disconnectCommand', () => {
+  it('attempts to revoke on Strava, then still deletes local tokens when the revoke fails offline', async () => {
+    const store = new LocalStore(process.env.STRIDE_DATA_DIR as string);
+    await store.saveTokens({ accessToken: 'tok-xyz', refreshToken: 'r', expiresAt: 123 });
+
+    // Simulate an offline environment: the deauthorize call cannot reach Strava.
+    const fetchMock = vi.fn(async (_url: string) => {
+      throw new Error('getaddrinfo ENOTFOUND www.strava.com');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(disconnectCommand({})).resolves.toBeUndefined();
+
+    // The revoke was attempted (best-effort) against the OAuth endpoint...
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://www.strava.com/oauth/deauthorize');
+    // ...and local tokens were still removed despite the failure.
+    expect(await store.loadTokens()).toBeNull();
+    expect(output()).toContain('Could not revoke access on Strava');
+  });
+
+  it('does not attempt a revoke when there is no local token', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(disconnectCommand({})).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
