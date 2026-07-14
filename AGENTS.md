@@ -35,10 +35,10 @@ Prefer `pnpm check` + `pnpm verify` as the two commands that gate a change.
 
 ## Running each surface offline (no credentials)
 
-- **CLI:** `pnpm --filter @stride/cli dev -- analyze --demo` (also `next --demo`, `plan --demo --race 10k --weeks 8`, `doctor`). Add `--json` for machine-readable output.
+- **CLI:** `pnpm --filter @stride/cli dev -- analyze --demo` (also `next --demo`, `plan --demo --race 10k --weeks 8`, `profile`, `doctor`). Add `--json` for machine-readable output, `--note "<text>"` to pass free-text the safety layer screens for red flags, and (live) `sync --rebuild|--backfill|--reconcile`.
 - **API:** `pnpm --filter @stride/api dev` → `http://localhost:8720`; hit `/health`, `/analyze/demo`, `/next?demo=true`, `/pmc?demo=true`, `POST /plan {"demo":true}`.
 - **Web:** `pnpm --filter @stride/web dev` → `http://localhost:5173` (defaults to demo mode; proxies `/api` to the API — start the API too for live data).
-- **MCP:** `pnpm --filter @stride/mcp dev` — speaks MCP over **stdio**; call tools with `{ "demo": true }`. Logs go to **stderr** (stdout is the protocol channel).
+- **MCP:** `pnpm --filter @stride/mcp dev` — speaks MCP over **stdio**; exposes **8 tools** (5 read-only fact tools + 3 action tools) shared with `packages/core/src/coach/tools.ts`; call them with `{ "demo": true }`. Logs go to **stderr** (stdout is the protocol channel).
 - **`stride doctor`** prints tooling, configured credentials, and exactly what runs offline vs needs creds.
 
 ## Determinism & observability (use these to debug in a loop)

@@ -19,6 +19,7 @@ import net from 'node:net';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { scrubbedEnv } from './child-env.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NOW = '2026-07-09T00:00:00Z';
@@ -49,12 +50,7 @@ function assert(cond, name, detail) {
  * reproducible the moment a key is present.
  */
 export function childEnv(extraEnv = {}) {
-  const env = { ...process.env, STRIDE_NOW: NOW, STRIDE_DATA_DIR: DATA_DIR, ...extraEnv };
-  delete env.ANTHROPIC_API_KEY;
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('STRAVA_')) delete env[key];
-  }
-  return env;
+  return scrubbedEnv(process.env, { STRIDE_NOW: NOW, STRIDE_DATA_DIR: DATA_DIR }, extraEnv);
 }
 
 function spawnTs(entry, args = [], extraEnv = {}) {
