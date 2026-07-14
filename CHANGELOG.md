@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-14
+
+A correctness, safety, and infrastructure overhaul. Per-package details are in
+each package's `CHANGELOG.md`.
+
+### Added
+
+- **Durable training-load persistence**: a `daily-loads.json` series that is the
+  PMC/ACWR source of truth and survives the 7-day raw Strava cache expiry, with
+  incremental/backfill/rebuild sync modes, a watermark + resumable cursor, and
+  deletion reconciliation.
+- **Rate-limit-aware Strava client**: proactive window throttling, `Retry-After`
+  429 backoff, and graceful degradation to partial results.
+- **Modernized Claude coach**: structured-output plan proposals materialized into
+  code-computed numbers, prompt caching, streaming, adaptive thinking/effort per
+  model tier, a shared read-only tool set (reused by the MCP server, now 8 tools),
+  a tool runner, and usage/`request_id` auditability.
+- **Enforced safety layer**: a disclaimer on every coach output, red-flag halting
+  (analyze/next/plan), a `--note` free-text channel, and PAR-Q screening.
+- **OSS/CI**: OS×Node CI matrix, CodeQL, OpenSSF Scorecard, dependency review,
+  DCO + commitlint, Changesets release automation, governance files, an
+  architecture doc, ADRs, per-package READMEs, and worked `examples/`.
+
+### Changed
+
+- CTL-based plan ramp cap with repair-or-reject guardrail semantics.
+- Atomic, lock-guarded local store writes; `~`/`$HOME` expansion for the data dir.
+- Web dashboard consumes the API via the typed Hono `hc` client.
+
+### Fixed
+
+- ACWR cold-start false `very_high` flags; PMC projected to the reference day;
+  treadmill pace excluded from rTSS/VDOT; plus 10 bugs surfaced by an adversarial
+  bug-hunt sweep (durable-series data loss on truncated rebuild/incremental sync,
+  `Infinity` pace from `cross_training`, and others).
+
 ## [0.1.0] - 2026-07-14
 
 ### Added
@@ -34,5 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jaypetez/stride/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaypetez/stride/releases/tag/v0.1.0

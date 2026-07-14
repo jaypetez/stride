@@ -1,6 +1,6 @@
 {
   "name": "stride",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Your Strava agentic coach — a local-first, open-source AI running coach.",
