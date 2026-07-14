@@ -69,17 +69,24 @@ export function computeZones(profile: AthleteProfile): Zones {
   return zones;
 }
 
-/** Seconds spent in each HR zone (keyed by zone number) from a HR stream. */
+/**
+ * Seconds spent in each HR zone (keyed by zone number) from a HR stream. When a
+ * `moving` stream is supplied, non-moving samples are skipped so stops don't
+ * inflate the zone seconds (unchanged when it's absent).
+ */
 export function timeInHrZones(
   hr: number[],
   time: number[] | undefined,
   zones: HrZone[],
+  moving?: boolean[],
 ): Record<string, number> {
   const times = time && time.length === hr.length ? time : hr.map((_, i) => i);
   const dts = timeDeltas(times);
+  const hasMoving = !!moving && moving.length === hr.length;
   const out: Record<string, number> = {};
   for (const z of zones) out[String(z.zone)] = 0;
   for (let i = 0; i < hr.length; i++) {
+    if (hasMoving && !moving[i]) continue;
     const bpm = hr[i];
     const zone = zones.find((z) => bpm >= z.minBpm && bpm < z.maxBpm) ?? zones[zones.length - 1];
     if (zone) out[String(zone.zone)] += dts[i];
@@ -108,7 +115,11 @@ export function activityZoneSeconds(
     const dts = timeDeltas(
       s.time && s.time.length === s.heartrate.length ? s.time : s.heartrate.map((_, i) => i),
     );
-    for (let i = 0; i < s.heartrate.length; i++) acc[bucket(s.heartrate[i] / lthr)] += dts[i];
+    const moving = s.moving && s.moving.length === s.heartrate.length ? s.moving : undefined;
+    for (let i = 0; i < s.heartrate.length; i++) {
+      if (moving && !moving[i]) continue;
+      acc[bucket(s.heartrate[i] / lthr)] += dts[i];
+    }
     return acc;
   }
   if (threshold && s) {
@@ -117,7 +128,9 @@ export function activityZoneSeconds(
       const times = s.time && s.time.length === speeds.length ? s.time : speeds.map((_, i) => i);
       const grades = deriveGradeStream(s, speeds.length);
       const dts = timeDeltas(times);
+      const moving = s.moving && s.moving.length === speeds.length ? s.moving : undefined;
       for (let i = 0; i < speeds.length; i++) {
+        if (moving && !moving[i]) continue;
         const gap = speeds[i] * gradeAdjustFactor(grades[i] ?? 0);
         acc[bucket(gap / threshold)] += dts[i];
       }

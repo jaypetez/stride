@@ -206,8 +206,12 @@ async function runSync(
   // durable entry is current before its raw data expires.
   const recomputed = toDailyLoads(retained, profile);
   const retentionCutoff = toDateKey(new Date(nowMs - RETENTION_DAYS * MS_PER_DAY).toISOString());
-  if (mode === 'rebuild') {
-    // Rebuild replaces the durable series wholesale from the re-downloaded raw.
+  if (mode === 'rebuild' && fetch.reachedEnd && !fetch.rateLimited) {
+    // Rebuild replaces the durable series wholesale from the re-downloaded raw —
+    // but ONLY when the fetch actually COMPLETED. A rebuild truncated by a rate
+    // limit (or page budget) has re-downloaded just the newest slice, so a
+    // wholesale replace would wipe months of older durable history. In that case
+    // fall through to the safe merge below, which preserves existing days.
     const durable = recomputed
       .map((d) =>
         d.date < retentionCutoff && d.activityIds.length > 0 ? { ...d, activityIds: [] } : d,
@@ -243,15 +247,20 @@ async function runSync(
   }
 
   // (7) Persist the watermark / backfill state.
+  const truncated = rateLimited && !fetch.reachedEnd;
   const nextState = SyncState.parse({
     ...state,
-    lastSyncedAt: fetchedAt,
+    // A truncated incremental fetch left a gap between the prior watermark and
+    // now. Advancing `lastSyncedAt` to `fetchedAt` would orphan those activities
+    // (the next `after` cursor would skip past them), so keep the PRIOR
+    // watermark on truncation and re-fetch the gap next run.
+    lastSyncedAt: mode === 'incremental' && truncated ? state.lastSyncedAt : fetchedAt,
     athleteId: tokens.athleteId ?? state.athleteId,
     lastReconcileAt: doReconcile ? fetchedAt : state.lastReconcileAt,
   });
   if (mode === 'incremental') {
     // Incremental doesn't change backfill progress.
-  } else if (rateLimited && !fetch.reachedEnd) {
+  } else if (truncated) {
     // Backfill/rebuild truncated by a rate limit: stay incomplete and record a
     // resume cursor (oldest fetched start) so the next run continues older.
     nextState.backfillComplete = false;

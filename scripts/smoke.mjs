@@ -41,10 +41,26 @@ function assert(cond, name, detail) {
   else fail(name, detail ?? 'assertion failed');
 }
 
+/**
+ * Build the child env for a spawned surface. Scrubs live-credential vars
+ * (`ANTHROPIC_API_KEY`, any `STRAVA_*`) so demo/verify runs ALWAYS take the
+ * deterministic, offline no-LLM / no-network branch — even on a developer/CI
+ * machine that has those set. Without this, `pnpm verify` stops being
+ * reproducible the moment a key is present.
+ */
+export function childEnv(extraEnv = {}) {
+  const env = { ...process.env, STRIDE_NOW: NOW, STRIDE_DATA_DIR: DATA_DIR, ...extraEnv };
+  delete env.ANTHROPIC_API_KEY;
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('STRAVA_')) delete env[key];
+  }
+  return env;
+}
+
 function spawnTs(entry, args = [], extraEnv = {}) {
   const child = spawn(process.execPath, ['--import', 'tsx', entry, ...args], {
     cwd: root,
-    env: { ...process.env, STRIDE_NOW: NOW, STRIDE_DATA_DIR: DATA_DIR, ...extraEnv },
+    env: childEnv(extraEnv),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   children.push(child);
@@ -334,8 +350,12 @@ async function main() {
   process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  cleanup();
-  process.exit(1);
-});
+// Only run the harness when invoked directly (`node scripts/smoke.mjs`), not
+// when imported (e.g. by a unit test exercising `childEnv`).
+if (process.argv[1]?.endsWith('smoke.mjs')) {
+  main().catch((err) => {
+    console.error(err);
+    cleanup();
+    process.exit(1);
+  });
+}

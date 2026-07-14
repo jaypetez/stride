@@ -90,6 +90,43 @@ describe('guardrail — CTL ramp cap (GOAL §7)', () => {
   });
 });
 
+describe('guardrail — back-to-back-hard downgrade uses the athlete anchor', () => {
+  // A fast athlete whose real threshold (4.0 m/s) is far from the 3.0 default.
+  const FAST = 4.0;
+  const bad = plan([
+    week(1, 'build', [
+      rest(1),
+      [2, makeSession('threshold', 50, FAST)],
+      [3, makeSession('interval', 50, FAST)], // hard on consecutive days
+      rest(4),
+      [5, makeSession('easy', 40, FAST)],
+      [6, makeSession('easy', 40, FAST)],
+      rest(7),
+    ]),
+  ]);
+
+  it('paces the downgraded easy day off the recovered threshold, not the 3.0 default', () => {
+    const repaired = repairPlan(bad);
+    const day3 = repaired.plan.weeks[0].days.find((d) => d.day === 3);
+    expect(day3?.sessions[0].type).toBe('easy');
+
+    // Pace/distance if computed from the athlete's real 4.0 m/s anchor (the
+    // threshold is recovered from the session's rounded pace, so distance is
+    // within rounding of the exact-anchor value).
+    const anchored = makeSession('easy', 50, FAST);
+    const buggyDefault = makeSession('easy', 50, 3.0);
+    expect(day3?.sessions[0].targetPaceSecPerKm).toBe(anchored.targetPaceSecPerKm);
+    expect(
+      Math.abs((day3?.sessions[0].targetDistanceM ?? 0) - (anchored.targetDistanceM ?? 0)),
+    ).toBeLessThan((anchored.targetDistanceM ?? 0) * 0.01);
+    // Sanity: the (buggy) 3.0-default pace/distance would have been clearly off.
+    expect(day3?.sessions[0].targetPaceSecPerKm).not.toBe(buggyDefault.targetPaceSecPerKm);
+    expect(day3?.sessions[0].targetDistanceM ?? 0).toBeGreaterThan(
+      buggyDefault.targetDistanceM ?? 0,
+    );
+  });
+});
+
 describe('guardrail — weekly rest minimum', () => {
   const noRest = plan([
     week(1, 'base', [

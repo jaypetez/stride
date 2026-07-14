@@ -4,6 +4,7 @@ import type {
   AthleteProfile,
   CoachContext,
   NextWorkoutResult,
+  PlanDay,
   PlanResult,
   PlanValidation,
   RaceGoal,
@@ -13,7 +14,7 @@ import type {
 import { LlmPlanProposal } from '@stride/schemas';
 import { DEFAULT_MODELS, type ModelConfig } from '../config';
 import { createLogger } from '../log';
-import { computeActivityMetrics, formatPace } from '../science/index';
+import { addDays, computeActivityMetrics, formatPace, toDateKey } from '../science/index';
 import type { CoachLLM } from './anthropic';
 import { type PlanGuardrailContext, repairPlan, validatePlan } from './guardrail';
 import { buildPlanSkeleton, makeSession, materializeProposal, proposeNextWorkout } from './planner';
@@ -272,6 +273,45 @@ export async function generatePlan(params: {
     tsb: context?.fitness?.tsb,
     acwrFlag: context?.acwr?.flag,
   });
+
+  // Safety halt: a STOP flag (e.g. chest pain) must NOT yield a training plan.
+  // Return a safe, all-rest single week whose summary carries the referral
+  // message — consistent with `analyzeWorkout`/`suggestNextWorkout`. The model
+  // is never consulted on a halt.
+  if (shouldHalt(flags)) {
+    const start = toDateKey(startDate);
+    const stopMessage =
+      flags.find((f) => f.severity === 'stop')?.message ??
+      'Stop exercising and consult a medical professional before continuing.';
+    const days: PlanDay[] = Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(start, i);
+      return { day: i + 1, date, sessions: [makeSession('rest', 0, 3.0, { date })] };
+    });
+    const safePlan: TrainingPlan = {
+      id: planId,
+      createdAt,
+      goal,
+      startDate: start,
+      endDate: addDays(start, 6),
+      summary: stopMessage,
+      weeks: [
+        {
+          weekNumber: 1,
+          phase: 'recovery',
+          focus: 'Rest and seek medical guidance before resuming training.',
+          targetTss: 0,
+          targetDistanceKm: 0,
+          days,
+        },
+      ],
+    };
+    return {
+      plan: safePlan,
+      validation: { valid: true, violations: [], repaired: false },
+      disclaimer: DISCLAIMER,
+      flags: flags.map((f) => f.message),
+    };
+  }
 
   const skeleton = () =>
     runGuardrail(

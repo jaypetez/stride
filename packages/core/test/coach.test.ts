@@ -75,6 +75,25 @@ describe('plan generation + guardrail', () => {
     expect(plan.weeks[plan.weeks.length - 1].phase).toBe('taper');
   });
 
+  it('halts on a STOP red flag instead of returning a training plan', async () => {
+    const { plan, validation, flags } = await generatePlan({
+      profile: DEMO_PROFILE,
+      goal: { distance: '10k', name: '10k' },
+      weeks: 8,
+      startDate: '2026-07-13',
+      note: 'I had chest pain and got dizzy on the run',
+      deps: { nowIso: () => '2026-07-09T00:00:00Z' },
+    });
+    // A single all-rest week — never a real prescription for someone reporting
+    // chest pain — with the referral message as the summary.
+    expect(plan.weeks).toHaveLength(1);
+    const sessions = plan.weeks[0].days.flatMap((d) => d.sessions);
+    expect(sessions.every((s) => s.type === 'rest')).toBe(true);
+    expect(plan.summary).toMatch(/medical professional/i);
+    expect(flags.some((f) => /medical professional/i.test(f))).toBe(true);
+    expect(validation.valid).toBe(true);
+  });
+
   it('flags and repairs back-to-back hard days', () => {
     const bad: TrainingPlan = {
       id: 'bad',

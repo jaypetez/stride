@@ -77,7 +77,7 @@ export async function planCommand(opts: {
   }
 
   if (opts.json) {
-    console.log(JSON.stringify({ plan, validation }, null, 2));
+    console.log(JSON.stringify({ plan, validation, disclaimer, flags }, null, 2));
     return;
   }
 

@@ -105,7 +105,13 @@ export function makeSession(
   const speed = thresholdSpeedMps * it.paceIf;
   const durationSec = Math.round(durationMin * 60);
   const tss = Number((it.overallIf * it.overallIf * (durationMin / 60) * 100).toFixed(0));
-  const distanceM = Math.round(speed * durationSec);
+  // A non-rest type with `paceIf === 0` (e.g. cross_training) — or a degenerate
+  // zero/negative threshold — has no meaningful running pace. Omit the pace
+  // field entirely (never emit Infinity/NaN, which JSON-serializes to null and
+  // then fails schema re-parse) and give it a pace-independent distance of 0.
+  const paceSecPerKm = speed > 0 ? Math.round(mpsToSecPerKm(speed)) : undefined;
+  const hasPace = paceSecPerKm !== undefined && Number.isFinite(paceSecPerKm);
+  const distanceM = hasPace ? Math.round(speed * durationSec) : 0;
   return {
     type,
     label: it.label,
@@ -114,11 +120,24 @@ export function makeSession(
     date: opts.date,
     targetDistanceM: distanceM,
     targetDurationSec: durationSec,
-    targetPaceSecPerKm: Math.round(mpsToSecPerKm(speed)),
+    ...(hasPace ? { targetPaceSecPerKm: paceSecPerKm } : {}),
     targetHrZone: it.hrZone,
     targetTss: tss,
     rationale: opts.rationale ?? defaultRationale(type),
   };
+}
+
+/**
+ * Recover the athlete's threshold speed (m/s) from a session's own target pace,
+ * inverting the `paceIf` scaling `makeSession` applied. Falls back to the
+ * conservative default when the session carries no usable pace. Used to keep
+ * every derived number computed in code when re-deriving a session.
+ */
+export function thresholdFromSession(session: WorkoutSuggestion): number {
+  const it = INTENSITY[session.type];
+  return session.targetPaceSecPerKm && it.paceIf > 0
+    ? 1000 / session.targetPaceSecPerKm / it.paceIf
+    : DEFAULT_THRESHOLD_MPS;
 }
 
 /**
@@ -130,11 +149,7 @@ export function makeSession(
  */
 export function rescaleSession(session: WorkoutSuggestion, durationMin: number): WorkoutSuggestion {
   if (session.type === 'rest') return session;
-  const it = INTENSITY[session.type];
-  const threshold =
-    session.targetPaceSecPerKm && it.paceIf > 0
-      ? 1000 / session.targetPaceSecPerKm / it.paceIf
-      : DEFAULT_THRESHOLD_MPS;
+  const threshold = thresholdFromSession(session);
   return makeSession(session.type, durationMin, threshold, {
     date: session.date,
     rationale: session.rationale,

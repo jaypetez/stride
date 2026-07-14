@@ -397,6 +397,66 @@ describe('syncStrava — migration seed (existing user upgrade)', () => {
   });
 });
 
+describe('syncStrava — truncated rebuild preserves durable history', () => {
+  it('does NOT wholesale-replace the durable series when the rebuild fetch is rate-limited', async () => {
+    const store = await seededStore();
+    const T0 = Date.parse('2026-07-02T00:00:00Z');
+    // 210 runs, one per day → 210 durable daily-load days after a full backfill.
+    const raw = history(Date.parse('2026-07-01T06:00:00Z'), 210, 1);
+    const { fetchImpl } = mockStrava({ raw });
+
+    await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T0 });
+    const before = await store.loadDailyLoads();
+    expect(before.length).toBe(210);
+    const oldest = before[0].date;
+
+    // Rebuild, but page 2+ persistently rate-limits: only the newest 200 come
+    // back (reachedEnd=false, rateLimited=true) — a truncated rebuild.
+    const failing = mockStrava({ raw, failPageAfter: 1, retryAfter: '1' });
+    const r = await syncStrava({
+      ...baseParams(store, failing.fetchImpl),
+      nowMs: T0,
+      rebuild: true,
+    });
+    expect(r.mode).toBe('rebuild');
+    expect(r.fetched).toBe(200); // truncated to page 1
+
+    const after = await store.loadDailyLoads();
+    // The bug wholesale-replaced with only the 200 fetched days, wiping the 10
+    // oldest. The fix falls back to the safe merge, so all 210 days survive.
+    expect(after.length).toBe(210);
+    expect(after.find((d) => d.date === oldest)).toBeDefined();
+  });
+});
+
+describe('syncStrava — truncated incremental keeps the watermark', () => {
+  it('does NOT advance lastSyncedAt when the incremental fetch is rate-limit-truncated', async () => {
+    const store = await seededStore();
+    const T0 = Date.parse('2026-07-08T00:00:00Z');
+    // History ends 2 days before T0 (nothing inside the 24h overlap window).
+    const raw = history(Date.parse('2026-07-06T06:00:00Z'), 6, 2);
+    const healthy = mockStrava({ raw });
+
+    await syncStrava({ ...baseParams(store, healthy.fetchImpl), nowMs: T0 }); // backfill completes
+    const priorWatermark = (await store.loadSyncState())?.lastSyncedAt;
+    expect(priorWatermark).toBeDefined();
+
+    // A later incremental sync immediately rate-limits (page 1 429s): 0 fetched,
+    // rateLimited=true, reachedEnd=false — a truncated incremental.
+    const failing = mockStrava({ raw, failPageAfter: 0, retryAfter: '1' });
+    const T1 = T0 + 3_600_000;
+    const r = await syncStrava({ ...baseParams(store, failing.fetchImpl), nowMs: T1 });
+    expect(r.mode).toBe('incremental');
+    expect(r.fetched).toBe(0);
+
+    // The bug advanced the watermark to T1, orphaning any activity that landed
+    // in the gap. The fix keeps the prior watermark so the next run re-fetches.
+    const after = await store.loadSyncState();
+    expect(after?.lastSyncedAt).toBe(priorWatermark);
+    expect(after?.lastSyncedAt).not.toBe(new Date(T1).toISOString());
+  });
+});
+
 describe('syncStrava — rebuild', () => {
   it('re-downloads and replaces the durable series wholesale', async () => {
     const store = await seededStore();
