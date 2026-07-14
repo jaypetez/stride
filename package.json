@@ -23,7 +23,7 @@
     "coverage": "turbo run test -- --coverage",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify",
     "verify": "node scripts/smoke.mjs",
     "dev": "turbo run dev",
     "prepare": "husky"
@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
-    "@types/node": "^26.1.1",
+    "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.10",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",

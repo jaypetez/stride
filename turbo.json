@@ -6,13 +6,10 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    "typecheck": {
-      "dependsOn": ["^build"]
-    },
+    "typecheck": {},
     "test": {
-      "dependsOn": ["^build"]
+      "outputs": ["coverage/**"]
     },
-    "lint": {},
     "dev": {
       "cache": false,
       "persistent": true
