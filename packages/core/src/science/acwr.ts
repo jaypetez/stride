@@ -2,7 +2,10 @@ import type { AcwrFlag, AcwrPoint, DailyLoad } from '@stride/schemas';
 import { eachDay } from './dates';
 import { mean } from './util';
 
-function flagFor(acwr: number): AcwrFlag {
+function flagFor(acwr: number, chronic: number): AcwrFlag {
+  // Below a real training base the ratio divides by ~0 and is unreliable —
+  // don't raise an injury flag (e.g. a hard session after a long layoff).
+  if (chronic < 1) return 'ok';
   if (acwr < 0.8) return 'low';
   if (acwr <= 1.3) return 'ok';
   if (acwr <= 1.5) return 'high';
@@ -67,7 +70,7 @@ export function buildAcwrSeries(dailyLoads: DailyLoad[], options: AcwrOptions = 
       acuteLoad: Number(acute.toFixed(2)),
       chronicLoad: Number(chronic.toFixed(2)),
       // ACWR needs ~4 weeks to be meaningful; don't cry wolf before then.
-      flag: dayIndex < warmupDays ? 'ok' : flagFor(acwr),
+      flag: dayIndex < warmupDays ? 'ok' : flagFor(acwr, chronic),
     });
     dayIndex++;
   }
