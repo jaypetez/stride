@@ -1,4 +1,4 @@
-import { type Activity, AthleteProfile, type DailyLoad, SyncState } from '@stride/schemas';
+import { type Activity, AthleteProfile, SyncState } from '@stride/schemas';
 import { assertStravaConfigured, type StrideConfig } from './config';
 import { toDateKey } from './science/dates';
 import { type EstimatedAnchors, estimateAnchors } from './science/index';
@@ -206,10 +206,9 @@ async function runSync(
   // durable entry is current before its raw data expires.
   const recomputed = toDailyLoads(retained, profile);
   const retentionCutoff = toDateKey(new Date(nowMs - RETENTION_DAYS * MS_PER_DAY).toISOString());
-  let durable: DailyLoad[];
   if (mode === 'rebuild') {
     // Rebuild replaces the durable series wholesale from the re-downloaded raw.
-    durable = recomputed
+    const durable = recomputed
       .map((d) =>
         d.date < retentionCutoff && d.activityIds.length > 0 ? { ...d, activityIds: [] } : d,
       )
@@ -218,7 +217,7 @@ async function runSync(
   } else {
     // Deleted dates are authoritative: if a reconciled day has no remaining
     // load, drop its stale durable entry instead of preserving phantom TSS.
-    durable = await store.upsertDailyLoads(
+    await store.upsertDailyLoads(
       recomputed,
       retentionCutoff,
       deletedDates.size > 0 ? deletedDates : undefined,

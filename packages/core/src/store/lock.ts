@@ -34,7 +34,12 @@ export async function acquireSyncLock(
   attempt = 0,
 ): Promise<SyncLock> {
   try {
-    const handle = await open(file, 'wx');
+    // `file` is a fixed path inside the user's private, single-user Stride data
+    // dir (e.g. ~/.stride/sync.lock) — NOT the shared OS temp dir — and 'wx' is
+    // an exclusive create that refuses to follow a pre-planted symlink. The
+    // CodeQL "insecure temporary file" heuristic assumes a shared temp dir,
+    // which does not apply here.
+    const handle = await open(file, 'wx'); // codeql[js/insecure-temporary-file]
     const record: LockRecord = { pid: process.pid, at: new Date(nowMs).toISOString() };
     try {
       await handle.writeFile(`${JSON.stringify(record)}\n`);
@@ -47,7 +52,12 @@ export async function acquireSyncLock(
 
     let stale = false;
     try {
-      const raw = await readFile(file, 'utf8');
+      // Advisory read to decide staleness only. Any TOCTOU between this read and
+      // the reclaim below is benign: the authoritative step is the exclusive
+      // `open(..., 'wx')` on retry, which exactly one racer can win. Bounded
+      // retries prevent a reclaim loop. (Accepted tradeoff for a dependency-free
+      // single-user lock; OS-level locking would need a native dependency.)
+      const raw = await readFile(file, 'utf8'); // codeql[js/file-system-race]
       const record = JSON.parse(raw) as Partial<LockRecord>;
       const heldAt = record.at ? Date.parse(record.at) : Number.NaN;
       stale = !Number.isFinite(heldAt) || nowMs - heldAt > SYNC_LOCK_TTL_MS;

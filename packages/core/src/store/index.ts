@@ -81,8 +81,14 @@ export class LocalStore {
       const tmp = this.file(`.${name}.${process.pid}.${randomUUID()}.tmp`);
       const json = `${JSON.stringify(data, null, 2)}\n`;
       try {
-        // Create with restrictive mode up front where requested.
-        await writeFile(tmp, json, mode !== undefined ? { encoding: 'utf8', mode } : 'utf8');
+        // Exclusive create ('wx') — the random name can't collide, and 'wx'
+        // refuses to follow a pre-planted symlink at the temp path. Restrictive
+        // mode is applied up front so sensitive files are never briefly loose.
+        await writeFile(tmp, json, {
+          encoding: 'utf8',
+          flag: 'wx',
+          ...(mode !== undefined ? { mode } : {}),
+        });
         if (mode !== undefined) {
           // Belt-and-suspenders: umask can loosen the create mode; force it.
           await chmod(tmp, mode).catch(() => {

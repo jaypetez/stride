@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Single source of truth for versions shared across workspace packages.
+# Reference from a package.json with "zod": "catalog:" etc.
+catalog:
+  zod: "^4.4.3"
+  dotenv: "^17.4.2"
