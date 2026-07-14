@@ -38,18 +38,21 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
   const { activities, profile, goal } = params;
   const sorted = [...activities].sort((a, b) => a.startDate.localeCompare(b.startDate));
 
-  const dailies = toDailyLoads(activities, profile);
-  const pmc = buildPmcSeries(dailies);
-  const acwrSeries = buildAcwrSeries(dailies);
-  const fitness = latestPmc(pmc);
-  const acwr = latestAcwr(acwrSeries);
-  const ramp = rampRatePerWeek(pmc, 2);
-
   const latestDate = sorted.length
     ? toDateKey(sorted[sorted.length - 1].startDateLocal ?? sorted[sorted.length - 1].startDate)
     : toDateKey(params.asOfDate ?? new Date().toISOString());
   const asOf = params.asOfDate ? toDateKey(params.asOfDate) : latestDate;
   const weekStart = addDays(asOf, -6);
+
+  // Project the fitness/fatigue series forward to the reference day so that,
+  // after rest days, ATL has decayed and TSB has risen (fatigue is not frozen
+  // at the last activity date). `throughDate` is a no-op when asOf <= latest.
+  const dailies = toDailyLoads(activities, profile);
+  const pmc = buildPmcSeries(dailies, { throughDate: asOf });
+  const acwrSeries = buildAcwrSeries(dailies, { throughDate: asOf });
+  const fitness = latestPmc(pmc);
+  const acwr = latestAcwr(acwrSeries);
+  const ramp = rampRatePerWeek(pmc, 2);
 
   const last7 = activities.filter((a) => {
     const d = toDateKey(a.startDateLocal ?? a.startDate);
