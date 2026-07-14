@@ -1,18 +1,9 @@
-/** Small pure formatting helpers (kept local so the web bundle stays browser-only). */
-
-export function formatPace(secPerKm: number | undefined): string {
-  if (!secPerKm || !Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return `${s === 60 ? m + 1 : m}:${String(s === 60 ? 0 : s).padStart(2, '0')}/km`;
-}
-
-export function formatDuration(sec: number | undefined): string {
-  if (!sec) return '—';
-  const m = Math.round(sec / 60);
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
-}
+// Pace and duration are computed and formatted in one place — `@stride/core` — so
+// every surface renders them identically (compute-in-code, format-in-one-place).
+// Import via the pure `/science` subpath so the browser bundle never pulls core's
+// node-only code (store, Strava client, Anthropic SDK). Only genuinely web-only
+// formatters live here.
+export { formatDuration, formatPace } from '@stride/core/science';
 
 export function formatKm(meters: number | undefined): string {
   if (meters === undefined) return '—';

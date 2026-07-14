@@ -27,6 +27,7 @@ export async function analyzeCommand(opts: {
   demo?: boolean;
   id?: string;
   json?: boolean;
+  note?: string;
 }): Promise<void> {
   const app = loadApp();
 
@@ -64,18 +65,25 @@ export async function analyzeCommand(opts: {
     dailyLoads,
   });
   const metrics = computeActivityMetrics(activity, profile);
-  const result = await analyzeWorkout({ activity, profile, context, deps: coachDeps(app) });
+  const result = await analyzeWorkout({
+    activity,
+    profile,
+    context,
+    note: opts.note,
+    deps: coachDeps(app),
+  });
 
   if (opts.json) {
     console.log(JSON.stringify({ metrics, analysis: result }, null, 2));
     return;
   }
 
+  // Safety flags (esp. a STOP) go first so they can't be missed.
+  printFlags(result.flags);
   printMetrics(activity, metrics);
   heading('Coach');
   console.log(`  ${result.explanation}`);
-  printFlags(result.flags);
   printAttribution(activity);
-  printDisclaimer();
+  printDisclaimer(result.disclaimer);
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for richer, LLM-written analysis.)');
 }

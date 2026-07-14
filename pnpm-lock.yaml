@@ -122,12 +122,21 @@ importers:
 
   apps/web:
     dependencies:
+      '@stride/api':
+        specifier: workspace:*
+        version: link:../api
+      '@stride/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@stride/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
+      hono:
+        specifier: ^4.12.28
+        version: 4.12.28
       react:
         specifier: ^19.2.7
         version: 19.2.7

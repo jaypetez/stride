@@ -1,71 +1,31 @@
-import type {
-  Activity,
-  ActivityMetrics,
-  AcwrPoint,
-  AnalysisResult,
-  AthleteProfile,
-  PlanValidation,
-  PmcPoint,
-  TrainingPlan,
-  WorkoutSuggestion,
-  ZoneDistribution,
-} from '@stride/schemas';
+import type { AppType } from '@stride/api';
+import { hc, parseResponse } from 'hono/client';
 
-const BASE = import.meta.env.VITE_API_BASE ?? '/api';
+// Consume the API through Hono's typed `hc` RPC client (GOAL §6): request and
+// response types flow straight from the API's exported `AppType`, so there are no
+// hand-maintained response interfaces to drift. `parseResponse` returns the typed
+// success body and throws a structured error on any non-2xx (which React Query
+// surfaces as `isError`). Demo mode is the default; the base defaults to `/api`,
+// which Vite proxies to the API in dev (see vite.config.ts).
+const base = import.meta.env.VITE_API_BASE ?? '/api';
+const client = hc<AppType>(base);
 
-async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
-  if (!res.ok) throw new Error(`GET ${path} failed (${res.status})`);
-  return (await res.json()) as T;
-}
+export type RaceOption = '5k' | '10k' | 'half' | 'marathon';
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`POST ${path} failed (${res.status})`);
-  return (await res.json()) as T;
-}
-
-export interface PmcResponse {
-  pmc: PmcPoint[];
-  acwr: AcwrPoint[];
-  latest: PmcPoint | null;
-  latestAcwr: AcwrPoint | null;
-  rampRatePerWeek: number;
-}
-
-export interface AnalyzeResponse {
-  metrics: ActivityMetrics;
-  analysis: AnalysisResult;
-}
-
-export interface NextResponse {
-  context: {
-    fitness?: PmcPoint;
-    acwr?: AcwrPoint;
-    weeklyDistribution?: ZoneDistribution;
-    weeklyVolumeKm?: number;
-  };
-  workout: WorkoutSuggestion;
-}
-
-export interface PlanResponse {
-  plan: TrainingPlan;
-  validation: PlanValidation;
-}
-
-const q = (demo: boolean) => (demo ? '?demo=true' : '');
+const demoQuery = (demo: boolean) => (demo ? { demo: 'true' } : {});
 
 export const api = {
-  health: () => getJson<{ status: string; version: string }>('/health'),
-  profile: () => getJson<AthleteProfile>('/profile'),
-  pmc: (demo: boolean) => getJson<PmcResponse>(`/pmc${q(demo)}`),
-  activities: (demo: boolean) => getJson<Activity[]>(`/activities${q(demo)}`),
-  analyze: (id: string) => getJson<AnalyzeResponse>(`/analyze/${id}`),
-  next: (demo: boolean) => getJson<NextResponse>(`/next${q(demo)}`),
-  plan: (body: { race?: string; weeks?: number; start?: string; date?: string; demo?: boolean }) =>
-    postJson<PlanResponse>('/plan', body),
+  health: () => parseResponse(client.health.$get()),
+  profile: () => parseResponse(client.profile.$get()),
+  pmc: (demo: boolean) => parseResponse(client.pmc.$get({ query: demoQuery(demo) })),
+  activities: (demo: boolean) => parseResponse(client.activities.$get({ query: demoQuery(demo) })),
+  analyze: (id: string) => parseResponse(client.analyze[':id'].$get({ param: { id }, query: {} })),
+  next: (demo: boolean) => parseResponse(client.next.$get({ query: demoQuery(demo) })),
+  plan: (body: {
+    race?: RaceOption;
+    weeks?: number;
+    start?: string;
+    date?: string;
+    demo?: boolean;
+  }) => parseResponse(client.plan.$post({ json: body })),
 };

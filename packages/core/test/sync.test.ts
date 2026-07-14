@@ -38,6 +38,7 @@ function cfg(): StrideConfig {
     models: DEFAULT_MODELS,
     dataDir: '.unused',
     apiPort: 8720,
+    webOrigin: 'http://localhost:5173',
   };
 }
 

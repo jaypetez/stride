@@ -32,6 +32,12 @@ export interface StrideConfig {
   dataDir: string;
   apiPort: number;
   /**
+   * Allowed browser origin for the HTTP API's CORS policy. The API serves the
+   * user's own Strava data, so it must NOT be world-readable (`*`); it is locked
+   * to the web UI's origin. Sourced from STRIDE_WEB_ORIGIN.
+   */
+  webOrigin: string;
+  /**
    * Optional fixed "now" (ISO-8601) sourced from STRIDE_NOW. When set, the apps
    * thread it into the coach as the reference clock so demo `next`/`plan`
    * outputs are byte-reproducible (essential for agentic diffing).
@@ -48,6 +54,7 @@ export const DEFAULT_MODELS: ModelConfig = {
 export const DEFAULT_STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 export const DEFAULT_REDIRECT_URI = 'http://localhost:8721/callback';
 export const DEFAULT_SCOPES = 'read,activity:read_all,profile:read_all';
+export const DEFAULT_WEB_ORIGIN = 'http://localhost:5173';
 
 type Env = Record<string, string | undefined>;
 
@@ -90,6 +97,7 @@ export function loadConfig(env: Env = {}): StrideConfig {
     },
     dataDir: expandHome(env.STRIDE_DATA_DIR ?? '.stride'),
     apiPort: env.STRIDE_API_PORT ? Number(env.STRIDE_API_PORT) : 8720,
+    webOrigin: env.STRIDE_WEB_ORIGIN ?? DEFAULT_WEB_ORIGIN,
     now: env.STRIDE_NOW,
   };
 }

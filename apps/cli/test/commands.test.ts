@@ -70,6 +70,14 @@ describe('analyzeCommand', () => {
     expect(out.metrics.tss).toBeGreaterThan(0);
     expect(out.analysis.headline).toContain('TSS');
   });
+
+  it('surfaces a STOP flag and the disclaimer for a --note red flag', async () => {
+    await analyzeCommand({ demo: true, json: true, note: 'sharp chest pain and dizziness' });
+    const out = lastJson();
+    expect(out.analysis.flags.some((f: string) => /stop exercising/i.test(f))).toBe(true);
+    expect(typeof out.analysis.disclaimer).toBe('string');
+    expect(out.analysis.disclaimer.length).toBeGreaterThan(0);
+  });
 });
 
 describe('nextCommand', () => {
@@ -79,6 +87,16 @@ describe('nextCommand', () => {
     expect(out.workout.type).toBeDefined();
     expect(out.fitness).toBeDefined();
   });
+
+  it('surfaces a STOP flag and the disclaimer for a --note red flag', async () => {
+    await nextCommand({ demo: true, json: true, note: 'chest pain during my run' });
+    const out = lastJson();
+    expect(out.workout.flags.some((f: string) => /stop exercising/i.test(f))).toBe(true);
+    expect(typeof out.workout.disclaimer).toBe('string');
+    expect(out.workout.disclaimer.length).toBeGreaterThan(0);
+    // A STOP halts to rest — the model is never called.
+    expect(out.workout.type).toBe('rest');
+  });
 });
 
 describe('planCommand', () => {
@@ -87,6 +105,14 @@ describe('planCommand', () => {
     const out = lastJson();
     expect(out.plan.weeks).toHaveLength(6);
     expect(out.validation.valid).toBe(true);
+  });
+
+  it('rejects a non-numeric --weeks instead of producing a NaN-week plan', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await planCommand({ demo: true, weeks: 'abc', json: true });
+    // No plan JSON was emitted (the command bailed cleanly before generating).
+    expect(() => lastJson()).toThrow();
+    expect(errSpy.mock.calls.flat().join(' ')).toMatch(/--weeks/);
   });
 });
 
