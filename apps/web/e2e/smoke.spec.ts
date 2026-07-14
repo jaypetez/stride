@@ -14,5 +14,7 @@ test('shows the required Strava attribution', async ({ page }) => {
   const attribution = page.getByRole('link', { name: 'Powered by Strava' });
   await expect(attribution).toBeVisible();
   await expect(attribution).toHaveText('Powered by Strava');
-  await expect(attribution).toHaveAttribute('href', /strava\.com/);
+  // Anchored so it can only match the strava.com host itself, never a lookalike
+  // like strava.com.evil.example (js/regex/missing-regexp-anchor).
+  await expect(attribution).toHaveAttribute('href', /^https:\/\/(www\.)?strava\.com\/?$/);
 });
