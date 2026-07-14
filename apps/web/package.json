@@ -14,8 +14,11 @@
     "lint": "biome check ."
   },
   "dependencies": {
+    "@stride/api": "workspace:*",
+    "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
+    "hono": "^4.12.28",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

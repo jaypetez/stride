@@ -7,7 +7,7 @@ import {
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
 import { coachDeps, getProfile, loadApp, todayKey } from '../app';
-import { dim, errorMsg, printDisclaimer, printPlan, success } from '../ui';
+import { dim, errorMsg, printDisclaimer, printFlags, printPlan, success } from '../ui';
 
 const RACE_CHOICES = ['5k', '10k', 'half', 'marathon'];
 
@@ -18,6 +18,7 @@ export async function planCommand(opts: {
   start?: string;
   date?: string;
   json?: boolean;
+  note?: string;
 }): Promise<void> {
   const app = loadApp();
 
@@ -46,16 +47,27 @@ export async function planCommand(opts: {
     name: storedGoal?.name ?? distance,
     date: opts.date ?? storedGoal?.date,
   });
-  const weeks = opts.weeks ? Math.max(1, Math.min(52, Number(opts.weeks))) : 8;
+  // Guard the numeric --weeks input against NaN (e.g. `--weeks abc`) before it
+  // reaches the plan engine; clamp valid values to the supported 1–52 range.
+  let weeks = 8;
+  if (opts.weeks !== undefined) {
+    const n = Number(opts.weeks);
+    if (!Number.isFinite(n)) {
+      errorMsg(`Invalid --weeks "${opts.weeks}"; expected a number between 1 and 52.`);
+      return;
+    }
+    weeks = Math.max(1, Math.min(52, Math.round(n)));
+  }
   const startDate = opts.start ?? todayKey(app.config);
 
   const context = buildCoachContext({ activities, profile, goal, dailyLoads });
-  const { plan, validation } = await generatePlan({
+  const { plan, validation, disclaimer, flags } = await generatePlan({
     profile,
     goal,
     weeks,
     startDate,
     context,
+    note: opts.note,
     deps: coachDeps(app),
   });
 
@@ -70,7 +82,9 @@ export async function planCommand(opts: {
   }
 
   if (!opts.demo) success(`Saved plan to ${app.store.dir}`);
+  // Safety flags (esp. a STOP) go first so they can't be missed.
+  printFlags(flags);
   printPlan(plan, validation);
-  printDisclaimer();
+  printDisclaimer(disclaimer);
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for an LLM-written plan overview.)');
 }

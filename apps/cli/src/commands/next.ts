@@ -13,9 +13,13 @@ import {
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
 import { coachDeps, getProfile, loadApp, todayIso } from '../app';
-import { dim, errorMsg, heading, printDisclaimer, printWorkout } from '../ui';
+import { dim, errorMsg, heading, printDisclaimer, printFlags, printWorkout } from '../ui';
 
-export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Promise<void> {
+export async function nextCommand(opts: {
+  demo?: boolean;
+  json?: boolean;
+  note?: string;
+}): Promise<void> {
   const app = loadApp();
 
   let profile: AthleteProfile = DEMO_PROFILE;
@@ -46,7 +50,12 @@ export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Pro
     asOfDate: todayIso(app.config),
     dailyLoads,
   });
-  const workout = await suggestNextWorkout({ context, profile, deps: coachDeps(app) });
+  const workout = await suggestNextWorkout({
+    context,
+    profile,
+    note: opts.note,
+    deps: coachDeps(app),
+  });
 
   if (opts.json) {
     console.log(
@@ -64,6 +73,9 @@ export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Pro
     return;
   }
 
+  // Safety flags (esp. a STOP) go first so they can't be missed.
+  printFlags(workout.flags);
+
   heading('Current form');
   if (context.fitness) {
     console.log(
@@ -79,6 +91,6 @@ export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Pro
   }
 
   printWorkout(workout);
-  printDisclaimer();
+  printDisclaimer(workout.disclaimer);
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for an LLM-written rationale.)');
 }

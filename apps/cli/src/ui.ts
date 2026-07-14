@@ -1,4 +1,4 @@
-import { DISCLAIMER, formatPace } from '@stride/core';
+import { formatPace } from '@stride/core';
 import type {
   Activity,
   ActivityMetrics,
@@ -102,10 +102,30 @@ export function printPlan(plan: TrainingPlan, validation: PlanValidation): void 
   }
 }
 
+/**
+ * A STOP-level safety message (from the deterministic keyword rules) reads like
+ * "…Stop exercising and seek advice from a medical professional…". We surface it
+ * as a loud, red, blocking banner rather than a routine warning.
+ */
+function isStopFlag(flag: string): boolean {
+  return /stop exercising|seek advice from a medical professional|seek medical advice/i.test(flag);
+}
+
+/**
+ * Print coach safety flags. A STOP flag is shown FIRST and prominently (red,
+ * bold) so it can't be missed; remaining flags render as warnings.
+ */
 export function printFlags(flags: string[]): void {
   if (flags.length === 0) return;
+  const stops = flags.filter(isStopFlag);
+  const rest = flags.filter((f) => !isStopFlag(f));
   console.log('');
-  for (const f of flags) warn(f);
+  for (const f of stops) console.error(pc.bold(pc.red(`⛔ STOP — ${f}`)));
+  for (const f of rest) warn(f);
+}
+
+export function printDisclaimer(disclaimer: string): void {
+  console.log(pc.dim(`\n  ${disclaimer}`));
 }
 
 export function printAttribution(activity: Activity): void {
@@ -113,8 +133,4 @@ export function printAttribution(activity: Activity): void {
     console.log(pc.dim(`\n  View on Strava: https://www.strava.com/activities/${activity.id}`));
     console.log(pc.dim('  Powered by Strava'));
   }
-}
-
-export function printDisclaimer(): void {
-  console.log(pc.dim(`\n  ${DISCLAIMER}`));
 }

@@ -119,12 +119,24 @@ export function interpolate(x: number, table: ReadonlyArray<readonly [number, nu
   return last[1];
 }
 
-/** Format seconds-per-km as m:ss/km. */
-export function formatPace(secPerKm: number): string {
-  if (!Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
+/** Format seconds-per-km as m:ss/km. Returns an em dash for missing/invalid input. */
+export function formatPace(secPerKm: number | undefined): string {
+  if (secPerKm === undefined || !Number.isFinite(secPerKm) || secPerKm <= 0) return '—';
   const m = Math.floor(secPerKm / 60);
   const s = Math.round(secPerKm % 60);
   const ss = s === 60 ? '00' : String(s).padStart(2, '0');
   const mm = s === 60 ? m + 1 : m;
   return `${mm}:${ss}/km`;
+}
+
+/**
+ * Format a duration in seconds as a compact "N min" / "HhMM" string. Returns an
+ * em dash for missing/non-positive input. Shared by the surfaces so pace and
+ * duration render identically everywhere (compute-in-code, format-in-one-place).
+ */
+export function formatDuration(sec: number | undefined): string {
+  if (sec === undefined || !Number.isFinite(sec) || sec <= 0) return '—';
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }

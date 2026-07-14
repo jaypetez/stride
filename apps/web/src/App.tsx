@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api } from './api';
+import { api, type RaceOption } from './api';
 import { PmcChart } from './components/PmcChart';
+import { PoweredByStrava } from './components/PoweredByStrava';
 import { formatDuration, formatKm, formatPace } from './format';
 
 type Mode = 'demo' | 'live';
@@ -50,8 +51,8 @@ export function App() {
       </main>
 
       <footer className="footer">
-        <span>
-          Stride is not affiliated with Strava. <strong>Powered by Strava.</strong>
+        <span className="footer-attribution">
+          Stride is not affiliated with Strava. <PoweredByStrava />
         </span>
         <span className="muted">
           Informational and educational purposes only — not medical advice.
@@ -215,7 +216,7 @@ function ActivitiesCard({ demo }: { demo: boolean }) {
 }
 
 function PlanCard({ demo }: { demo: boolean }) {
-  const [race, setRace] = useState('10k');
+  const [race, setRace] = useState<RaceOption>('10k');
   const [weeks, setWeeks] = useState(8);
   const mutation = useMutation({ mutationFn: () => api.plan({ demo, race, weeks }) });
 
@@ -225,7 +226,7 @@ function PlanCard({ demo }: { demo: boolean }) {
       <div className="plan-form">
         <label>
           Race
-          <select value={race} onChange={(e) => setRace(e.target.value)}>
+          <select value={race} onChange={(e) => setRace(e.target.value as RaceOption)}>
             <option value="5k">5k</option>
             <option value="10k">10k</option>
             <option value="half">Half</option>

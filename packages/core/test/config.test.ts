@@ -49,4 +49,11 @@ describe('loadConfig', () => {
   it('defaults dataDir to .stride (relative, unexpanded)', () => {
     expect(loadConfig({}).dataDir).toBe('.stride');
   });
+
+  it('defaults webOrigin to the web UI origin and honors STRIDE_WEB_ORIGIN', () => {
+    expect(loadConfig({}).webOrigin).toBe('http://localhost:5173');
+    expect(loadConfig({ STRIDE_WEB_ORIGIN: 'https://stride.example' }).webOrigin).toBe(
+      'https://stride.example',
+    );
+  });
 });

@@ -77,9 +77,10 @@ program
   .description('Analyze a workout (most recent by default)')
   .argument('[id]', 'activity id to analyze')
   .option('--demo', 'use bundled demo data (no credentials needed)')
+  .option('--note <text>', 'how you feel (screened for safety red flags, e.g. "chest pain")')
   .option('--json', 'output machine-readable JSON')
   .action(
-    run((id: string | undefined, opts: { demo?: boolean; json?: boolean }) =>
+    run((id: string | undefined, opts: { demo?: boolean; json?: boolean; note?: string }) =>
       analyzeCommand({ ...opts, id }),
     ),
   );
@@ -88,8 +89,9 @@ program
   .command('next')
   .description('Suggest your next workout based on current form')
   .option('--demo', 'use bundled demo data (no credentials needed)')
+  .option('--note <text>', 'how you feel (screened for safety red flags, e.g. "chest pain")')
   .option('--json', 'output machine-readable JSON')
-  .action(run((opts: { demo?: boolean; json?: boolean }) => nextCommand(opts)));
+  .action(run((opts: { demo?: boolean; json?: boolean; note?: string }) => nextCommand(opts)));
 
 program
   .command('plan')
@@ -99,6 +101,7 @@ program
   .option('--weeks <n>', 'plan length in weeks (default 8)')
   .option('--start <date>', 'plan start date (YYYY-MM-DD)')
   .option('--date <date>', 'goal race date (YYYY-MM-DD)')
+  .option('--note <text>', 'how you feel (screened for safety red flags, e.g. "chest pain")')
   .option('--json', 'output machine-readable JSON')
   .action(
     run(
@@ -109,6 +112,7 @@ program
         start?: string;
         date?: string;
         json?: boolean;
+        note?: string;
       }) => planCommand(opts),
     ),
   );
@@ -121,7 +125,9 @@ program
 program
   .command('profile')
   .description('Show your athlete profile and anchors')
-  .action(run(profileCommand));
+  .option('--json', 'output machine-readable JSON')
+  .option('--screen', 'run the PAR-Q readiness screening (interactive terminal only)')
+  .action(run((opts: { json?: boolean; screen?: boolean }) => profileCommand(opts)));
 
 program
   .command('disconnect')
