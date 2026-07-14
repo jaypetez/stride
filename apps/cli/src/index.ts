@@ -57,7 +57,20 @@ program
   .description('Import your Strava activities into the local store')
   .option('--pages <n>', 'number of activity pages to fetch (200/page)')
   .option('--full', 'fetch streams for more recent activities')
-  .action(run((opts: { pages?: string; full?: boolean }) => syncCommand(opts)));
+  .option('--rebuild', 'force a full re-download and rebuild of the training-load history')
+  .option('--backfill', 'force a history backfill (older activities), ignoring the watermark')
+  .option('--reconcile', 'remove locally stored activities that were deleted on Strava')
+  .action(
+    run(
+      (opts: {
+        pages?: string;
+        full?: boolean;
+        rebuild?: boolean;
+        backfill?: boolean;
+        reconcile?: boolean;
+      }) => syncCommand(opts),
+    ),
+  );
 
 program
   .command('analyze')

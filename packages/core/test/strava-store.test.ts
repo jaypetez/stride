@@ -83,12 +83,14 @@ describe('StravaClient', () => {
     expect(client.getRateLimitStatus()?.shortUsage).toBe(10);
   });
 
-  it('throws StravaRateLimitError on HTTP 429', async () => {
+  it('throws StravaRateLimitError on persistent HTTP 429 (after bounded retries)', async () => {
     const client = new StravaClient({
       config,
       tokens: { accessToken: 'a', refreshToken: 'r', expiresAt: 9_999_999_999 },
       fetchImpl: async () => jsonResponse({ message: 'Rate Limit Exceeded' }, 429),
       now: () => 1000,
+      // No-op sleep so the bounded retry loop runs instantly (no real waiting).
+      sleep: async () => {},
     });
     await expect(client.getActivitiesPage()).rejects.toBeInstanceOf(StravaRateLimitError);
   });

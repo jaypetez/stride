@@ -2,6 +2,7 @@ import { buildCoachContext, DEMO_PROFILE, demoHistory, generatePlan } from '@str
 import {
   type Activity,
   type AthleteProfile,
+  type DailyLoad,
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
@@ -23,6 +24,7 @@ export async function planCommand(opts: {
   let profile: AthleteProfile = DEMO_PROFILE;
   let activities: Activity[];
   let storedGoal: RaceGoalType | null = null;
+  let dailyLoads: DailyLoad[] | undefined;
 
   if (opts.demo) {
     activities = demoHistory();
@@ -30,6 +32,7 @@ export async function planCommand(opts: {
     profile = await getProfile(app.store);
     activities = await app.store.loadActivities();
     storedGoal = await app.store.loadGoal();
+    dailyLoads = await app.store.loadDailyLoads();
   }
 
   const distance = opts.race ?? storedGoal?.distance ?? '10k';
@@ -46,7 +49,7 @@ export async function planCommand(opts: {
   const weeks = opts.weeks ? Math.max(1, Math.min(52, Number(opts.weeks))) : 8;
   const startDate = opts.start ?? todayKey(app.config);
 
-  const context = buildCoachContext({ activities, profile, goal });
+  const context = buildCoachContext({ activities, profile, goal, dailyLoads });
   const { plan, validation } = await generatePlan({
     profile,
     goal,

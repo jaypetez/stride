@@ -63,7 +63,19 @@ export const ActivityMetrics = z.object({
 });
 export type ActivityMetrics = z.infer<typeof ActivityMetrics>;
 
-/** One day of aggregated training load — the single source of truth downstream. */
+/**
+ * One day of aggregated training load — the single source of truth downstream
+ * (GOAL.md §7). This per-day aggregate is a *derived scientific metric* (like
+ * CTL/ATL themselves), not a reproduction of Strava content: it carries no GPS,
+ * streams, titles, or per-activity detail. It therefore persists durably even
+ * though raw Strava activities expire at 7 days (GOAL.md §4).
+ *
+ * Compliance-conservative refinement: `activityIds` is retained only while a day
+ * is still backed by retained raw activities (< 7 days). Once a day "freezes"
+ * past the retention window its `activityIds` are zeroed (see
+ * `LocalStore.upsertDailyLoads`), so we never keep a durable pointer to Strava
+ * data we are no longer permitted to cache. The scalar aggregate stays.
+ */
 export const DailyLoad = z.object({
   /** YYYY-MM-DD (local). */
   date: z.string(),

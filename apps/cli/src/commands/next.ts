@@ -8,6 +8,7 @@ import {
 import {
   type Activity,
   type AthleteProfile,
+  type DailyLoad,
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
@@ -20,6 +21,7 @@ export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Pro
   let profile: AthleteProfile = DEMO_PROFILE;
   let activities: Activity[];
   let goal: RaceGoalType | undefined;
+  let dailyLoads: DailyLoad[] | undefined;
 
   if (opts.demo) {
     activities = [...demoHistory(), demoActivity()];
@@ -27,14 +29,23 @@ export async function nextCommand(opts: { demo?: boolean; json?: boolean }): Pro
   } else {
     profile = await getProfile(app.store);
     activities = await app.store.loadActivities();
-    if (activities.length === 0) {
+    dailyLoads = await app.store.loadDailyLoads();
+    // The durable daily-load series can still drive a suggestion after the raw
+    // 7-day cache has expired, so only bail when we have neither.
+    if (activities.length === 0 && dailyLoads.length === 0) {
       errorMsg('No activities stored. Run `stride sync` first, or try `stride next --demo`.');
       return;
     }
     goal = (await app.store.loadGoal()) ?? undefined;
   }
 
-  const context = buildCoachContext({ activities, profile, goal, asOfDate: todayIso(app.config) });
+  const context = buildCoachContext({
+    activities,
+    profile,
+    goal,
+    asOfDate: todayIso(app.config),
+    dailyLoads,
+  });
   const workout = await suggestNextWorkout({ context, profile, deps: coachDeps(app) });
 
   if (opts.json) {

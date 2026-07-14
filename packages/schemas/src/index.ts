@@ -11,5 +11,6 @@ export * from './athlete';
 export * from './coach';
 export * from './enums';
 export * from './metrics';
+export * from './sync';
 
 export const STRIDE_SCHEMAS_VERSION = '0.1.0';
