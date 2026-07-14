@@ -2,6 +2,7 @@ import type {
   AthleteProfile,
   CoachContext,
   IntensityLabel,
+  LlmPlanProposal,
   PlanDay,
   PlanPhase,
   PlanWeek,
@@ -364,6 +365,91 @@ export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     startDate: start,
     endDate: addDays(start, weeks * 7 - 1),
     summary: `A ${weeks}-week ${goal.name ?? goal.distance} plan: base → build → peak → taper, with a recovery week every 4th week.`,
+    weeks: planWeeks,
+  };
+}
+
+/** Deterministic per-type session durations (minutes). The LLM never sets these. */
+const BASE_DURATION_MIN: Record<WorkoutType, number> = {
+  easy: 45,
+  long: 80,
+  recovery: 30,
+  tempo: 40,
+  threshold: 50,
+  interval: 50,
+  repetition: 30,
+  race: 30,
+  rest: 0,
+  cross_training: 40,
+};
+
+function durationForType(type: WorkoutType, phase: PlanPhase): number {
+  if (type === 'long') return phase === 'taper' ? 50 : phase === 'base' ? 70 : 90;
+  return BASE_DURATION_MIN[type];
+}
+
+/**
+ * Materialize an LLM STRUCTURAL proposal (Option A) into a real plan. The model
+ * supplies only structure (phase per week; per day a workout type + rationale);
+ * every number — duration, pace, HR zone, load, distance — is computed here via
+ * `makeSession` from the athlete's anchors, so compute-in-code stays inviolable.
+ * The result is handed to the guardrail (validate → repair → re-validate); an
+ * unusable/empty proposal returns an empty-week plan the caller rejects.
+ */
+export function materializeProposal(
+  proposal: LlmPlanProposal,
+  params: PlanSkeletonParams,
+): TrainingPlan {
+  const { profile, goal, weeks, planId, createdAt } = params;
+  const threshold = thresholdOf(profile);
+  const start = toDateKey(params.startDate);
+
+  const planWeeks: PlanWeek[] = [];
+  const sortedWeeks = [...proposal.weeks].sort((a, b) => a.weekNumber - b.weekNumber);
+  for (const w of sortedWeeks) {
+    if (w.weekNumber < 1 || w.weekNumber > weeks) continue; // clamp to the requested range
+    const phase = w.phase;
+    const days: PlanDay[] = [...w.days]
+      .filter((d) => d.dayOfWeek >= 1 && d.dayOfWeek <= 7)
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+      .map((d) => {
+        const date = addDays(start, (w.weekNumber - 1) * 7 + (d.dayOfWeek - 1));
+        const session = makeSession(
+          d.workoutType,
+          durationForType(d.workoutType, phase),
+          threshold,
+          { date, rationale: d.rationale },
+        );
+        return { day: d.dayOfWeek, date, sessions: [session] };
+      });
+
+    const weekTss = days.reduce(
+      (sum, d) => sum + d.sessions.reduce((s, x) => s + (x.targetTss ?? 0), 0),
+      0,
+    );
+    const weekDistanceKm =
+      days.reduce(
+        (sum, d) => sum + d.sessions.reduce((s, x) => s + (x.targetDistanceM ?? 0), 0),
+        0,
+      ) / 1000;
+
+    planWeeks.push({
+      weekNumber: w.weekNumber,
+      phase,
+      focus: FOCUS[phase],
+      targetTss: Number(weekTss.toFixed(0)),
+      targetDistanceKm: Number(weekDistanceKm.toFixed(1)),
+      days,
+    });
+  }
+
+  return {
+    id: planId,
+    createdAt,
+    goal,
+    startDate: start,
+    endDate: addDays(start, weeks * 7 - 1),
+    summary: `A ${weeks}-week ${goal.name ?? goal.distance} plan proposed by the coach and materialized from your anchors.`,
     weeks: planWeeks,
   };
 }

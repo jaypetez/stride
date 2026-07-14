@@ -4,6 +4,8 @@ export * from './anthropic';
 export * from './coach';
 export * from './context';
 export * from './guardrail';
+export * from './llm-log';
 export * from './planner';
 export * from './prompts';
 export * from './safety';
+export * from './tools';

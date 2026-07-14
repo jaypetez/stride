@@ -86,12 +86,46 @@ export const TrainingPlan = z.object({
 });
 export type TrainingPlan = z.infer<typeof TrainingPlan>;
 
-/** Output of analyzing one workout. */
+/**
+ * A STRUCTURAL plan proposal from the LLM (Option A). The model chooses the
+ * shape of the block — the phase per week, and per day a workout type, a short
+ * emphasis, and a rationale — but NEVER any numbers. Deterministic code
+ * materializes each proposed session into a real `WorkoutSuggestion` via
+ * `makeSession`, so every load/pace/distance still comes from the athlete's
+ * anchors. This schema is passed to structured outputs (`messages.parse` +
+ * `zodOutputFormat`); the compute-in-code rule is preserved by construction.
+ */
+export const LlmPlanDay = z.object({
+  /** 1 = Monday … 7 = Sunday. */
+  dayOfWeek: z.number().int().min(1).max(7),
+  workoutType: WorkoutType,
+  /** A short physiological emphasis for the day (e.g. "aerobic base"). */
+  emphasis: z.string(),
+  /** The "why" for this session — surfaced by the Explainer behavior. */
+  rationale: z.string(),
+});
+export type LlmPlanDay = z.infer<typeof LlmPlanDay>;
+
+export const LlmPlanWeek = z.object({
+  weekNumber: z.number().int().positive(),
+  phase: PlanPhase,
+  days: z.array(LlmPlanDay),
+});
+export type LlmPlanWeek = z.infer<typeof LlmPlanWeek>;
+
+export const LlmPlanProposal = z.object({
+  weeks: z.array(LlmPlanWeek),
+});
+export type LlmPlanProposal = z.infer<typeof LlmPlanProposal>;
+
+/** Output of analyzing one workout. `disclaimer` is attached to EVERY output. */
 export const AnalysisResult = z.object({
   activity: Activity.omit({ streams: true }),
   headline: z.string(),
   explanation: z.string(),
   flags: z.array(z.string()).default([]),
+  /** Standard safety disclaimer, present on every coach output. */
+  disclaimer: z.string(),
 });
 export type AnalysisResult = z.infer<typeof AnalysisResult>;
 
@@ -122,3 +156,43 @@ export const PlanValidation = z.object({
   repaired: z.boolean().default(false),
 });
 export type PlanValidation = z.infer<typeof PlanValidation>;
+
+// --- Safety envelopes (every coach output carries a disclaimer + flags) ---
+
+/**
+ * The next-workout result. It IS the prescribed `WorkoutSuggestion` (so existing
+ * callers keep working) plus the standard `disclaimer` and any safety `flags`.
+ */
+export const NextWorkoutResult = WorkoutSuggestion.extend({
+  disclaimer: z.string(),
+  flags: z.array(z.string()).default([]),
+});
+export type NextWorkoutResult = z.infer<typeof NextWorkoutResult>;
+
+/** The plan result envelope: the plan, its validation, plus disclaimer + flags. */
+export const PlanResult = z.object({
+  plan: TrainingPlan,
+  validation: PlanValidation,
+  disclaimer: z.string(),
+  flags: z.array(z.string()).default([]),
+});
+export type PlanResult = z.infer<typeof PlanResult>;
+
+// --- Read-only §8 tool input schemas (shared by the coach runner + MCP) ---
+
+export const GetTrainingLoadInput = z.object({});
+export type GetTrainingLoadInput = z.infer<typeof GetTrainingLoadInput>;
+
+export const GetRecentActivitiesInput = z.object({
+  limit: z.number().int().min(1).max(50).optional(),
+});
+export type GetRecentActivitiesInput = z.infer<typeof GetRecentActivitiesInput>;
+
+export const GetPaceZonesInput = z.object({});
+export type GetPaceZonesInput = z.infer<typeof GetPaceZonesInput>;
+
+export const GetNextWorkoutInputsInput = z.object({});
+export type GetNextWorkoutInputsInput = z.infer<typeof GetNextWorkoutInputsInput>;
+
+export const GetPlanContextInput = z.object({});
+export type GetPlanContextInput = z.infer<typeof GetPlanContextInput>;
