@@ -9,8 +9,13 @@
 [![CI](https://github.com/jaypetez/stride/actions/workflows/ci.yml/badge.svg)](https://github.com/jaypetez/stride/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/jaypetez/stride/actions/workflows/codeql.yml/badge.svg)](https://github.com/jaypetez/stride/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jaypetez/stride/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jaypetez/stride)
+[![OpenSSF Best Practices](https://img.shields.io/badge/OpenSSF_Best_Practices-not_yet_registered-inactive.svg)](https://www.bestpractices.dev/)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](.nvmrc)
+
+<!-- TODO(maintainer): register Stride at https://www.bestpractices.dev/ and replace the
+     placeholder badge above with the real project badge (GOAL.md §10 Phase 3). -->
+
 
 Stride pulls your Strava workouts, computes real sports-science metrics **in
 code**, and uses Claude to explain what happened, suggest your next workout, and
@@ -24,8 +29,13 @@ See [`GOAL.md`](GOAL.md) for the full project brief, architecture, and roadmap.
 
 ## Status
 
-Early MVP. The sports-science engine, Strava client, coach, and CLI are the core
-of the project; the API, web UI, and MCP server build on the same shared core.
+All four surfaces are implemented on one shared core: the deterministic
+sports-science engine, rate-limit-aware Strava client, local-first store, and
+Claude coach in `packages/core`, exposed through the **CLI**, **HTTP API**, **web
+UI**, and an **MCP server** (8 read-only + action tools). The entire inner loop —
+analyze, next-workout, and plan generation — runs **offline with no credentials**
+via demo mode; a Strava app and an Anthropic key unlock live data and richer
+prose. See [`docs/architecture.md`](docs/architecture.md) for the design.
 
 ## Quickstart
 
@@ -35,15 +45,36 @@ Prerequisites: **Node.js 22+** and **pnpm 10+** (`corepack enable`).
 pnpm install
 cp .env.example .env      # add your own Strava + Anthropic credentials
 
+# Preflight — shows tooling, configured credentials, and what runs offline:
+pnpm --filter @stride/cli dev -- doctor
+
 # Try the coach offline on bundled demo data (no credentials needed):
 pnpm --filter @stride/cli dev -- analyze --demo
+pnpm --filter @stride/cli dev -- next --demo
+pnpm --filter @stride/cli dev -- plan --demo --race 10k --weeks 8
+
+# Tell the coach how you feel — screened for safety red flags before any advice:
+pnpm --filter @stride/cli dev -- next --demo --note "left knee a bit sore"
 
 # Connect your own Strava account, then sync and coach:
 pnpm --filter @stride/cli dev -- connect
 pnpm --filter @stride/cli dev -- sync
+pnpm --filter @stride/cli dev -- profile --screen   # PAR-Q readiness screening
 pnpm --filter @stride/cli dev -- next
 pnpm --filter @stride/cli dev -- plan --race 10k --weeks 8
 ```
+
+Add `--json` to `analyze`/`next`/`plan` for machine-readable output, and
+`--now <ISO>` (or `STRIDE_NOW`) to pin the clock for byte-reproducible demos.
+See [`examples/`](examples/) for real captured output.
+
+### Safety screening
+
+Onboarding includes a **PAR-Q-style readiness screening** (`stride profile
+--screen`, or `POST /profile/screening` on the API). Answers are persisted to
+your profile and, together with the `--note` free-text red-flag detection,
+constrain every later recommendation — a STOP keyword (e.g. "chest pain")
+halts coaching and refers you to a professional.
 
 ## Workspace
 
@@ -71,6 +102,21 @@ packages/
 | `pnpm coverage` | Test with V8 coverage |
 | `pnpm lint` | Biome lint + format check |
 | `pnpm format` | Auto-fix formatting |
+
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) — the three-layer model
+  (deterministic compute → Claude reasoning → guardrail/safety), the Strava →
+  durable daily-load → PMC/ACWR → coach data flow, and the four surfaces over one
+  core.
+- [`docs/adr/`](docs/adr/) — Architecture Decision Records (raw-`.ts` workspaces,
+  the durable daily-load series, Option A plan generation, the advisory sync
+  lock).
+- [`examples/`](examples/) — real, byte-reproducible output from the offline demo
+  commands (`analyze`, `next`, `plan`, `doctor`).
+- Per-package READMEs live beside each package under `packages/*` and `apps/*`.
+- [`GOAL.md`](GOAL.md) — the full project brief; [`AGENTS.md`](AGENTS.md) — the
+  machine-readable command manifest for AI agents.
 
 ## Contributing
 
