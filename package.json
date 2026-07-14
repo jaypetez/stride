@@ -1,6 +1,6 @@
 {
   "name": "stride",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Your Strava agentic coach — a local-first, open-source AI running coach.",
@@ -26,6 +26,9 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify",
     "verify": "node scripts/smoke.mjs",
     "dev": "turbo run dev",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "release": "changeset publish",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -33,6 +36,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
+    "@changesets/cli": "^2.31.0",
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
     "@types/node": "^22.20.1",
