@@ -175,6 +175,9 @@ async function runSync(
   // them so the durable series can't count phantom load.
   let retained = await store.loadActivities();
   let deleted = 0;
+  // Dates that lost an activity to reconciliation: the recomputed series is
+  // authoritative for these so a fully-emptied day is dropped, not left stale.
+  const deletedDates = new Set<string>();
   const doReconcile = mode === 'backfill' || mode === 'rebuild' || params.reconcile === true;
   if (doReconcile && fetch.summaries.length > 0) {
     const fetchedIds = new Set(fetch.summaries.map((a) => a.id));
@@ -187,7 +190,9 @@ async function runSync(
     const kept = retained.filter((a) => {
       if (a.source !== 'strava') return true; // Only reconcile Strava-sourced data.
       if (a.startDate < minStart || a.startDate > maxStart) return true; // Outside window.
-      return fetchedIds.has(a.id); // In window: keep only if Strava still has it.
+      const keep = fetchedIds.has(a.id); // In window: keep only if Strava still has it.
+      if (!keep) deletedDates.add(toDateKey(a.startDateLocal ?? a.startDate));
+      return keep;
     });
     deleted = retained.length - kept.length;
     if (deleted > 0) {
@@ -211,7 +216,13 @@ async function runSync(
       .sort((a, b) => a.date.localeCompare(b.date));
     await store.saveDailyLoads(durable);
   } else {
-    durable = await store.upsertDailyLoads(recomputed, retentionCutoff);
+    // Deleted dates are authoritative: if a reconciled day has no remaining
+    // load, drop its stale durable entry instead of preserving phantom TSS.
+    durable = await store.upsertDailyLoads(
+      recomputed,
+      retentionCutoff,
+      deletedDates.size > 0 ? deletedDates : undefined,
+    );
   }
 
   // Fill in missing anchors from the freshly merged data (unchanged behavior).

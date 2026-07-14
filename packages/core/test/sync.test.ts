@@ -4,7 +4,7 @@ import path from 'node:path';
 import { AthleteProfile } from '@stride/schemas';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DEFAULT_MODELS, type StrideConfig } from '../src/config';
-import { buildPmcSeries } from '../src/science/pmc';
+import { buildPmcSeries, toDailyLoads } from '../src/science/pmc';
 import { LocalStore } from '../src/store/index';
 import { mapActivity } from '../src/strava/index';
 import { type SyncParams, syncStrava } from '../src/sync';
@@ -295,6 +295,62 @@ describe('syncStrava — deletion reconciliation', () => {
     expect((await store.loadActivities()).map((x) => x.id).sort()).toEqual(['1', '3']);
     const state = await store.loadSyncState();
     expect(state?.lastReconcileAt).toBeDefined();
+  });
+});
+
+describe('syncStrava — reconciliation keeps the durable series authoritative', () => {
+  // Two runs on the SAME day (D1) + one on another day (D2), plus older/newer
+  // guard runs so the reconciliation window brackets the deleted activities.
+  const T0 = Date.parse('2026-07-02T12:00:00Z');
+  const gOld = () => rawRun(10, Date.parse('2026-06-20T06:00:00Z'));
+  const a2 = () => rawRun(21, Date.parse('2026-06-25T05:00:00Z')); // D1 (earlier)
+  const a1 = () => rawRun(22, Date.parse('2026-06-25T07:00:00Z')); // D1 (later)
+  const lone = () => rawRun(30, Date.parse('2026-06-27T06:00:00Z')); // D2 (sole activity)
+  const gNew = () => rawRun(40, Date.parse('2026-07-01T06:00:00Z'));
+  const D1 = '2026-06-25';
+  const D2 = '2026-06-27';
+
+  it('drops a same-day pair to the survivor, and removes a fully-emptied day', async () => {
+    const store = await seededStore();
+    const raw = [gOld(), a2(), a1(), lone(), gNew()];
+    const { fetchImpl } = mockStrava({ raw });
+
+    await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T0 }); // backfill: 5 stored
+    const before = await store.loadDailyLoads();
+    const d1Before = before.find((d) => d.date === D1)?.tss ?? 0;
+    const singleLoad = toDailyLoads([mapActivity(a1(), new Date(T0).toISOString())], PROFILE)[0]
+      .tss;
+    expect(d1Before).toBeCloseTo(singleLoad * 2, 5); // a1 + a2
+
+    // (A) One of the same-day pair is deleted upstream. Reconcile.
+    raw.splice(
+      raw.findIndex((r) => r.id === 21),
+      1,
+    );
+    const rA = await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T0, backfill: true });
+    expect(rA.deleted).toBe(1);
+    const afterA = await store.loadDailyLoads();
+    const d1After = afterA.find((d) => d.date === D1)?.tss ?? 0;
+    expect(d1After).toBeCloseTo(singleLoad, 5); // dropped to the survivor's load
+    expect(d1After).toBeLessThan(d1Before);
+    expect(afterA.find((d) => d.date === D2)).toBeDefined(); // untouched day still there
+
+    // (B) The ONLY activity on D2 is deleted upstream. Reconcile.
+    raw.splice(
+      raw.findIndex((r) => r.id === 30),
+      1,
+    );
+    const rB = await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T0, backfill: true });
+    expect(rB.deleted).toBe(1);
+    const afterB = await store.loadDailyLoads();
+    // The date is REMOVED (not left as stale phantom load).
+    expect(afterB.find((d) => d.date === D2)).toBeUndefined();
+
+    // The durable PMC now matches a PMC recomputed straight from retained raw —
+    // i.e. no phantom load lingers anywhere in the series.
+    const durablePmc = buildPmcSeries(afterB);
+    const rawPmc = buildPmcSeries(toDailyLoads(await store.loadActivities(), PROFILE));
+    expect(durablePmc).toEqual(rawPmc);
   });
 });
 

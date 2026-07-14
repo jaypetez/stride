@@ -174,6 +174,13 @@ export class LocalStore {
    * recomputed dates overwrite existing entries; all other historical days are
    * preserved (this is what lets the PMC outlive the 7-day raw cache).
    *
+   * `authoritativeDates` marks dates for which `recomputed` is the source of
+   * truth: if a recompute produced NO entry for such a date, the day genuinely
+   * has no load now (e.g. its only activity was deleted upstream during a
+   * reconciliation), so the stale durable entry is DELETED rather than
+   * preserved. A normal merge can only ever overwrite a date it contains, never
+   * remove one — so without this the phantom load would linger until a rebuild.
+   *
    * Compliance: once a day freezes past the raw-retention window
    * (`date < retentionCutoffDate`) its raw Strava activities no longer exist
    * locally, so we drop the `activityIds` we can no longer back with retained
@@ -183,10 +190,17 @@ export class LocalStore {
   async upsertDailyLoads(
     recomputed: DailyLoad[],
     retentionCutoffDate: string,
+    authoritativeDates?: Iterable<string>,
   ): Promise<DailyLoad[]> {
     const existing = await this.loadDailyLoads();
     const byDate = new Map<string, DailyLoad>(existing.map((d) => [d.date, d]));
     for (const d of recomputed) byDate.set(d.date, d);
+    if (authoritativeDates) {
+      const recomputedDates = new Set(recomputed.map((d) => d.date));
+      for (const date of authoritativeDates) {
+        if (!recomputedDates.has(date)) byDate.delete(date);
+      }
+    }
     const merged = [...byDate.values()]
       .map((d) =>
         d.date < retentionCutoffDate && d.activityIds.length > 0 ? { ...d, activityIds: [] } : d,
