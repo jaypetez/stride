@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-14
+
 ### Added
 
 - Initial monorepo scaffold (pnpm + Turborepo) with `apps/{cli,api,web,mcp}` and
@@ -31,3 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
+
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jaypetez/stride/releases/tag/v0.1.0
