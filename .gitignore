@@ -44,3 +44,6 @@ pnpm-debug.log*
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Claude Code agent worktrees / local scratch
+.claude/

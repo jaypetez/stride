@@ -4,6 +4,9 @@
  * `loadConfig(process.env)`; core never reads the environment implicitly.
  */
 
+import os from 'node:os';
+import path from 'node:path';
+
 export interface StravaConfig {
   clientId?: string;
   clientSecret?: string;
@@ -48,6 +51,28 @@ export const DEFAULT_SCOPES = 'read,activity:read_all,profile:read_all';
 
 type Env = Record<string, string | undefined>;
 
+/**
+ * Expand a leading `~`/`~/` and `$HOME` / `${HOME}` / `%USERPROFILE%` (win32)
+ * references in a path to the current user's home directory. Applied to
+ * `STRIDE_DATA_DIR` so e.g. `~/.stride` (advertised in `.env.example`) resolves
+ * to a real home path instead of a literal `~` directory under the cwd.
+ */
+export function expandHome(p: string): string {
+  if (!p) return p;
+  const home = os.homedir();
+  let out = p;
+  if (out === '~' || out === '~/' || out === '~\\') {
+    out = home;
+  } else if (out.startsWith('~/') || out.startsWith('~\\')) {
+    out = path.join(home, out.slice(2));
+  }
+  out = out
+    .replace(/\$\{HOME\}/g, home)
+    .replace(/\$HOME(?![A-Za-z0-9_])/g, home)
+    .replace(/%USERPROFILE%/gi, home);
+  return out;
+}
+
 export function loadConfig(env: Env = {}): StrideConfig {
   return {
     strava: {
@@ -63,7 +88,7 @@ export function loadConfig(env: Env = {}): StrideConfig {
       chat: env.STRIDE_MODEL_CHAT ?? DEFAULT_MODELS.chat,
       classify: env.STRIDE_MODEL_CLASSIFY ?? DEFAULT_MODELS.classify,
     },
-    dataDir: env.STRIDE_DATA_DIR ?? '.stride',
+    dataDir: expandHome(env.STRIDE_DATA_DIR ?? '.stride'),
     apiPort: env.STRIDE_API_PORT ? Number(env.STRIDE_API_PORT) : 8720,
     now: env.STRIDE_NOW,
   };

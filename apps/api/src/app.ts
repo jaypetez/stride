@@ -18,11 +18,12 @@ import {
   STRIDE_CORE_VERSION,
   StravaApiError,
   StravaRateLimitError,
+  SyncLockError,
   suggestNextWorkout,
   syncStrava,
   toDailyLoads,
 } from '@stride/core';
-import { type Activity, AthleteProfile, RaceGoal } from '@stride/schemas';
+import { type Activity, AthleteProfile, type DailyLoad, RaceGoal } from '@stride/schemas';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
@@ -90,9 +91,11 @@ export function buildApp(state: ApiState) {
 
   app.get('/pmc', async (c) => {
     const demo = c.req.query('demo') === 'true';
-    const profile = demo ? DEMO_PROFILE : await loadProfile();
-    const activities = demo ? [...demoHistory(), demoActivity()] : await store.loadActivities();
-    const dailies = toDailyLoads(activities, profile);
+    // Live PMC reads the durable daily-load series (survives the 7-day raw
+    // cache); demo computes it from bundled fixtures.
+    const dailies = demo
+      ? toDailyLoads([...demoHistory(), demoActivity()], DEMO_PROFILE)
+      : await store.loadDailyLoads();
     const pmc = buildPmcSeries(dailies);
     const acwr = buildAcwrSeries(dailies);
     return c.json({
@@ -110,6 +113,7 @@ export function buildApp(state: ApiState) {
     let profile = DEMO_PROFILE;
     let activities: Activity[];
     let goal = undefined as ReturnType<typeof RaceGoal.parse> | undefined;
+    let dailyLoads: DailyLoad[] | undefined;
 
     if (id === 'demo') {
       activity = demoActivity();
@@ -123,10 +127,17 @@ export function buildApp(state: ApiState) {
           ? [...activities].sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
           : activities.find((a) => a.id === id);
       goal = (await store.loadGoal()) ?? undefined;
+      dailyLoads = await store.loadDailyLoads();
     }
     if (!activity) return c.json({ error: `Activity "${id}" not found` }, 404);
 
-    const context = buildCoachContext({ activities, profile, goal, asOfDate: activity.startDate });
+    const context = buildCoachContext({
+      activities,
+      profile,
+      goal,
+      asOfDate: activity.startDate,
+      dailyLoads,
+    });
     const metrics = computeActivityMetrics(activity, profile);
     const analysis = await analyzeWorkout({ activity, profile, context, deps });
     return c.json({ metrics, analysis });
@@ -139,7 +150,14 @@ export function buildApp(state: ApiState) {
     const goal = demo
       ? RaceGoal.parse({ distance: '10k', date: '2026-09-06' })
       : ((await store.loadGoal()) ?? undefined);
-    const context = buildCoachContext({ activities, profile, goal, asOfDate: nowIso() });
+    const dailyLoads = demo ? undefined : await store.loadDailyLoads();
+    const context = buildCoachContext({
+      activities,
+      profile,
+      goal,
+      asOfDate: nowIso(),
+      dailyLoads,
+    });
     const workout = await suggestNextWorkout({ context, profile, deps });
     return c.json({
       context: {
@@ -166,7 +184,8 @@ export function buildApp(state: ApiState) {
     });
     const weeks = body.weeks ?? 8;
     const startDate = body.start ?? nowIso().slice(0, 10);
-    const context = buildCoachContext({ activities, profile, goal });
+    const dailyLoads = demo ? undefined : await store.loadDailyLoads();
+    const context = buildCoachContext({ activities, profile, goal, dailyLoads });
     const { plan, validation } = await generatePlan({
       profile,
       goal,
@@ -192,6 +211,7 @@ export function buildApp(state: ApiState) {
       const result = await syncStrava({ store, config });
       return c.json(result);
     } catch (err) {
+      if (err instanceof SyncLockError) return c.json({ error: err.message }, 409);
       return c.json({ error: (err as Error).message }, 400);
     }
   });

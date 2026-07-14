@@ -19,6 +19,7 @@ import {
 import {
   type Activity,
   type AthleteProfile,
+  type DailyLoad,
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
@@ -33,6 +34,8 @@ interface Ctx {
   profile: AthleteProfile;
   activities: Activity[];
   goal?: RaceGoalType;
+  /** Durable daily-load series for live data; undefined in demo mode. */
+  dailyLoads?: DailyLoad[];
 }
 
 async function loadCtx(state: McpState, demo: boolean): Promise<Ctx> {
@@ -47,7 +50,8 @@ async function loadCtx(state: McpState, demo: boolean): Promise<Ctx> {
   const profile = (await state.store.loadProfile()) ?? AthleteProfile.parse({});
   const activities = await state.store.loadActivities();
   const goal = (await state.store.loadGoal()) ?? undefined;
-  return { profile, activities, goal };
+  const dailyLoads = await state.store.loadDailyLoads();
+  return { profile, activities, goal, dailyLoads };
 }
 
 const deps = (state: McpState) => ({
@@ -57,8 +61,8 @@ const deps = (state: McpState) => ({
 });
 
 export async function toolTrainingLoad(state: McpState, demo: boolean): Promise<ToolResult> {
-  const { profile, activities } = await loadCtx(state, demo);
-  const dailies = toDailyLoads(activities, profile);
+  const { profile, activities, dailyLoads } = await loadCtx(state, demo);
+  const dailies = dailyLoads ?? toDailyLoads(activities, profile);
   const pmc = buildPmcSeries(dailies);
   const acwr = buildAcwrSeries(dailies);
   const latest = latestPmc(pmc) ?? null;
@@ -97,25 +101,32 @@ export async function toolAnalyze(
   demo: boolean,
   id?: string,
 ): Promise<ToolResult> {
-  const { profile, activities, goal } = await loadCtx(state, demo);
+  const { profile, activities, goal, dailyLoads } = await loadCtx(state, demo);
   const activity =
     demo || !id || id === 'last'
       ? [...activities].sort((a, b) => b.startDate.localeCompare(a.startDate))[0]
       : activities.find((a) => a.id === id);
   if (!activity) return { text: `Activity "${id}" not found.`, data: null };
-  const context = buildCoachContext({ activities, profile, goal, asOfDate: activity.startDate });
+  const context = buildCoachContext({
+    activities,
+    profile,
+    goal,
+    asOfDate: activity.startDate,
+    dailyLoads,
+  });
   const metrics = computeActivityMetrics(activity, profile);
   const analysis = await analyzeWorkout({ activity, profile, context, deps: deps(state) });
   return { text: analysis.headline, data: { metrics, analysis } };
 }
 
 export async function toolNext(state: McpState, demo: boolean): Promise<ToolResult> {
-  const { profile, activities, goal } = await loadCtx(state, demo);
+  const { profile, activities, goal, dailyLoads } = await loadCtx(state, demo);
   const context = buildCoachContext({
     activities,
     profile,
     goal,
     asOfDate: resolveNowIso(state.config),
+    dailyLoads,
   });
   const workout = await suggestNextWorkout({ context, profile, deps: deps(state) });
   return { text: `${workout.title}: ${workout.rationale}`, data: workout };
@@ -125,7 +136,7 @@ export async function toolPlan(
   state: McpState,
   args: { demo: boolean; race?: string; weeks?: number; start?: string; date?: string },
 ): Promise<ToolResult> {
-  const { profile, activities, goal: storedGoal } = await loadCtx(state, args.demo);
+  const { profile, activities, goal: storedGoal, dailyLoads } = await loadCtx(state, args.demo);
   const distance = args.race ?? storedGoal?.distance ?? '10k';
   const goal = RaceGoal.parse({
     distance,
@@ -134,7 +145,7 @@ export async function toolPlan(
   });
   const weeks = args.weeks ?? 8;
   const startDate = args.start ?? resolveNowIso(state.config).slice(0, 10);
-  const context = buildCoachContext({ activities, profile, goal });
+  const context = buildCoachContext({ activities, profile, goal, dailyLoads });
   const { plan, validation } = await generatePlan({
     profile,
     goal,

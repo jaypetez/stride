@@ -6,7 +6,12 @@ import {
   demoActivity,
   demoHistory,
 } from '@stride/core';
-import { type Activity, RaceGoal, type RaceGoal as RaceGoalType } from '@stride/schemas';
+import {
+  type Activity,
+  type DailyLoad,
+  RaceGoal,
+  type RaceGoal as RaceGoalType,
+} from '@stride/schemas';
 import { coachDeps, getProfile, loadApp, mostRecent } from '../app';
 import {
   dim,
@@ -29,6 +34,7 @@ export async function analyzeCommand(opts: {
   let profile = DEMO_PROFILE;
   let activities: Activity[];
   let goal: RaceGoalType | undefined;
+  let dailyLoads: DailyLoad[] | undefined;
 
   if (opts.demo) {
     activity = demoActivity();
@@ -47,9 +53,16 @@ export async function analyzeCommand(opts: {
       return;
     }
     goal = (await app.store.loadGoal()) ?? undefined;
+    dailyLoads = await app.store.loadDailyLoads();
   }
 
-  const context = buildCoachContext({ activities, profile, goal, asOfDate: activity.startDate });
+  const context = buildCoachContext({
+    activities,
+    profile,
+    goal,
+    asOfDate: activity.startDate,
+    dailyLoads,
+  });
   const metrics = computeActivityMetrics(activity, profile);
   const result = await analyzeWorkout({ activity, profile, context, deps: coachDeps(app) });
 

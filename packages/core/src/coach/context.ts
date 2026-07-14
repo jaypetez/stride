@@ -1,4 +1,11 @@
-import type { Activity, AthleteProfile, CoachContext, PlanPhase, RaceGoal } from '@stride/schemas';
+import type {
+  Activity,
+  AthleteProfile,
+  CoachContext,
+  DailyLoad,
+  PlanPhase,
+  RaceGoal,
+} from '@stride/schemas';
 import {
   addDays,
   buildAcwrSeries,
@@ -28,6 +35,13 @@ export interface BuildContextParams {
   goal?: RaceGoal;
   /** Reference date (ISO). Defaults to the latest activity, else today. */
   asOfDate?: string;
+  /**
+   * The durable daily-load series (GOAL.md §7 source of truth). Live callers
+   * pass `store.loadDailyLoads()` so the PMC/ACWR outlive the 7-day raw cache;
+   * demo/tests omit it and fall back to computing from `activities`. The recent
+   * (≤7-day) windows below always read raw `activities`, which are still fresh.
+   */
+  dailyLoads?: DailyLoad[];
 }
 
 /**
@@ -47,7 +61,9 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
   // Project the fitness/fatigue series forward to the reference day so that,
   // after rest days, ATL has decayed and TSB has risen (fatigue is not frozen
   // at the last activity date). `throughDate` is a no-op when asOf <= latest.
-  const dailies = toDailyLoads(activities, profile);
+  // Prefer the durable daily-load series when supplied (survives the 7-day raw
+  // cache); otherwise derive it from the raw activities (demo/tests).
+  const dailies = params.dailyLoads ?? toDailyLoads(activities, profile);
   const pmc = buildPmcSeries(dailies, { throughDate: asOf });
   const acwrSeries = buildAcwrSeries(dailies, { throughDate: asOf });
   const fitness = latestPmc(pmc);
