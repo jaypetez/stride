@@ -20,7 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
     "@stride/schemas": "workspace:*",
-    "dotenv": "^17.4.2",
-    "zod": "^4.4.3"
+    "dotenv": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -17,8 +17,8 @@
     "@hono/zod-validator": "^0.8.0",
     "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
-    "dotenv": "^17.4.2",
+    "dotenv": "catalog:",
     "hono": "^4.12.28",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   }
 }
