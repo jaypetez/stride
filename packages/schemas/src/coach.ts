@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Activity } from './activity';
 import { AthleteProfile, RaceGoal } from './athlete';
-import { IntensityLabel, PlanPhase, WorkoutType } from './enums';
+import { IntensityLabel, LoadMethod, PlanPhase, SportType, WorkoutType } from './enums';
 import { AcwrPoint, PmcPoint, ZoneDistribution } from './metrics';
 
 /**
@@ -24,11 +24,11 @@ export const CoachContext = z.object({
     z.object({
       date: z.string(),
       name: z.string(),
-      sportType: z.string(),
+      sportType: SportType,
       distanceKm: z.number(),
       durationSec: z.number(),
       tss: z.number(),
-      loadMethod: z.string(),
+      loadMethod: LoadMethod,
       avgHr: z.number().optional(),
       avgPaceSecPerKm: z.number().optional(),
     }),
@@ -118,5 +118,7 @@ export type GuardrailViolation = z.infer<typeof GuardrailViolation>;
 export const PlanValidation = z.object({
   valid: z.boolean(),
   violations: z.array(GuardrailViolation).default([]),
+  /** True when the validator had to repair the proposed plan to make it valid. */
+  repaired: z.boolean().default(false),
 });
 export type PlanValidation = z.infer<typeof PlanValidation>;

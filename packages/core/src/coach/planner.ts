@@ -120,6 +120,26 @@ export function makeSession(
   };
 }
 
+/**
+ * Rebuild a session at a new duration, recovering the athlete's threshold speed
+ * from the session's own target pace so load/distance are re-derived by
+ * `makeSession` (every number stays computed in code). Used by the guardrail
+ * repairer to shrink an oversized long run or scale a week's quality volume down
+ * deterministically. Rest sessions are returned unchanged.
+ */
+export function rescaleSession(session: WorkoutSuggestion, durationMin: number): WorkoutSuggestion {
+  if (session.type === 'rest') return session;
+  const it = INTENSITY[session.type];
+  const threshold =
+    session.targetPaceSecPerKm && it.paceIf > 0
+      ? 1000 / session.targetPaceSecPerKm / it.paceIf
+      : DEFAULT_THRESHOLD_MPS;
+  return makeSession(session.type, durationMin, threshold, {
+    date: session.date,
+    rationale: session.rationale,
+  });
+}
+
 function describeType(type: WorkoutType, durationMin: number): string {
   switch (type) {
     case 'easy':
