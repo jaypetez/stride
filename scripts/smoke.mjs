@@ -147,7 +147,7 @@ async function checkMcp() {
   send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
   await waitFor(async () => responses.has(2), 8000);
   const tools = responses.get(2)?.result?.tools ?? [];
-  assert(tools.length === 6, 'tools/list returns 6 tools', `got ${tools.length}`);
+  assert(tools.length === 8, 'tools/list returns 8 tools', `got ${tools.length}`);
 
   send({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'get_training_load', arguments: { demo: true } } });
   await waitFor(async () => responses.has(3), 8000);

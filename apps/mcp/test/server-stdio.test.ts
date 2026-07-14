@@ -88,7 +88,7 @@ describe('MCP stdio JSON-RPC transport', () => {
     send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const listRes = await waitForId(2, 10000);
     expect(listRes, `no tools/list response; stderr:\n${stderr.slice(-600)}`).toBeDefined();
-    expect(listRes.result.tools).toHaveLength(6);
+    expect(listRes.result.tools).toHaveLength(8);
 
     // 3) call a tool over the wire
     send({

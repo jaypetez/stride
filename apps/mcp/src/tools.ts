@@ -1,20 +1,16 @@
 import {
   analyzeWorkout,
-  buildAcwrSeries,
   buildCoachContext,
-  buildPmcSeries,
+  type CoachDataProvider,
   computeActivityMetrics,
   computeZones,
   DEMO_PROFILE,
   demoActivity,
   demoHistory,
   generatePlan,
-  latestAcwr,
-  latestPmc,
-  rampRatePerWeek,
   resolveNowIso,
+  runCoachTool,
   suggestNextWorkout,
-  toDailyLoads,
 } from '@stride/core';
 import {
   type Activity,
@@ -60,46 +56,41 @@ const deps = (state: McpState) => ({
   nowIso: state.config.now ? () => resolveNowIso(state.config) : undefined,
 });
 
-export async function toolTrainingLoad(state: McpState, demo: boolean): Promise<ToolResult> {
-  const { profile, activities, dailyLoads } = await loadCtx(state, demo);
-  const dailies = dailyLoads ?? toDailyLoads(activities, profile);
-  const pmc = buildPmcSeries(dailies);
-  const acwr = buildAcwrSeries(dailies);
-  const latest = latestPmc(pmc) ?? null;
-  const la = latestAcwr(acwr) ?? null;
-  const ramp = rampRatePerWeek(pmc, 2);
-  const text = latest
-    ? `Fitness (CTL) ${latest.ctl}, Fatigue (ATL) ${latest.atl}, Form (TSB) ${latest.tsb}. ACWR ${la?.acwr ?? '—'} (${la?.flag ?? 'n/a'}). Ramp ${ramp}/week.`
-    : 'No training-load data available (sync activities first, or pass demo=true).';
-  return { text, data: { fitness: latest, acwr: la, rampRatePerWeek: ramp } };
-}
-
-export async function toolRecentActivities(
-  state: McpState,
-  demo: boolean,
-  limit = 10,
-): Promise<ToolResult> {
-  const { activities } = await loadCtx(state, demo);
-  const summaries = activities
-    .sort((a, b) => b.startDate.localeCompare(a.startDate))
-    .slice(0, limit)
-    .map(({ streams, ...rest }) => rest);
-  return {
-    text: `${summaries.length} recent activities.`,
-    data: summaries,
-  };
-}
-
-export async function toolZones(state: McpState, demo: boolean): Promise<ToolResult> {
-  const { profile } = await loadCtx(state, demo);
+/**
+ * Build the read-only data provider the SHARED core toolset reads from. MCP and
+ * the coach's tool runner both go through this same toolset, so the facts MCP
+ * serves are byte-identical to the coach's (GOAL §8).
+ */
+export async function buildProvider(state: McpState, demo: boolean): Promise<CoachDataProvider> {
+  const { profile, activities, goal, dailyLoads } = await loadCtx(state, demo);
+  const context = buildCoachContext({
+    activities,
+    profile,
+    goal,
+    asOfDate: resolveNowIso(state.config),
+    dailyLoads,
+  });
   const zones = computeZones(profile);
-  return { text: `${zones.hr.length} HR zones, ${zones.pace.length} pace zones.`, data: zones };
+  return { getContext: () => context, getZones: () => zones };
+}
+
+/** Run one of the shared read-only §8 fact tools by name. */
+export async function factTool(
+  state: McpState,
+  name: string,
+  args: { demo?: boolean } & Record<string, unknown>,
+): Promise<ToolResult> {
+  const { demo, ...input } = args;
+  const provider = await buildProvider(state, demo ?? false);
+  const res = await runCoachTool(provider, name, input);
+  return { text: res.summary, data: res.data };
 }
 
 export async function toolAnalyze(
   state: McpState,
   demo: boolean,
   id?: string,
+  note?: string,
 ): Promise<ToolResult> {
   const { profile, activities, goal, dailyLoads } = await loadCtx(state, demo);
   const activity =
@@ -115,11 +106,11 @@ export async function toolAnalyze(
     dailyLoads,
   });
   const metrics = computeActivityMetrics(activity, profile);
-  const analysis = await analyzeWorkout({ activity, profile, context, deps: deps(state) });
-  return { text: analysis.headline, data: { metrics, analysis } };
+  const analysis = await analyzeWorkout({ activity, profile, context, note, deps: deps(state) });
+  return { text: analysis.headline, data: { metrics, analysis, disclaimer: analysis.disclaimer } };
 }
 
-export async function toolNext(state: McpState, demo: boolean): Promise<ToolResult> {
+export async function toolNext(state: McpState, demo: boolean, note?: string): Promise<ToolResult> {
   const { profile, activities, goal, dailyLoads } = await loadCtx(state, demo);
   const context = buildCoachContext({
     activities,
@@ -128,13 +119,20 @@ export async function toolNext(state: McpState, demo: boolean): Promise<ToolResu
     asOfDate: resolveNowIso(state.config),
     dailyLoads,
   });
-  const workout = await suggestNextWorkout({ context, profile, deps: deps(state) });
+  const workout = await suggestNextWorkout({ context, profile, note, deps: deps(state) });
   return { text: `${workout.title}: ${workout.rationale}`, data: workout };
 }
 
 export async function toolPlan(
   state: McpState,
-  args: { demo: boolean; race?: string; weeks?: number; start?: string; date?: string },
+  args: {
+    demo: boolean;
+    race?: string;
+    weeks?: number;
+    start?: string;
+    date?: string;
+    note?: string;
+  },
 ): Promise<ToolResult> {
   const { profile, activities, goal: storedGoal, dailyLoads } = await loadCtx(state, args.demo);
   const distance = args.race ?? storedGoal?.distance ?? '10k';
@@ -146,16 +144,17 @@ export async function toolPlan(
   const weeks = args.weeks ?? 8;
   const startDate = args.start ?? resolveNowIso(state.config).slice(0, 10);
   const context = buildCoachContext({ activities, profile, goal, dailyLoads });
-  const { plan, validation } = await generatePlan({
+  const { plan, validation, disclaimer, flags } = await generatePlan({
     profile,
     goal,
     weeks,
     startDate,
     context,
+    note: args.note,
     deps: deps(state),
   });
   return {
     text: `${weeks}-week ${goal.name ?? goal.distance} plan (${validation.valid ? 'valid' : `${validation.violations.length} guardrail issues`}).`,
-    data: { plan, validation },
+    data: { plan, validation, disclaimer, flags },
   };
 }
