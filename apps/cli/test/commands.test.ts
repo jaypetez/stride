@@ -107,6 +107,32 @@ describe('planCommand', () => {
     expect(out.validation.valid).toBe(true);
   });
 
+  it('includes flags and disclaimer in --json output (parity with analyze/next)', async () => {
+    await planCommand({ demo: true, race: '10k', weeks: '6', json: true });
+    const out = lastJson();
+    expect(Array.isArray(out.flags)).toBe(true);
+    expect(typeof out.disclaimer).toBe('string');
+    expect(out.disclaimer.length).toBeGreaterThan(0);
+  });
+
+  it('surfaces a STOP flag and a safe all-rest plan for a red-flag --note', async () => {
+    await planCommand({
+      demo: true,
+      race: '10k',
+      weeks: '6',
+      json: true,
+      note: 'chest pain and dizziness during my run',
+    });
+    const out = lastJson();
+    expect(out.flags.some((f: string) => /stop exercising|medical professional/i.test(f))).toBe(
+      true,
+    );
+    // Halt returns a single all-rest week, not a 6-week training block.
+    expect(out.plan.weeks).toHaveLength(1);
+    const sessions = out.plan.weeks[0].days.flatMap((d: any) => d.sessions);
+    expect(sessions.every((s: any) => s.type === 'rest')).toBe(true);
+  });
+
   it('rejects a non-numeric --weeks instead of producing a NaN-week plan', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     await planCommand({ demo: true, weeks: 'abc', json: true });

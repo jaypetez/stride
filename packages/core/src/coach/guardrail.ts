@@ -8,7 +8,7 @@ import type {
   TrainingPlan,
 } from '@stride/schemas';
 import { addDays, buildPmcSeries, ctlRampCap } from '../science/index';
-import { makeSession, QUALITY_TYPES, rescaleSession } from './planner';
+import { makeSession, QUALITY_TYPES, rescaleSession, thresholdFromSession } from './planner';
 
 /** Max week-over-week TSS growth between loading weeks (cold-start fallback). */
 export const MAX_WEEKLY_RAMP = 1.35;
@@ -309,11 +309,16 @@ export function repairPlan(
     // (1) Back-to-back hard: downgrade the later day to easy.
     for (let i = 1; i < days.length; i++) {
       if (days[i].day === days[i - 1].day + 1 && isHardDay(days[i]) && isHardDay(days[i - 1])) {
-        const dur = (days[i].sessions[0]?.targetDurationSec ?? 2700) / 60;
+        const hard = days[i].sessions[0];
+        const dur = (hard?.targetDurationSec ?? 2700) / 60;
+        // Recover the athlete's real threshold speed from the hard session being
+        // downgraded so the easy day is paced/sized off their anchor, not a
+        // hardcoded default (which would misprescribe pace and distance).
+        const threshold = hard ? thresholdFromSession(hard) : undefined;
         days[i] = {
           ...days[i],
           sessions: [
-            makeSession('easy', dur, 3.0, {
+            makeSession('easy', dur, threshold ?? 3.0, {
               date: days[i].date,
               rationale: 'Downgraded to easy to keep ~48h between quality sessions.',
             }),

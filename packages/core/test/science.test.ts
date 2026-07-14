@@ -231,6 +231,66 @@ describe('load methods (HR / TRIMP / treadmill)', () => {
   });
 });
 
+describe('moving-stream handling (auto-pause)', () => {
+  function hrStream(hrBpm: number, movingSec: number, totalSec: number, withMoving: boolean) {
+    const time: number[] = [];
+    const heartrate: number[] = [];
+    const moving: boolean[] = [];
+    for (let t = 0; t <= totalSec; t++) {
+      time.push(t);
+      heartrate.push(hrBpm);
+      moving.push(t < movingSec);
+    }
+    return {
+      id: 'hr-stops',
+      source: 'strava',
+      sportType: 'run',
+      name: 'HR run',
+      startDate: '2026-07-01T06:00:00Z',
+      distance: 0,
+      movingTime: movingSec,
+      elapsedTime: totalSec,
+      totalElevationGain: 0,
+      averageHeartrate: hrBpm,
+      hasHeartrate: true,
+      trainer: false,
+      manual: false,
+      streams: withMoving ? { time, heartrate, moving } : { time, heartrate },
+    } as Activity;
+  }
+  const hrProfile: AthleteProfile = { ...demoProfile(), thresholdSpeedMps: undefined, lthr: 160 };
+
+  it('hrTSS integrates over moving time via the `moving` stream, not elapsed (bug 7)', () => {
+    // 60-min HR stream but only the first 40 min are "moving" — load must match a
+    // 40-min effort, not the full hour of elevated-HR-while-stopped.
+    const stopped = computeActivityLoad(hrStream(150, 2400, 3600, true), hrProfile);
+    const full40 = computeActivityLoad(hrStream(150, 2400, 2400, false), hrProfile);
+    const full60 = computeActivityLoad(hrStream(150, 3600, 3600, false), hrProfile);
+    expect(stopped.method).toBe('hrtss');
+    expect(Math.abs(stopped.tss - full40.tss)).toBeLessThan(1);
+    expect(stopped.tss).toBeLessThan(full60.tss * 0.8);
+  });
+
+  it('hrTSS scales elapsed→moving time when no `moving` stream is present (bug 7)', () => {
+    // No per-sample moving flags, but movingTime (40m) < elapsedTime (60m): the
+    // elapsed integral is scaled to moving time (consistent with avg-HR hrTSS).
+    const scaled = computeActivityLoad(hrStream(150, 2400, 3600, false), hrProfile);
+    const full40 = computeActivityLoad(hrStream(150, 2400, 2400, false), hrProfile);
+    expect(Math.abs(scaled.tss - full40.tss)).toBeLessThan(1);
+  });
+
+  it('time-in-zone skips non-moving samples (bug 10)', () => {
+    // HR 130 / LTHR 160 = 0.81 → easy bucket for the whole recording.
+    const withMoving = computeActivityMetrics(hrStream(130, 2400, 3600, true), hrProfile);
+    const withoutMoving = computeActivityMetrics(hrStream(130, 2400, 3600, false), hrProfile);
+    // With the moving stream, only the ~40 moving minutes are counted as easy.
+    expect(withMoving.zoneDistribution?.easySec).toBeGreaterThan(2300);
+    expect(withMoving.zoneDistribution?.easySec).toBeLessThan(2500);
+    // Without it, the 20 stopped minutes inflate the easy seconds toward 60 min.
+    expect(withoutMoving.zoneDistribution?.easySec).toBeGreaterThan(3500);
+  });
+});
+
 describe('efficiency factor & aerobic decoupling', () => {
   it('EF = grade-adjusted speed (m/min) / avg HR', () => {
     // 3.33 m/s = 199.8 m/min; / 150 bpm = 1.33.

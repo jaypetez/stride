@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, stat, utimes, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { Activity } from '@stride/schemas';
@@ -86,6 +86,28 @@ describe('cross-process sync lock', () => {
     // 11 minutes later the holder is presumed dead → reclaimed.
     const later = t0 + 11 * 60 * 1000;
     const lock = await store.acquireSyncLock(later);
+    await lock.release();
+  });
+
+  it('does NOT reclaim a fresh empty lock file (another process is mid-write)', async () => {
+    const store = tmpStore();
+    await store.saveActivities([act('seed')]); // create the store dir
+    const lockPath = path.join(store.dir, 'sync.lock');
+    // A racer won the exclusive create but hasn't written its record yet.
+    await writeFile(lockPath, '');
+    // Real-clock acquire: the empty file is fresh, so it must NOT be reclaimed.
+    await expect(store.acquireSyncLock()).rejects.toBeInstanceOf(SyncLockError);
+  });
+
+  it('reclaims an empty lock file older than the grace period', async () => {
+    const store = tmpStore();
+    await store.saveActivities([act('seed')]);
+    const lockPath = path.join(store.dir, 'sync.lock');
+    await writeFile(lockPath, '');
+    // Age the empty file well past the grace period → presumed abandoned.
+    const old = new Date(Date.now() - 60_000);
+    await utimes(lockPath, old, old);
+    const lock = await store.acquireSyncLock();
     await lock.release();
   });
 });

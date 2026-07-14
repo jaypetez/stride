@@ -55,12 +55,18 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # typecheck & build drive platform-specific native binaries (the TS 7
+      # native compiler, esbuild) that occasionally crash on the Windows runner
+      # under load. Bounded retry rides out that transient flake; a real error
+      # fails all attempts. (bash is available on all three runner OSes.)
       - name: Type check
-        run: pnpm typecheck
+        shell: bash
+        run: for a in 1 2 3; do pnpm typecheck && exit 0; echo "::warning::typecheck attempt $a failed (native-tooling flake); retrying"; done; exit 1
       - name: Test
         run: pnpm test
       - name: Build
-        run: pnpm build
+        shell: bash
+        run: for a in 1 2 3; do pnpm build && exit 0; echo "::warning::build attempt $a failed (native-tooling flake); retrying"; done; exit 1
       - name: Verify (runtime smoke)
         run: pnpm verify
 

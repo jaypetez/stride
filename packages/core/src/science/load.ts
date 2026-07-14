@@ -103,16 +103,40 @@ export function computeNgp(
   return { ngpSpeedMps: ngp, meanGapSpeedMps: meanGap };
 }
 
-/** hrTSS from a heart-rate stream, integrating IF^2 over time. */
-function hrTssFromStream(hr: number[], time: number[] | undefined, lthr: number): number {
+/**
+ * hrTSS from a heart-rate stream, integrating IF^2 over MOVING time (not elapsed
+ * stream time) so stops/auto-pause don't overstate load — consistent with the
+ * rTSS and average-HR paths, which use `movingTime`. When a `moving` stream is
+ * present we skip non-moving samples directly; otherwise we scale the elapsed
+ * integral down by `movingTime / elapsedTime` (a no-op when they're equal).
+ */
+function hrTssFromStream(
+  hr: number[],
+  time: number[] | undefined,
+  lthr: number,
+  opts: { moving?: boolean[]; movingTimeSec?: number; elapsedTimeSec?: number } = {},
+): number {
   const times = time && time.length === hr.length ? time : hr.map((_, i) => i);
   const dts = timeDeltas(times);
+  const { moving, movingTimeSec, elapsedTimeSec } = opts;
+  const hasMoving = !!moving && moving.length === hr.length;
   let acc = 0;
   for (let i = 0; i < hr.length; i++) {
+    if (hasMoving && !moving[i]) continue; // ignore auto-paused / stopped samples
     const intensity = ifFromHrFraction(hr[i] / lthr);
     acc += intensity * intensity * dts[i];
   }
-  return (100 * acc) / SECONDS_PER_HOUR;
+  let tss = (100 * acc) / SECONDS_PER_HOUR;
+  if (
+    !hasMoving &&
+    movingTimeSec !== undefined &&
+    elapsedTimeSec !== undefined &&
+    elapsedTimeSec > movingTimeSec &&
+    elapsedTimeSec > 0
+  ) {
+    tss *= movingTimeSec / elapsedTimeSec;
+  }
+  return tss;
 }
 
 /**
@@ -191,7 +215,11 @@ export function computeActivityLoad(activity: Activity, profile: AthleteProfile)
   const lthr = resolveLthr(profile);
   if (lthr && lthr > 0) {
     if (activity.streams?.heartrate && activity.streams.heartrate.length > 1) {
-      const tss = hrTssFromStream(activity.streams.heartrate, activity.streams.time, lthr);
+      const tss = hrTssFromStream(activity.streams.heartrate, activity.streams.time, lthr, {
+        moving: activity.streams.moving,
+        movingTimeSec: activity.movingTime,
+        elapsedTimeSec: activity.elapsedTime,
+      });
       return {
         ...base,
         method: 'hrtss',

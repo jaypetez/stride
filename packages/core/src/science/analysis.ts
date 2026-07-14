@@ -47,7 +47,7 @@ export function computeActivityMetrics(
   }
 
   if (s?.heartrate && s.heartrate.length > 1 && zones.hr.length > 0) {
-    metrics.hrZoneSeconds = roundRecord(timeInHrZones(s.heartrate, s.time, zones.hr));
+    metrics.hrZoneSeconds = roundRecord(timeInHrZones(s.heartrate, s.time, zones.hr, s.moving));
   }
 
   if (s && zones.pace.length > 0) {
@@ -56,9 +56,11 @@ export function computeActivityMetrics(
       const times = s.time && s.time.length === speeds.length ? s.time : speeds.map((_, i) => i);
       const grades = deriveGradeStream(s, speeds.length);
       const dts = timeDeltas(times);
+      const moving = s.moving && s.moving.length === speeds.length ? s.moving : undefined;
       const acc: Record<string, number> = {};
       for (const z of zones.pace) acc[String(z.zone)] = 0;
       for (let i = 0; i < speeds.length; i++) {
+        if (moving && !moving[i]) continue;
         const gap = speeds[i] * gradeAdjustFactor(grades[i] ?? 0);
         const zone =
           zones.pace.find((z) => gap >= z.minSpeedMps && gap < z.maxSpeedMps) ??
