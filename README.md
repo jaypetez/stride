@@ -7,6 +7,8 @@
 > Your Strava agentic coach — a local-first, open-source AI running coach.
 
 [![CI](https://github.com/jaypetez/stride/actions/workflows/ci.yml/badge.svg)](https://github.com/jaypetez/stride/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/jaypetez/stride/actions/workflows/codeql.yml/badge.svg)](https://github.com/jaypetez/stride/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/jaypetez/stride/badge)](https://securityscorecards.dev/viewer/?uri=github.com/jaypetez/stride)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](.nvmrc)
 

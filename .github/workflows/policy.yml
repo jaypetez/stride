@@ -1,0 +1,54 @@
+name: Policy
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Check every commit is signed off
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          fail=0
+          for c in $(git rev-list "$BASE".."$HEAD"); do
+            # Skip merge commits (they carry no authored change).
+            if [ "$(git rev-list --no-walk --count --merges "$c")" = "1" ]; then continue; fi
+            if ! git show -s --format=%B "$c" | grep -qiE "^Signed-off-by: .+ <.+@.+>"; then
+              echo "::error::Commit $c is missing a 'Signed-off-by' trailer (DCO). Use: git commit -s"
+              git show -s --format='  %h %s' "$c"
+              fail=1
+            fi
+          done
+          if [ "$fail" -eq 0 ]; then echo "All commits are signed off."; else exit 1; fi
+
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint PR commit messages
+        run: pnpm exec commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose

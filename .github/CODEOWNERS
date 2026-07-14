@@ -1,0 +1,14 @@
+# Code owners for Stride. These users are requested for review automatically
+# and are the default approvers. See MAINTAINERS.md for the full list.
+# Syntax: https://docs.github.com/articles/about-code-owners
+
+# Global owner.
+*                       @jaypetez
+
+# Domain core (sports-science engine, Strava client, coach) — the highest-risk
+# area; changes here should always get a maintainer review.
+/packages/core/         @jaypetez
+/packages/schemas/      @jaypetez
+
+# CI / release / security tooling.
+/.github/               @jaypetez
