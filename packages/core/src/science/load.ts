@@ -145,7 +145,10 @@ export function computeActivityLoad(activity: Activity, profile: AthleteProfile)
   if (hours <= 0) return base;
 
   const threshold = resolveThresholdSpeed(profile);
-  const trustPace = !activity.manual;
+  // Pace is only trustworthy from GPS/footpod. Treadmill (`trainer`) distance is
+  // belt-estimated and manual entries are self-reported, so neither can drive
+  // rTSS — fall through to the HR or duration methods instead.
+  const trustPace = !activity.manual && !activity.trainer;
 
   // --- rTSS via streams (best) ---
   if (threshold && threshold > 0 && trustPace && activity.streams) {

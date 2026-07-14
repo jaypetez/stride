@@ -52,7 +52,9 @@ export function estimateAnchors(activities: Activity[]): EstimatedAnchors {
       maxHrObserved = a.maxHeartrate;
     }
     if (!RUN_TYPES.has(a.sportType)) continue;
-    if (a.manual) continue;
+    // Skip manual (self-reported) and treadmill (belt-estimated distance)
+    // efforts: their pace can't be trusted to fit a VDOT anchor.
+    if (a.manual || a.trainer) continue;
     // Only efforts long enough to be meaningful (>= 10 min) and with distance.
     if (a.movingTime < 600 || a.distance <= 0) continue;
     const vdot = vdotFromEffort(a.distance, a.movingTime);
