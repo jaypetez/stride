@@ -128,7 +128,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Audit dependencies (fail on high+)
-        run: pnpm audit --audit-level=high
+        # `pnpm audit` POSTs to npm's legacy audit endpoints, which npm has
+        # retired (HTTP 410 → ERR_PNPM_AUDIT_BAD_RESPONSE). Treat that specific
+        # infra failure as a soft warning so it can't wedge the required gate,
+        # while still failing hard on genuine high+ advisories. Vulnerability
+        # coverage is redundantly enforced by dependency-review + CodeQL.
+        shell: bash
+        run: |
+          set +e
+          out="$(pnpm audit --audit-level=high 2>&1)"
+          code=$?
+          echo "$out"
+          if [ "$code" -ne 0 ] && echo "$out" | grep -qE "ERR_PNPM_AUDIT_BAD_RESPONSE|being retired"; then
+            echo "::warning::npm audit endpoint retired; advisory fetch skipped (covered by dependency-review + CodeQL)."
+            exit 0
+          fi
+          exit "$code"
 
   # Aggregate gate — this is the single required status check on `main`.
   # It passes only when every CI job above succeeds.
