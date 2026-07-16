@@ -1,5 +1,19 @@
 # @stride/core
 
+## 0.2.1
+
+### Patch Changes
+
+- Update dependencies to their latest releases (via Dependabot):
+
+  - `@anthropic-ai/sdk` 0.110.0 → 0.111.0
+  - `hono` 4.12.28 → 4.12.30
+  - `@hono/node-server` 2.0.8 → 2.0.10
+  - `@hono/zod-validator` 0.8.0 → 0.9.0
+  - dev tooling: the `dev-dependencies` group (6 updates)
+  - CI actions: `pnpm/action-setup`, `actions/setup-node`, and `github/codeql-action` (init/analyze/upload-sarif)
+  - @stride/schemas@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

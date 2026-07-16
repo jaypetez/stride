@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-16
+
+A dependency-maintenance release: all open Dependabot updates, plus a CI fix so
+the audit gate and Conventional Commits check stop wedging dependency PRs.
+Per-package details are in each package's `CHANGELOG.md`.
+
+### Changed
+
+- **Runtime dependencies**: `@anthropic-ai/sdk` 0.110.0 → 0.111.0, `hono`
+  4.12.28 → 4.12.30, `@hono/node-server` 2.0.8 → 2.0.10, and
+  `@hono/zod-validator` 0.8.0 → 0.9.0.
+- **Dev tooling**: the `dev-dependencies` group (6 updates).
+- **CI actions**: `pnpm/action-setup`, `actions/setup-node`, and
+  `github/codeql-action` (init/analyze/upload-sarif) bumped to current majors.
+
+### Fixed
+
+- **CI**: the `audit` gate soft-passes only on npm's retired-audit-endpoint
+  infra error (still fails hard on genuine high+ advisories), and commitlint no
+  longer rejects Dependabot's capitalized `Bump …` subject.
+
 ## [0.2.0] - 2026-07-14
 
 A correctness, safety, and infrastructure overhaul. Per-package details are in
