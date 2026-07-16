@@ -21,7 +21,7 @@
     "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
     "dotenv": "catalog:",
-    "hono": "^4.12.28",
+    "hono": "^4.12.30",
     "zod": "catalog:"
   }
 }
