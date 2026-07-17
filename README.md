@@ -36,7 +36,13 @@ LLM-written prose. Every number shown is computed deterministically in
 
 ### Web dashboard
 
-`pnpm --filter @stride/web dev` → <http://localhost:5173> (demo mode by default)
+The dashboard reads everything — demo data included — through the local API, so
+run both (two terminals):
+
+```bash
+pnpm --filter @stride/api dev      # data source on :8720
+pnpm --filter @stride/web dev      # http://localhost:5173 (demo mode by default)
+```
 
 <p align="center">
   <picture>
@@ -89,22 +95,22 @@ pnpm install
 cp .env.example .env      # add your own Strava + Anthropic credentials
 
 # Preflight — shows tooling, configured credentials, and what runs offline:
-pnpm --filter @stride/cli dev -- doctor
+pnpm --filter @stride/cli dev doctor
 
 # Try the coach offline on bundled demo data (no credentials needed):
-pnpm --filter @stride/cli dev -- analyze --demo
-pnpm --filter @stride/cli dev -- next --demo
-pnpm --filter @stride/cli dev -- plan --demo --race 10k --weeks 8
+pnpm --filter @stride/cli dev analyze --demo
+pnpm --filter @stride/cli dev next --demo
+pnpm --filter @stride/cli dev plan --demo --race 10k --weeks 8
 
 # Tell the coach how you feel — screened for safety red flags before any advice:
-pnpm --filter @stride/cli dev -- next --demo --note "left knee a bit sore"
+pnpm --filter @stride/cli dev next --demo --note "left knee a bit sore"
 
 # Connect your own Strava account, then sync and coach:
-pnpm --filter @stride/cli dev -- connect
-pnpm --filter @stride/cli dev -- sync
-pnpm --filter @stride/cli dev -- profile --screen   # PAR-Q readiness screening
-pnpm --filter @stride/cli dev -- next
-pnpm --filter @stride/cli dev -- plan --race 10k --weeks 8
+pnpm --filter @stride/cli dev connect
+pnpm --filter @stride/cli dev sync
+pnpm --filter @stride/cli dev profile --screen   # PAR-Q readiness screening
+pnpm --filter @stride/cli dev next
+pnpm --filter @stride/cli dev plan --race 10k --weeks 8
 ```
 
 Add `--json` to `analyze`/`next`/`plan` for machine-readable output, and

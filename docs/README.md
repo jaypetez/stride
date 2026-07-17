@@ -23,7 +23,7 @@ Reports your tooling, which credentials are configured, and exactly what runs
 offline versus what needs credentials — the fastest way to confirm your setup.
 
 ```bash
-pnpm --filter @stride/cli dev -- doctor
+pnpm --filter @stride/cli dev doctor
 ```
 
 ![The `stride doctor` preflight report: environment (Node, platform, data dir, reference clock, log level), which credentials are configured, and lists of what runs offline versus what needs credentials.](../assets/screenshots/cli-doctor.png)
@@ -36,7 +36,7 @@ decoupling, intensity split — then has the coach explain what they mean. The
 numbers come from `packages/core`; only the prose is written by the model.
 
 ```bash
-pnpm --filter @stride/cli dev -- analyze --demo
+pnpm --filter @stride/cli dev analyze --demo
 ```
 
 ![`stride analyze --demo`: computed metrics for the demo run followed by a coach explanation and the safety disclaimer.](../assets/screenshots/cli-analyze.png)
@@ -49,7 +49,7 @@ Summarizes current form (CTL / ATL / TSB, ACWR, recent volume) and recommends th
 next session — with concrete targets and a rationale for *why* this workout, now.
 
 ```bash
-pnpm --filter @stride/cli dev -- next --demo
+pnpm --filter @stride/cli dev next --demo
 ```
 
 ![`stride next --demo`: a current-form summary and the next recommended workout with duration, pace, HR zone, estimated load, and rationale.](../assets/screenshots/cli-next.png)
@@ -59,7 +59,7 @@ a STOP keyword (e.g. "chest pain") halts coaching and refers you to a
 professional:
 
 ```bash
-pnpm --filter @stride/cli dev -- next --demo --note "left knee a bit sore"
+pnpm --filter @stride/cli dev next --demo --note "left knee a bit sore"
 ```
 
 ### 4 · Build a training plan — `stride plan --demo`
@@ -69,19 +69,20 @@ distance targets. Every plan is checked against the guardrails — ramp rate, re
 no back-to-back-hard days, long-run caps — before you ever see it.
 
 ```bash
-pnpm --filter @stride/cli dev -- plan --demo --race 10k --weeks 8
+pnpm --filter @stride/cli dev plan --demo --race 10k --weeks 8
 ```
 
 ![`stride plan --demo --race 10k --weeks 8`: an 8-week 10k plan with weekly phases, TSS, and distance, ending with "Plan passes all guardrails".](../assets/screenshots/cli-plan.png)
 
 ### 5 · The web dashboard
 
-The same core, in the browser. Demo mode is the default:
+The same core, in the browser. The dashboard gets all of its data — demo mode
+included — from the HTTP API, so run both (two terminals; demo mode is the
+default, so no credentials are needed):
 
 ```bash
-pnpm --filter @stride/web dev      # http://localhost:5173
-# For live data, also start the API in another terminal:
-pnpm --filter @stride/api dev      # http://localhost:8720 (the web proxies /api → here)
+pnpm --filter @stride/api dev      # http://localhost:8720 — the dashboard's data source
+pnpm --filter @stride/web dev      # http://localhost:5173 (the web proxies /api → the API)
 ```
 
 ![The Stride web dashboard in demo mode: current form (CTL / ATL / TSB and ACWR), the next workout with its rationale, a CTL/ATL/TSB fitness-trend chart, the latest analysis, a recent-activities table, and an 8-week guardrail-checked training plan.](../assets/screenshots/web-dashboard.png)
@@ -104,7 +105,10 @@ curl -X POST localhost:8720/plan -H 'content-type: application/json' \
   -d '{"demo":true,"race":"10k","weeks":8}'
 ```
 
-`GET /next?demo=true` returns the same workout the CLI prints:
+`GET /next?demo=true` returns the same workout the CLI prints — abridged here to
+the highlights; the full body also carries a `context` block (your current form:
+fitness, ACWR, weekly distribution and volume), a top-level `disclaimer`, and a
+few more workout fields (`type`, `label`, `description`, `targetDistanceM`, …):
 
 ```json
 {
@@ -120,7 +124,9 @@ curl -X POST localhost:8720/plan -H 'content-type: application/json' \
 }
 ```
 
-Errors return `{ error, requestId }` with a matching `x-request-id` header. Other
+Handled errors (bad input, missing resources on known routes) return
+`{ error, requestId }` with a matching `x-request-id` header; unknown routes fall
+through to Hono's plain-text 404. Other
 demo endpoints include `GET /pmc?demo=true`, `GET /activities?demo=true`, and
 `GET /analyze/demo`. The web dashboard consumes these through Hono's typed `hc`
 RPC client, so request/response types never drift.
