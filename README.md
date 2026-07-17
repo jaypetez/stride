@@ -27,6 +27,55 @@ explains, plans, and motivates over those numbers — it never computes them.**
 
 See [`GOAL.md`](GOAL.md) for the full project brief, architecture, and roadmap.
 
+## See it in action
+
+Everything below runs **offline on bundled demo data** — no Strava app and no
+Anthropic key required. Add your own credentials to swap in live data and richer,
+LLM-written prose. Every number shown is computed deterministically in
+`packages/core`; the coach only writes the words that explain it.
+
+### Web dashboard
+
+The dashboard reads everything — demo data included — through the local API, so
+run both (two terminals):
+
+```bash
+pnpm --filter @stride/api dev      # data source on :8720
+pnpm --filter @stride/web dev      # http://localhost:5173 (demo mode by default)
+```
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/screenshots/web-dashboard-dark.png">
+    <img alt="The Stride web dashboard in demo mode: current form (CTL / ATL / TSB and ACWR), the next recommended workout with its rationale, a CTL/ATL/TSB fitness-trend chart, the latest activity analysis, a recent-activities table, and an 8-week guardrail-checked training plan — with 'Powered by Strava' attribution in the footer." src="./assets/screenshots/web-dashboard.png" width="100%">
+  </picture>
+</p>
+
+Current form, the next workout and *why*, the fitness trend, the latest analysis,
+recent activities, and a guardrail-checked plan — one dashboard over the shared
+core. A **Demo / My data** toggle switches between bundled data and your synced
+Strava history.
+
+### Command line
+
+Analyze a finished run, get your next workout, and build a whole training block —
+each explained in plain language, right in the terminal:
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img alt="'stride analyze --demo' output: sports-science metrics for the demo run (training load in TSS, intensity factor, pace, grade-adjusted pace, average HR, efficiency factor, aerobic decoupling, and intensity split) followed by a coach explanation." src="./assets/screenshots/cli-analyze.png">
+    </td>
+    <td width="50%" valign="top">
+      <img alt="'stride next --demo' output: a current-form summary (CTL / ATL / TSB, ACWR, last-7-day volume) and the next recommended workout with target duration, pace, HR zone, estimated load, and a rationale." src="./assets/screenshots/cli-next.png">
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img alt="'stride plan --demo --race 10k --weeks 8' output: an 8-week 10k plan progressing base → build → peak → taper with a recovery week, weekly TSS and distance targets, session lists, and a note that the plan passes all guardrails (ramp, rest, no back-to-back-hard, long-run caps)." src="./assets/screenshots/cli-plan.png" width="88%">
+</p>
+
 ## Status
 
 All four surfaces are implemented on one shared core: the deterministic
@@ -46,22 +95,22 @@ pnpm install
 cp .env.example .env      # add your own Strava + Anthropic credentials
 
 # Preflight — shows tooling, configured credentials, and what runs offline:
-pnpm --filter @stride/cli dev -- doctor
+pnpm --filter @stride/cli dev doctor
 
 # Try the coach offline on bundled demo data (no credentials needed):
-pnpm --filter @stride/cli dev -- analyze --demo
-pnpm --filter @stride/cli dev -- next --demo
-pnpm --filter @stride/cli dev -- plan --demo --race 10k --weeks 8
+pnpm --filter @stride/cli dev analyze --demo
+pnpm --filter @stride/cli dev next --demo
+pnpm --filter @stride/cli dev plan --demo --race 10k --weeks 8
 
 # Tell the coach how you feel — screened for safety red flags before any advice:
-pnpm --filter @stride/cli dev -- next --demo --note "left knee a bit sore"
+pnpm --filter @stride/cli dev next --demo --note "left knee a bit sore"
 
 # Connect your own Strava account, then sync and coach:
-pnpm --filter @stride/cli dev -- connect
-pnpm --filter @stride/cli dev -- sync
-pnpm --filter @stride/cli dev -- profile --screen   # PAR-Q readiness screening
-pnpm --filter @stride/cli dev -- next
-pnpm --filter @stride/cli dev -- plan --race 10k --weeks 8
+pnpm --filter @stride/cli dev connect
+pnpm --filter @stride/cli dev sync
+pnpm --filter @stride/cli dev profile --screen   # PAR-Q readiness screening
+pnpm --filter @stride/cli dev next
+pnpm --filter @stride/cli dev plan --race 10k --weeks 8
 ```
 
 Add `--json` to `analyze`/`next`/`plan` for machine-readable output, and
