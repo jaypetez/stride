@@ -1,5 +1,28 @@
 # @stride/mcp
 
+## 0.2.2
+
+### Patch Changes
+
+- Update dependencies to their latest releases (via Dependabot):
+
+  - `@anthropic-ai/sdk` 0.111.0 → 0.115.0
+  - `hono` 4.12.30 → 4.12.32
+  - `@hono/node-server` 2.0.10 → 2.0.12
+  - `@modelcontextprotocol/sdk` 1.29.0 → 1.30.0
+  - `@tanstack/react-query` 5.101.2 → 5.101.4, and `react` / `react-dom` 19.2.7 → 19.2.8
+  - dev tooling: `@biomejs/biome`, `@types/node`, `@playwright/test`,
+    `@testing-library/jest-dom` (6 → 7), `@vitejs/plugin-react`, `happy-dom`,
+    `lint-staged`, and `turbo`
+  - CI actions: `actions/checkout` v7.0.1, `github/codeql-action` v4.37.3, and
+    `ossf/scorecard-action` v2.4.4
+  - a pnpm `overrides` entry pins `fast-uri` to ^3.1.4, clearing GHSA-v2hh-gcrm-f6hx
+    from the required `audit` gate
+
+- Updated dependencies
+  - @stride/core@0.2.2
+  - @stride/schemas@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes

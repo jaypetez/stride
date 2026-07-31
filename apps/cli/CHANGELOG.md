@@ -1,5 +1,13 @@
 # @stride/cli
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @stride/core@0.2.2
+  - @stride/schemas@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
