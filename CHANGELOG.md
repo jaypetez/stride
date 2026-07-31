@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-31
+
+A docs-and-dependencies release: the four surfaces are now documented with
+end-to-end screenshots and a runnable guided tour, and every open Dependabot
+update has landed. Per-package details are in each package's `CHANGELOG.md`.
+
+### Added
+
+- **Docs**: end-to-end screenshots of all four surfaces captured offline on demo
+  data — a theme-aware web dashboard shot plus CLI cards for `doctor`, `analyze`,
+  `next`, and `plan` — in a new README "See it in action" section, and "A guided
+  tour" in `docs/README.md` walking through the CLI, web UI, HTTP API (with
+  `curl` and JSON), and MCP server.
+
+### Changed
+
+- **Runtime dependencies**: `@anthropic-ai/sdk` 0.111.0 → 0.115.0, `hono`
+  4.12.30 → 4.12.32, `@hono/node-server` 2.0.10 → 2.0.12,
+  `@modelcontextprotocol/sdk` 1.29.0 → 1.30.0, `@tanstack/react-query` 5.101.2 →
+  5.101.4, and `react` / `react-dom` 19.2.7 → 19.2.8.
+- **Dev tooling**: `@biomejs/biome` 2.5.4 → 2.5.6, `@types/node` 26.1.1 →
+  26.1.2, `@playwright/test` 1.61.1 → 1.62.0, `@testing-library/jest-dom` 6.9.1
+  → 7.0.0, `@vitejs/plugin-react` 6.0.3 → 6.0.4, `happy-dom` 20.10.6 → 20.11.1,
+  `lint-staged` 17.0.8 → 17.1.1, and `turbo` 2.10.5 → 2.10.7.
+- **CI actions**: `actions/checkout` v7.0.0 → v7.0.1, `github/codeql-action`
+  (init/analyze/upload-sarif) v4.37.1 → v4.37.3, and `ossf/scorecard-action`
+  2.4.3 → 2.4.4.
+
+### Security
+
+- **`fast-uri`**: a pnpm `overrides` entry pins `fast-uri` to ^3.1.4, patching
+  GHSA-v2hh-gcrm-f6hx, which had been failing the required `audit` gate on every
+  dependency PR.
+
 ## [0.2.1] - 2026-07-16
 
 A dependency-maintenance release: all open Dependabot updates, plus a CI fix so
@@ -91,6 +125,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/jaypetez/stride/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/jaypetez/stride/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaypetez/stride/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaypetez/stride/releases/tag/v0.1.0
