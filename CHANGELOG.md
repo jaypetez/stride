@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-08-07
+
+A dependency-maintenance release. Every open Dependabot update has landed, and
+three high-severity advisories reachable through dev tooling are patched. Per-package
+details are in each package's `CHANGELOG.md`.
+
+### Changed
+
+- **Runtime dependencies**: `hono` 4.12.32 → 4.12.34.
+- **Dev tooling**: `@biomejs/biome` 2.5.6 → 2.5.7, `lint-staged` 17.1.1 →
+  17.3.0, `tsx` 4.23.1 → 4.23.5, `turbo` 2.10.7 → 2.10.8, `@playwright/test`
+  1.62.0 → 1.62.1, `@types/react` 19.2.17 → 19.2.18, `@types/react-dom` 19.2.3 →
+  19.2.4, `@vitejs/plugin-react` 6.0.4 → 6.0.5, and `vite` 8.1.5 → 8.2.0.
+- **CI actions**: `github/codeql-action` (init/analyze/upload-sarif) v4.37.3 →
+  v4.37.6, and `pnpm/action-setup` 6.0.9 → 6.0.10.
+
+### Security
+
+- **`fast-uri`**: the `overrides` pin moves ^3.1.4 → ^3.1.5, patching
+  GHSA-7p8r-x3mc-p8w7 (host confusion via backslash). The pin added in 0.2.2 to
+  close GHSA-v2hh-gcrm-f6hx was itself holding the vulnerable version in place,
+  which had been failing the required `audit` gate on every dependency PR.
+- **`js-yaml`**: new `overrides` entries pin the 3.x line to ^3.15.1 and the 4.x
+  line to ^4.3.1, patching GHSA-5p4m-2wfm-xmqj (CVE-2026-59870, quadratic CPU
+  consumption in `!!omap` resolution). Both are reached through
+  `@changesets/cli`; because the two consumers sit on different majors, each
+  line is pinned separately rather than forced onto one.
+
 ## [0.2.2] - 2026-07-31
 
 A docs-and-dependencies release: the four surfaces are now documented with
@@ -125,7 +153,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/jaypetez/stride/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jaypetez/stride/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jaypetez/stride/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaypetez/stride/compare/v0.1.0...v0.2.0
