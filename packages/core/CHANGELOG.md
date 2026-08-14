@@ -1,5 +1,23 @@
 # @stride/core
 
+## 0.2.4
+
+### Patch Changes
+
+- chore: dependency maintenance
+
+  Roll up the three open Dependabot updates. No runtime behaviour changed.
+
+  Runtime: `@anthropic-ai/sdk` 0.115.0 -> 0.116.0 (core) and `@hono/node-server`
+  2.0.12 -> 2.1.0 (api).
+
+  Dev tooling: `@types/node` 26.1.2 -> 26.2.0, `tsx` 4.23.5 -> 4.23.12, `turbo`
+  2.10.8 -> 2.10.9, `@testing-library/jest-dom` 7.0.0 -> 7.0.1, `happy-dom`
+  20.11.1 -> 20.11.2, and `vite` 8.2.0 -> 8.2.1.
+
+- Updated dependencies
+  - @stride/schemas@0.2.4
+
 ## 0.2.3
 
 ### Patch Changes
