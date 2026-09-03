@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-03
+
+A dependency-maintenance release rolling up the ten open Dependabot updates and
+patching three high-severity `fast-uri` advisories. No runtime behaviour
+changed. Per-package details are in each package's `CHANGELOG.md`.
+
+### Changed
+
+- **Runtime dependencies**: `hono` 4.12.34 → 4.13.5 (api, web),
+  `@hono/node-server` 2.1.0 → 2.1.1 (api), `@anthropic-ai/sdk` 0.116.0 →
+  0.122.0 (core), `@tanstack/react-query` 5.101.4 → 5.102.8 (web), and `zod`
+  4.4.3 → 4.5.4 (catalog).
+- **Dev tooling**: `@biomejs/biome` 2.5.7 → 2.5.11, `@changesets/cli` 2.31.1
+  → 3.0.1, `@commitlint/cli` 21.2.1 → 21.2.2,
+  `@commitlint/config-conventional` 21.2.0 → 21.2.2, `vitest` and
+  `@vitest/coverage-v8` 4.1.10 → 4.1.11, `lint-staged` 17.3.0 → 17.4.1,
+  `tsx` 4.23.12 → 4.23.13, `turbo` 2.10.9 → 2.10.12,
+  `@testing-library/react` 16.3.2 → 16.3.3, `@types/react-dom` 19.2.4 →
+  19.2.5, `@vitejs/plugin-react` 6.0.5 → 6.1.1, `happy-dom` 20.11.2 →
+  20.12.0, and `vite` 8.2.1 → 8.2.2.
+- **CI actions**: `github/codeql-action` (init/analyze/upload-sarif) v4.37.6 →
+  v4.37.9, and `changesets/action` v1.9.0 → v2.1.1.
+- **Release pipeline**: migrated to Changesets v3. The action's v2 renamed every
+  input the release job passes (`version` → `version-script`, `publish` →
+  `publish-script`, `commit` → `commit-message`, `title` → `pr-title`) and
+  dropped the `GITHUB_TOKEN` env var in favour of a `github-token` input, and
+  the CLI renamed `changeset tag` to `changeset git-tag`.
+
+### Fixed
+
+- **Changesets skipped every package under CLI v3**: `@changesets/config` v4
+  flips the default of `privatePackages.version` from `true` to `false`. Every
+  workspace package here is private, so `changeset version` matched nothing —
+  no version bump, no changelog entries, and the changeset left unconsumed, with
+  the release job still reporting success. `.changeset/config.json` now sets
+  `privatePackages` explicitly.
+
+### Security
+
+- **`fast-uri`**: the `overrides` pin moves ^3.1.5 → ^3.1.6 (resolving to
+  3.1.7), patching GHSA-f65p-4m7j-42xc (SSRF via repeated hostname
+  percent-decoding), GHSA-fph4-wmhf-6fwf, and GHSA-jqff-g426-hqxp (host
+  confusion via percent-encoded scheme normalization). As in 0.2.3, the pin
+  added to close the previous advisory was itself holding a now-vulnerable
+  version in place, failing the required `audit` gate on every dependency PR.
+  Reached only through dev tooling (`@commitlint/cli` → `@commitlint/load` →
+  `@commitlint/config-validator` → `ajv`).
+
 ## [0.2.4] - 2026-08-13
 
 A dependency-maintenance release rolling up the three open Dependabot updates.
@@ -167,7 +215,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/jaypetez/stride/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jaypetez/stride/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jaypetez/stride/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/jaypetez/stride/compare/v0.2.1...v0.2.2
