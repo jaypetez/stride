@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-08
+
+A dependency-maintenance release rolling up the ten pending updates, including
+the `vitest` 4 → 5 major. No runtime behaviour changed. Per-package details are
+in each package's `CHANGELOG.md`.
+
+### Changed
+
+- **Runtime dependencies**: `hono` 4.13.5 → 4.13.7 (api, web),
+  `@anthropic-ai/sdk` 0.122.0 → 0.124.0 (core), `@hono/zod-validator` 0.9.0 →
+  0.9.1 (api), and `@clack/prompts` 1.7.0 → 1.8.0 (cli).
+- **Dev tooling**: `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0,
+  `@types/node` 26.2.0 → 26.5.0, `@playwright/test` 1.62.1 → 1.63.0,
+  `@changesets/cli` 3.0.1 → 3.0.2, and `lint-staged` 17.4.1 → 17.5.0.
+- **Vitest 5** needed no config migration — no `vitest.config.*` /
+  `vite.config.*` changes, and no test changes. Verified across the full CI
+  matrix (Ubuntu/macOS/Windows × Node 22/24).
+
+### Fixed
+
+- **`stride profile` stopped type-checking under `@clack/prompts` 1.8.0.** That
+  release pulls `@clack/core` 1.5.0, which retypes `isCancel` from
+  `(value) => value is symbol` to `(value) => value is typeof CANCEL_SYMBOL`.
+  The old signature narrowed away *all* symbols, collapsing a `boolean | symbol`
+  union to `boolean` after the guard; the new one narrows only that unique
+  symbol, and subtracting it from the broad `symbol` still leaves `symbol`. The
+  PAR-Q screening loop therefore needed an explicit `boolean` assertion at one
+  call site — sound, because `isCancel` guards with an early return immediately
+  above and the cancel symbol is the only symbol `confirm()` can resolve to.
+  Type-level only.
+
 ## [0.2.6] - 2026-09-08
 
 A security-patch release. It moves the `qs` transitive dependency to 6.16.0,
@@ -242,7 +273,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/jaypetez/stride/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/jaypetez/stride/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/jaypetez/stride/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jaypetez/stride/compare/v0.2.3...v0.2.4
