@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-08
+
+A security-patch release. It moves the `qs` transitive dependency to 6.16.0,
+clearing two moderate advisories from the runtime dependency tree. No runtime
+behaviour changed. Per-package details are in each package's `CHANGELOG.md`.
+
+### Security
+
+- **`qs` 6.15.3 → 6.16.0**, clearing two moderate advisories:
+  [GHSA-4mjr-xmp4-gh2g](https://github.com/advisories/GHSA-4mjr-xmp4-gh2g)
+  (denial of service via attacker-controlled `isBuffer`) and
+  [GHSA-x5fp-wj9c-mxmx](https://github.com/advisories/GHSA-x5fp-wj9c-mxmx)
+  (array-limit bypass via bracket-key comma parsing). Both alerts were
+  **runtime** scope — `qs` is reached through
+  `@stride/mcp > @modelcontextprotocol/sdk > express > body-parser`.
+  `body-parser@2.3.0` declares `qs: ^6.15.2` and `express@5.2.1` declares
+  `^6.14.0`, so 6.16.0 satisfies both parents and needs no `pnpm.overrides`
+  pin — only the lockfile was holding the stale resolution.
+- **Deferred**: `esbuild` 0.27.7
+  ([GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr),
+  low, **dev** scope) is knowingly left in place. `tsup@8.5.1` — the current
+  latest — pins `esbuild: ^0.27.0`, so 0.28.1+ cannot be reached without
+  forcing an override against its declared range, and the vulnerable path is
+  esbuild's own development server, which tsup never starts. `vite@8.2.2`
+  already resolves esbuild 0.28.2 independently. To be revisited when tsup
+  widens its range.
+
 ## [0.2.5] - 2026-09-03
 
 A dependency-maintenance release rolling up the ten open Dependabot updates and
@@ -215,7 +242,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/jaypetez/stride/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/jaypetez/stride/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/jaypetez/stride/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/jaypetez/stride/compare/v0.2.2...v0.2.3

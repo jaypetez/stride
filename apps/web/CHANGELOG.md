@@ -1,5 +1,19 @@
 # @stride/web
 
+## 0.2.6
+
+### Patch Changes
+
+- ecfc597: Patch the `qs` transitive dependency to 6.16.0, clearing two moderate advisories
+  (GHSA-4mjr-xmp4-gh2g denial of service via attacker-controlled `isBuffer`, and
+  GHSA-x5fp-wj9c-mxmx array-limit bypass via bracket-key comma parsing). `qs` is
+  reached through `express`/`body-parser` under `@modelcontextprotocol/sdk`, so it
+  was in the runtime tree.
+- Updated dependencies [ecfc597]
+  - @stride/api@0.2.6
+  - @stride/core@0.2.6
+  - @stride/schemas@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
