@@ -79,7 +79,10 @@ async function maybeScreen(
       clack.cancel('Screening cancelled — profile unchanged.');
       return;
     }
-    answers.push(ans);
+    // `isCancel` only narrows out its own unique symbol, so `ans` is still
+    // typed `boolean | symbol` here even though confirm() can only resolve
+    // to a real boolean or the cancel symbol handled above.
+    answers.push(ans as boolean);
   }
 
   const result = screenReadiness(answers);

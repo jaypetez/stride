@@ -17,11 +17,11 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
-    "@hono/zod-validator": "^0.9.0",
+    "@hono/zod-validator": "^0.9.1",
     "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
     "dotenv": "catalog:",
-    "hono": "^4.13.5",
+    "hono": "^4.13.7",
     "zod": "catalog:"
   }
 }
