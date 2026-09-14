@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-14
+
+A security and CI maintenance release. No runtime behaviour changed — every
+change is confined to the dev toolchain and the workflow pins. Per-package
+details are in each package's `CHANGELOG.md`.
+
+### Fixed
+
+- **`js-yaml` advisory [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh) (high).**
+  The `js-yaml@4` override pinned `^4.3.1` and the lockfile resolved to exactly
+  4.3.1 — inside the vulnerable range (`>=4.0.0 <4.3.2`). Both override lines
+  now pin the patched versions (`js-yaml@4` → `^4.3.2`, `js-yaml@3` →
+  `^3.15.2`). The v3 pin is currently unused, since the `@changesets/cli` 3.x
+  bump dropped the `read-yaml-file` path that pulled it in, but is kept as a
+  defensive pin.
+
+  `js-yaml` reaches the tree transitively via `@commitlint/cli >
+  @commitlint/load > cosmiconfig`, and Dependabot's security-update job runs
+  with `update-subdependencies: false`, so Dependabot could not fix this itself
+  — its run errored out and the override had to be bumped by hand.
+
+  The advisory was failing the `audit` job, which fails the aggregate `build`
+  gate — the single required check on `main` — and so had the entire
+  Dependabot queue blocked.
+
+### Changed
+
+- **CI actions**: `pnpm/action-setup` 6.0.10 → 6.1.0 and `changesets/action`
+  2.1.1 → 2.1.2. The latter is patch-only (no input renames), so the pin's
+  documented lockstep with `@changesets/cli` v3 still holds.
+
 ## [0.2.7] - 2026-09-08
 
 A dependency-maintenance release rolling up the ten pending updates, including
@@ -273,7 +304,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.7...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.8...HEAD
+[0.2.8]: https://github.com/jaypetez/stride/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/jaypetez/stride/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/jaypetez/stride/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/jaypetez/stride/compare/v0.2.4...v0.2.5
