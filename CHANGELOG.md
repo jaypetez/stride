@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-09-21
+
+Completes the dev-dependencies bump from 0.2.9: `vitest`/
+`@vitest/coverage-v8` 5.0.0 → 5.0.1, held back at the time after CI showed
+`apps/web` typecheck failures.
+
+### Changed
+
+- **Dev tooling**: `vitest`/`@vitest/coverage-v8` 5.0.0 → 5.0.1. The
+  earlier failure was not a vitest regression — `@vitest/expect`'s
+  `Assertion` type declaration is byte-identical between 5.0.0 and 5.0.1
+  (diffed the packed npm tarballs directly). The real cause: Dependabot's
+  frozen lockfile snapshot resolved two different `@types/node` versions
+  across the two peer-qualified `vitest@5.0.1` variants in the workspace,
+  so `@testing-library/jest-dom`'s vitest type augmentation landed on a
+  different physical vitest instance than the one `apps/web`'s test files
+  actually imported. Re-resolving the lockfile converges both variants onto
+  a single `@types/node` and fixes it, with no version pin changes beyond
+  the intended bump.
+
 ## [0.2.9] - 2026-09-21
 
 A dependency maintenance release. No runtime behaviour changed outside
@@ -337,7 +357,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.9...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.10...HEAD
+[0.2.10]: https://github.com/jaypetez/stride/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/jaypetez/stride/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/jaypetez/stride/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/jaypetez/stride/compare/v0.2.6...v0.2.7
