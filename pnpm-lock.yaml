@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     dotenv:
-      specifier: ^17.4.2
-      version: 17.4.2
+      specifier: ^18.0.1
+      version: 18.0.1
     zod:
       specifier: ^4.6.5
       version: 4.6.5
@@ -78,7 +78,7 @@ importers:
         version: link:../../packages/schemas
       dotenv:
         specifier: 'catalog:'
-        version: 17.4.2
+        version: 18.0.1
       hono:
         specifier: ^4.13.7
         version: 4.13.7
@@ -102,7 +102,7 @@ importers:
         version: 15.0.0
       dotenv:
         specifier: 'catalog:'
-        version: 17.4.2
+        version: 18.0.1
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1
@@ -120,7 +120,7 @@ importers:
         version: link:../../packages/schemas
       dotenv:
         specifier: 'catalog:'
-        version: 17.4.2
+        version: 18.0.1
       zod:
         specifier: 'catalog:'
         version: 4.6.5
@@ -186,7 +186,7 @@ importers:
         version: link:../schemas
       dotenv:
         specifier: 'catalog:'
-        version: 17.4.2
+        version: 18.0.1
       zod:
         specifier: 'catalog:'
         version: 4.6.5
@@ -1549,9 +1549,10 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
-  dotenv@17.4.2:
-    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
+  dotenv@18.0.1:
+    resolution: {integrity: sha512-0eR4m4D/jH5eaI3evo2ZqqMii5mrTCR12v12VChdie6O1gPHs7XAjzTep0CWc1Bd+oNx3vVfbi734dK4zghigw==}
     engines: {node: '>=12'}
+    hasBin: true
 
   dunder-proto@1.0.1:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
@@ -3295,7 +3296,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 5.0.1(@types/node@26.5.0)(@vitest/coverage-v8@5.0.1)(happy-dom@20.14.5)(vite@8.3.0(@types/node@26.5.0)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.23.13)(yaml@2.9.0))
+      vitest: 5.0.1(@types/node@26.5.0)(@vitest/coverage-v8@5.0.1)(happy-dom@20.14.5)(vite@8.3.0(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.13)(yaml@2.9.0))
 
   '@vitest/istanbul-lib-coverage@1.0.1': {}
 
@@ -3320,7 +3321,6 @@ snapshots:
       magic-string: 1.2.3
     optionalDependencies:
       vite: 8.3.0(@types/node@26.5.0)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.13)(yaml@2.9.0)
-    optional: true
 
   '@vitest/spy@5.0.1': {}
 
@@ -3499,7 +3499,7 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  dotenv@17.4.2: {}
+  dotenv@18.0.1: {}
 
   dunder-proto@1.0.1:
     dependencies:
@@ -4413,7 +4413,6 @@ snapshots:
       happy-dom: 20.14.5
     transitivePeerDependencies:
       - msw
-    optional: true
 
   whatwg-mimetype@3.0.0: {}
 
