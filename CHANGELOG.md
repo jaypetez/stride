@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-09-29
+
+A dependency maintenance release. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `hono` 4.13.7 → 4.13.8, `@tanstack/react-query`
+  5.102.8 → 5.103.1, `dotenv` 17.4.2 → 18.0.1 (major; every call site already
+  passes `{ quiet: true }`, so the MCP stdout wire stays clean, and no code
+  changes were needed).
+- **CI**: `github/codeql-action` (`init`/`analyze`/`upload-sarif`) 4.38.0 →
+  4.38.1, all three pinned to the same SHA.
+- **Dev tooling**: `@commitlint/cli` and `@commitlint/config-conventional`
+  21.2.2 → 21.2.3, `@types/node` 26.5.0 → 26.6.2, `tsx` 4.23.13 → 4.23.15.
+
+### Security
+
+- `ip-address` 10.3.1 → 10.7.2 (transitive via `@modelcontextprotocol/sdk` →
+  `express-rate-limit`), fixing a moderate advisory ([GHSA-2vr4-cq9g-pvrc](https://github.com/advisories/GHSA-2vr4-cq9g-pvrc), patched in 10.5.1) with
+  a lockfile-only update.
+
 ## [0.2.10] - 2026-09-21
 
 Completes the dev-dependencies bump from 0.2.9: `vitest`/
@@ -357,7 +379,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.10...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.11...HEAD
+[0.2.11]: https://github.com/jaypetez/stride/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/jaypetez/stride/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/jaypetez/stride/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/jaypetez/stride/compare/v0.2.7...v0.2.8
