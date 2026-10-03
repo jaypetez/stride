@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-10-02
+
+A dependency maintenance release. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 0.127.0 → 0.128.0,
+  `@modelcontextprotocol/sdk` 1.30.0 → 1.30.1.
+- **CI**: `github/codeql-action` (`init`/`analyze`/`upload-sarif`) 4.38.1 →
+  4.38.2, all three pinned to the same SHA.
+- **Dev tooling**: `vite` 8.3.0 → 8.3.1, `vitest` and `@vitest/coverage-v8`
+  5.0.1 → 5.0.2, `turbo` 2.11.1 → 2.11.5, `lint-staged` 17.5.1 → 17.6.0.
+
+### Security
+
+- `esbuild` 0.27.7 → 0.28.2 (transitive via `tsup`), fixing a low-severity
+  advisory ([GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr), patched in 0.28.1) with a
+  `pnpm.overrides` entry.
+
 ## [0.2.11] - 2026-09-29
 
 A dependency maintenance release. Per-package details are in each package's
@@ -379,7 +399,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.11...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.12...HEAD
+[0.2.12]: https://github.com/jaypetez/stride/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/jaypetez/stride/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/jaypetez/stride/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/jaypetez/stride/compare/v0.2.8...v0.2.9
