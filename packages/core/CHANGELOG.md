@@ -1,5 +1,13 @@
 # @stride/core
 
+## 0.2.12
+
+### Patch Changes
+
+- 76e4088: Dependency maintenance batch: @anthropic-ai/sdk 0.128.0, @modelcontextprotocol/sdk 1.30.1, vite 8.3.1, vitest + @vitest/coverage-v8 5.0.2, turbo 2.11.5, lint-staged 17.6.0, github/codeql-action 4.38.2, and esbuild 0.27.7 -> 0.28.2 via override (Dependabot alert #1).
+- Updated dependencies [76e4088]
+  - @stride/schemas@0.2.12
+
 ## 0.2.11
 
 ### Patch Changes
