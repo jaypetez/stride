@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-10-08
+
+A dependency maintenance release with security fixes. Per-package details are in
+each package's `CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 0.128.0 → 0.131.0,
+  `@modelcontextprotocol/sdk` 1.30.1 → 1.32.0, `hono` 4.13.11 → 4.13.13,
+  `@hono/node-server` 2.1.1 → 2.1.3, `@tanstack/react-query` 5.104.0 → 5.104.1,
+  `dotenv` 18.0.4 → 18.0.6.
+- **Dev tooling**: `@biomejs/biome` 2.5.14 → 2.5.15, `@types/node` 26.6.2 → 26.6.4.
+
+### Security
+
+- `@modelcontextprotocol/sdk` 1.30.1 → 1.32.0, fixing an OAuth client credential
+  leak ([GHSA-6qxp-vccf-f47h](https://github.com/advisories/GHSA-6qxp-vccf-f47h)).
+- Transitive `proxy-addr` → 2.0.8, `shell-quote` → 1.11.0 and `source-map-js` →
+  1.2.2 (lockfile refresh), clearing the `pnpm audit` gate.
+
 ## [0.2.12] - 2026-10-02
 
 A dependency maintenance release. Per-package details are in each package's
@@ -399,7 +419,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.12...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.13...HEAD
+[0.2.13]: https://github.com/jaypetez/stride/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/jaypetez/stride/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/jaypetez/stride/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/jaypetez/stride/compare/v0.2.9...v0.2.10
