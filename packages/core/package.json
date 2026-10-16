@@ -18,7 +18,7 @@
     "lint": "biome check ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.132.1",
+    "@anthropic-ai/sdk": "^0.133.0",
     "@stride/schemas": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
