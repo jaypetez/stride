@@ -1,5 +1,14 @@
 # @stride/mcp
 
+## 0.2.14
+
+### Patch Changes
+
+- Batch dependency updates: `@anthropic-ai/sdk` 0.133.0, `zod` 4.6.6, `dotenv` 18.0.7, `@tanstack/react-query` 5.104.2, `@playwright/test` 1.64.0, `@vitejs/plugin-react` 6.1.2, `happy-dom` 21.0.1, `vite` 8.3.4, `@types/node` 26.6.5. CI: `actions/upload-artifact` 7.0.2, `actions/setup-node` 7.1.0, `ossf/scorecard-action` 2.5.0, `github/codeql-action` 4.38.3.
+- Updated dependencies
+  - @stride/core@0.2.14
+  - @stride/schemas@0.2.14
+
 ## 0.2.13
 
 ### Patch Changes

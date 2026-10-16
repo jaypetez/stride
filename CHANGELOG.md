@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-10-15
+
+A dependency maintenance release. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 0.132.1 → 0.133.0, `zod` 4.6.5 → 4.6.6,
+  `@tanstack/react-query` 5.104.1 → 5.104.2, `dotenv` 18.0.6 → 18.0.7.
+- **Dev tooling**: `@playwright/test` 1.63.0 → 1.64.0, `@vitejs/plugin-react`
+  6.1.1 → 6.1.2, `happy-dom` 20.14.5 → 21.0.1, `vite` 8.3.1 → 8.3.4,
+  `@types/node` 26.6.4 → 26.6.5.
+- **CI**: `actions/upload-artifact` 7.0.1 → 7.0.2, `actions/setup-node` 7.0.0 →
+  7.1.0, `ossf/scorecard-action` 2.4.4 → 2.5.0, `github/codeql-action`
+  (`init`/`analyze`/`upload-sarif`) 4.38.2 → 4.38.3, all three pinned to the same
+  SHA.
+
 ## [0.2.13] - 2026-10-08
 
 A dependency maintenance release with security fixes. Per-package details are in
@@ -419,7 +436,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.13...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.14...HEAD
+[0.2.14]: https://github.com/jaypetez/stride/compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com/jaypetez/stride/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/jaypetez/stride/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/jaypetez/stride/compare/v0.2.10...v0.2.11
