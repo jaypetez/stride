@@ -19,7 +19,7 @@
     "@stride/schemas": "workspace:*",
     "@tanstack/react-query": "^5.104.2",
     "hono": "^4.13.13",
-    "react": "^19.3.0",
+    "react": "^19.3.1",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {

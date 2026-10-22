@@ -139,16 +139,16 @@ importers:
         version: link:../../packages/schemas
       '@tanstack/react-query':
         specifier: ^5.104.2
-        version: 5.104.3(react@19.3.0)
+        version: 5.104.3(react@19.3.1)
       hono:
         specifier: ^4.13.13
         version: 4.13.13
       react:
-        specifier: ^19.3.0
-        version: 19.3.0
+        specifier: ^19.3.1
+        version: 19.3.1
       react-dom:
         specifier: ^19.3.0
-        version: 19.3.0(react@19.3.0)
+        version: 19.3.0(react@19.3.1)
     devDependencies:
       '@playwright/test':
         specifier: ^1.64.0
@@ -158,7 +158,7 @@ importers:
         version: 7.0.1(@testing-library/dom@10.4.1)(vitest@5.0.3)
       '@testing-library/react':
         specifier: ^16.3.3
-        version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.1))(react@19.3.1)
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -1947,8 +1947,8 @@ packages:
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
 
-  react@19.3.0:
-    resolution: {integrity: sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==}
+  react@19.3.1:
+    resolution: {integrity: sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==}
     engines: {node: '>=0.10.0'}
 
   readdirp@4.1.2:
@@ -2899,10 +2899,10 @@ snapshots:
 
   '@tanstack/query-core@5.104.3': {}
 
-  '@tanstack/react-query@5.104.3(react@19.3.0)':
+  '@tanstack/react-query@5.104.3(react@19.3.1)':
     dependencies:
       '@tanstack/query-core': 5.104.3
-      react: 19.3.0
+      react: 19.3.1
 
   '@testing-library/dom@10.4.1':
     dependencies:
@@ -2927,12 +2927,12 @@ snapshots:
     optionalDependencies:
       vitest: 5.0.3(@types/node@26.6.5)(@vitest/coverage-v8@5.0.3)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.6.1)(tsx@4.23.15)(yaml@2.9.1))
 
-  '@testing-library/react@16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@testing-library/react@16.3.3(@testing-library/dom@10.4.1)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@babel/runtime': 7.29.7
       '@testing-library/dom': 10.4.1
-      react: 19.3.0
-      react-dom: 19.3.0(react@19.3.0)
+      react: 19.3.1
+      react-dom: 19.3.0(react@19.3.1)
     optionalDependencies:
       '@types/react': 19.3.0
       '@types/react-dom': 19.3.0(@types/react@19.3.0)
@@ -3756,14 +3756,14 @@ snapshots:
       iconv-lite: 0.7.3
       unpipe: 1.0.0
 
-  react-dom@19.3.0(react@19.3.0):
+  react-dom@19.3.0(react@19.3.1):
     dependencies:
-      react: 19.3.0
+      react: 19.3.1
       scheduler: 0.28.0
 
   react-is@17.0.2: {}
 
-  react@19.3.0: {}
+  react@19.3.1: {}
 
   readdirp@4.1.2: {}
 
