@@ -46,4 +46,5 @@ playwright-report/
 playwright/.cache/
 
 # Claude Code agent worktrees / local scratch
-.claude/
+.claude/*
+!.claude/skills/

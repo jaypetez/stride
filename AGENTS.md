@@ -33,6 +33,21 @@ run/verify → observe — locally with **no secrets and no network**.
 
 Prefer `pnpm check` + `pnpm verify` as the two commands that gate a change.
 
+## Stride Groups and the software factory
+
+Stride Groups is a native Android app (`android/`) backed by Cloudflare (`apps/cloud`). See ADRs 0005–0009 and `GOAL.md` §2/§4. The work is tracked as backlog-as-code and pulled by agents.
+
+| Command | What it does |
+|---|---|
+| `pnpm factory validate` | Offline check of `tools/factory/src/backlog/*.ts`: anchors, dependencies, cycles, phase order, acceptance criteria and test plans. Also runs in `pnpm test`. |
+| `pnpm -s factory next [--workstream <area\|KEY>] [--all] [--json]` | Next ready issue: open, `agent:ok`, unclaimed, 0 open blockers, no open PR. |
+| `pnpm factory claim <n>` / `release <n> [--needs-human]` / `status <n> "<Status>"` | Claim an issue, give it back, or move its Project Status. |
+| `pnpm factory seed [--dry-run]` | Make GitHub issues and Projects match the backlog. Idempotent. Maintainers only. |
+
+- **To work an issue,** use the `/factory-next` skill (`.claude/skills/factory-next/SKILL.md`). The runbook is `docs/factory/README.md`.
+- **To change the plan,** edit the backlog files, never the issue bodies; the seeder overwrites managed bodies.
+- **The cloud and Android commands** (`pnpm check:android`, `wrangler dev`, Gradle tasks) are added by the issues that create those surfaces. When they land, update this file.
+
 ## Running each surface offline (no credentials)
 
 - **CLI:** `pnpm --filter @stride/cli dev -- analyze --demo` (also `next --demo`, `plan --demo --race 10k --weeks 8`, `profile`, `doctor`). Add `--json` for machine-readable output, `--note "<text>"` to pass free-text the safety layer screens for red flags, and (live) `sync --rebuild|--backfill|--reconcile`.

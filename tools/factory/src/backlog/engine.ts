@@ -1,0 +1,278 @@
+import type { WorkstreamBacklog } from '../types.ts';
+
+export const backlog: WorkstreamBacklog = {
+  workstream: {
+    key: 'ENGINE',
+    title: 'Training Engine & Programs',
+    area: 'engine',
+    description:
+      'Reuse the deterministic sports-science engine in `packages/core` on Cloudflare Workers, extend the Zod domain model for groups, and build shared group training programs and per-member stats. Every number is computed in code (GOAL.md §3, §7); every plan feature ships with a guardrail test.',
+  },
+  epics: [
+    {
+      key: 'ENGINE-E1',
+      title: 'Core and schemas ready for the cloud',
+      phase: 'P0',
+      summary:
+        'Make `@stride/core` science/coach subpaths run inside a Worker and add the group, social, chat and program schemas every other workstream builds on.',
+    },
+    {
+      key: 'ENGINE-E2',
+      title: 'Group training programs',
+      phase: 'P3',
+      summary:
+        'A group picks a race goal and a number of weeks; Stride generates one shared program skeleton and scales it per member, validated by the guardrail (ADR 0003).',
+    },
+    {
+      key: 'ENGINE-E3',
+      title: 'Stats and progress',
+      phase: 'P3',
+      summary:
+        'Per-member PMC, ACWR, zones, VDOT/VO2max and race predictions, plus a no-rankings group progress summary, recomputed whenever activities arrive.',
+    },
+  ],
+  issues: [
+    {
+      key: 'ENGINE-001',
+      epic: 'ENGINE-E1',
+      title: 'Make @stride/core science and coach subpaths Worker-safe',
+      phase: 'P0',
+      priority: 'high',
+      size: 'M',
+      type: 'task',
+      agent: true,
+      context: `The Worker will import \`@stride/core/science\` and \`@stride/core/coach\`. \`packages/core/src/log.ts\` reads \`process.env\` and writes to \`process.stderr\`, and the root \`@stride/core\` index re-exports \`store\`/\`config\` which pull in \`node:fs\`. Make the logger runtime-agnostic and prove the subpaths load in workerd. See ADR 0001 (raw-ts consumption).`,
+      acceptance: [
+        '`log.ts` works without `process` (injectable sink/level; falls back to `console` when `process` is absent)',
+        '`@stride/core/science` and `@stride/core/coach` import nothing from `node:*` (transitively)',
+        'A lint/test guard fails if a `node:` import is added to those subpaths',
+        'Existing CLI/API/MCP behaviour and `pnpm verify` unchanged',
+      ],
+      testPlan: [
+        '`packages/core/test/worker-safe.test.ts`: static import-graph check for `node:` specifiers',
+        '`apps/cloud/test/core-in-worker.test.ts` (vitest-pool-workers) computing a PMC series from fixtures',
+        '`pnpm check` and `pnpm verify` green',
+      ],
+      files: [
+        'packages/core/src/log.ts',
+        'packages/core/package.json',
+        'packages/core/test/worker-safe.test.ts',
+      ],
+      dependsOn: ['CLOUD-001'],
+    },
+    {
+      key: 'ENGINE-002',
+      epic: 'ENGINE-E1',
+      title: 'Zod schemas for groups, social, chat and programs',
+      phase: 'P0',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        '`packages/schemas` is the single source of truth for types (AGENTS.md). Add `group.ts`, `social.ts`, `chat.ts` and `program.ts`, and extend `ActivitySource` in `enums.ts` with `health_connect` and `fit_import`. These schemas feed API validation and the contract fixtures Android tests consume.',
+      acceptance: [
+        'New modules export `Group`, `Membership`, `Role`, `Invite`, `Comment`, `Reaction`, `Report`, `Block`, `ChatMessage`, `Program`, `ProgramMember`, `ProgramSession` schemas and inferred types',
+        '`ActivitySource` includes `health_connect` and `fit_import`; existing consumers still compile',
+        'All new schemas re-exported from `packages/schemas/src/index.ts`',
+        'Each schema has round-trip parse tests including rejection of invalid input',
+      ],
+      testPlan: [
+        '`packages/schemas/test/group.test.ts`, `social.test.ts`, `chat.test.ts`, `program.test.ts`',
+        '`pnpm check` green',
+      ],
+      files: [
+        'packages/schemas/src/{group,social,chat,program}.ts',
+        'packages/schemas/src/enums.ts',
+        'packages/schemas/src/index.ts',
+      ],
+      dependsOn: [],
+    },
+    {
+      key: 'ENGINE-003',
+      epic: 'ENGINE-E2',
+      title: 'Group program generator from a race goal',
+      phase: 'P3',
+      priority: 'high',
+      size: 'L',
+      type: 'feature',
+      agent: true,
+      context:
+        'A group owner chooses a race distance, race date and weeks. Generate a shared periodized skeleton (Base→Build→Peak→Taper) with `buildPlanSkeleton` and `materializeProposal` from packages/core/src/coach/planner.ts. The program is deterministic; any LLM prose comes later (ADR 0003).',
+      acceptance: [
+        '`POST /v1/groups/:id/programs` creates a program for a race goal; only group admins may create (policy module)',
+        'The skeleton is produced by core planner functions, not new math in the Worker',
+        'The generated program passes `validatePlan` for a reference athlete',
+        'Program is stored in D1 with weeks/days/sessions matching `program.ts` schemas',
+      ],
+      testPlan: [
+        '`packages/core/test/group-program.test.ts`: skeleton for 10k/half/marathon × 8/12/16/18 weeks passes guardrail',
+        '`apps/cloud/test/programs.create.test.ts` with `STRIDE_NOW` pinned',
+      ],
+      files: ['packages/core/src/coach/group-program.ts', 'apps/cloud/src/routes/programs.ts'],
+      dependsOn: ['ENGINE-001', 'ENGINE-002', 'SOCIAL-001', 'CLOUD-005'],
+    },
+    {
+      key: 'ENGINE-004',
+      epic: 'ENGINE-E2',
+      title: 'Per-member program scaling with guardrail tests',
+      phase: 'P3',
+      priority: 'high',
+      size: 'L',
+      type: 'feature',
+      agent: true,
+      context:
+        "Friends train together on different fitness levels. Scale each member's sessions from the shared skeleton with `rescaleSession` using their CTL and VDOT (anchors via `estimateAnchors`). Every member plan must pass `validatePlan`, and `repairPlan` fixes violations (ramp ≤ `MAX_WEEKLY_RAMP`, `MIN_REST_DAYS`, `LONG_RUN_MAX_FRACTION`, no back-to-back hard days).",
+      acceptance: [
+        'Joining a program creates a member-specific plan derived from the shared skeleton',
+        "Paces/targets come from the member's VDOT `trainingSpeeds`; volume from their current CTL",
+        'Every member plan is validated; violations are repaired or the join is rejected with reasons',
+        'Members with no history get a conservative beginner scaling',
+      ],
+      testPlan: [
+        '`packages/core/test/member-scaling.guardrail.test.ts`: property-style test over a grid of CTL/VDOT values asserting zero guardrail violations',
+        '`apps/cloud/test/programs.join.test.ts`',
+      ],
+      files: ['packages/core/src/coach/member-scaling.ts', 'apps/cloud/src/routes/programs.ts'],
+      dependsOn: ['ENGINE-003'],
+    },
+    {
+      key: 'ENGINE-005',
+      epic: 'ENGINE-E2',
+      title: 'Program calendar API',
+      phase: 'P3',
+      priority: 'medium',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Android needs a calendar of planned sessions per member and a group view of "who is doing what today". Read-only endpoints over the stored program and member plans.',
+      acceptance: [
+        "`GET /v1/programs/:id/calendar?from&to` returns the caller's sessions with completion status",
+        "`GET /v1/programs/:id/today` returns each group member's session for today (respecting blocks)",
+        "Date handling uses the member's timezone and `STRIDE_NOW` override in tests",
+        'Responses validate against `program.ts` schemas',
+      ],
+      testPlan: [
+        '`apps/cloud/test/programs.calendar.test.ts` with pinned clock and two members in different timezones',
+      ],
+      files: ['apps/cloud/src/routes/programs.ts'],
+      dependsOn: ['ENGINE-004'],
+    },
+    {
+      key: 'ENGINE-006',
+      epic: 'ENGINE-E2',
+      title: 'Match completed activities to planned sessions',
+      phase: 'P3',
+      priority: 'medium',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'When an activity is ingested, mark the planned session it fulfils. Matching is deterministic: same local date (±1 day window), closest distance/duration, and intensity label from zone distribution.',
+      acceptance: [
+        'A pure `matchActivityToSession` function in core with documented tolerances',
+        'Ingestion triggers matching; sessions show `completed`, `partial` or `missed` after the day ends',
+        'Manual override endpoint lets a member re-link or unlink an activity',
+        'Re-ingesting an activity does not double-count',
+      ],
+      testPlan: [
+        '`packages/core/test/session-matching.test.ts` table-driven cases',
+        '`apps/cloud/test/programs.matching.test.ts`',
+      ],
+      files: ['packages/core/src/coach/matching.ts', 'apps/cloud/src/programs/matching.ts'],
+      dependsOn: ['ENGINE-005', 'INTEG-001'],
+    },
+    {
+      key: 'ENGINE-007',
+      epic: 'ENGINE-E3',
+      title: 'Member stats endpoints: PMC, ACWR, zones',
+      phase: 'P3',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Expose per-member fitness/fatigue/form and load-risk series computed with `buildPmcSeries`, `buildAcwrSeries`, `computeZones` and `zoneDistribution` from packages/core/src/science. Charts on Android render these series directly; no numbers are computed on device.',
+      acceptance: [
+        '`GET /v1/users/:id/stats/pmc?days=` returns CTL/ATL/TSB points from the durable daily-load series',
+        '`GET /v1/users/:id/stats/acwr` and `/stats/zones?weeks=` return series validated by `metrics.ts` schemas',
+        "Group members can read each other's stats only per policy module and `STRAVA_VISIBILITY`",
+        'Outputs are byte-identical across runs with `STRIDE_NOW` pinned',
+      ],
+      testPlan: [
+        '`apps/cloud/test/stats.pmc.test.ts` against golden fixtures',
+        'Authz matrix rows for stats routes',
+      ],
+      files: ['apps/cloud/src/routes/stats.ts'],
+      dependsOn: ['INTEG-001', 'ENGINE-001', 'CLOUD-005'],
+    },
+    {
+      key: 'ENGINE-008',
+      epic: 'ENGINE-E3',
+      title: 'VDOT, VO2max estimate and race predictions',
+      phase: 'P3',
+      priority: 'medium',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Estimate each member\'s VDOT from their best recent efforts with `vdotFromEffort` and predict race times with `predictRaceTimeSec` (packages/core/src/science/vdot.ts). Present VDOT as a pseudo-VO2max trend, not a lab value (GOAL.md §3 "honest about limits").',
+      acceptance: [
+        '`GET /v1/users/:id/stats/vdot` returns current VDOT, the source effort, and a 12-week trend',
+        'Race predictions for 5k/10k/half/marathon returned from code',
+        'Responses carry an `estimate: true` flag and the anchor used',
+        'No prediction when there is insufficient data (explicit `reason`)',
+      ],
+      testPlan: [
+        '`packages/core/test/vdot.test.ts` extended with published Daniels table checkpoints',
+        '`apps/cloud/test/stats.vdot.test.ts`',
+      ],
+      files: ['apps/cloud/src/routes/stats.ts', 'packages/core/src/science/vdot.ts'],
+      dependsOn: ['ENGINE-007'],
+    },
+    {
+      key: 'ENGINE-009',
+      epic: 'ENGINE-E3',
+      title: 'Group progress summary without rankings',
+      phase: 'P3',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Small groups want to see that everyone is on track, not a leaderboard. Summarize per-member adherence % and weekly volume against their own plan; no cross-member ordering or "fastest" lists.',
+      acceptance: [
+        '`GET /v1/groups/:id/progress?week=` returns per-member adherence %, planned vs completed volume',
+        'Response order is stable by display name, never by performance',
+        'Members who blocked the viewer or are hidden by `STRAVA_VISIBILITY` are excluded',
+      ],
+      testPlan: ['`apps/cloud/test/groups.progress.test.ts`'],
+      files: ['apps/cloud/src/routes/groups-progress.ts'],
+      dependsOn: ['ENGINE-006', 'SOCIAL-004'],
+    },
+    {
+      key: 'ENGINE-010',
+      epic: 'ENGINE-E3',
+      title: 'Recompute pipeline on ingestion',
+      phase: 'P3',
+      priority: 'medium',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Activity create/update/delete must refresh the daily-load series, anchors, session matching and cached stats. Do it asynchronously through a Queue so ingestion stays fast and recompute is retried on failure.',
+      acceptance: [
+        'Ingestion enqueues a `recompute` job per affected user/date range',
+        'Consumer updates daily loads, anchors (every 4–6 weeks policy), matching and stats caches idempotently',
+        'Back-dated activities recompute the series from that date forward',
+        'Failures retry with backoff and land in a dead-letter queue',
+      ],
+      testPlan: [
+        '`apps/cloud/test/recompute.queue.test.ts` (Miniflare Queues) including a back-dated insert',
+      ],
+      files: ['apps/cloud/src/queues/recompute.ts'],
+      dependsOn: ['ENGINE-006', 'ENGINE-007'],
+    },
+  ],
+};

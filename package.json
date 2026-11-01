@@ -25,6 +25,7 @@
     "format": "biome check --write .",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify",
     "verify": "node scripts/smoke.mjs",
+    "factory": "tsx tools/factory/src/cli.ts",
     "dev": "turbo run dev",
     "changeset": "changeset",
     "version": "changeset version",

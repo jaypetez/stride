@@ -1,0 +1,385 @@
+import type { WorkstreamBacklog } from '../types.ts';
+
+export const backlog: WorkstreamBacklog = {
+  workstream: {
+    key: 'SEC',
+    title: 'Security, Privacy & Legal',
+    area: 'security',
+    description:
+      'Threat model, OWASP MASVS L1, secret handling, token encryption, abuse controls, legal documents (privacy, terms, community guidelines), consent, age gate, and user data rights (export and deletion) for Stride Groups.',
+  },
+  epics: [
+    {
+      key: 'SEC-E1',
+      title: 'Threat model & security hardening',
+      phase: 'P0',
+      summary:
+        'Know what we defend and prove it: a STRIDE-per-element threat model, a MASVS L1 checklist for the app, encrypted third-party tokens, secret scanning, rate limiting, and the Strava strict-mode flags.',
+    },
+    {
+      key: 'SEC-E2',
+      title: 'Legal documents & consent',
+      phase: 'P1',
+      summary:
+        'Template Privacy Policy, Terms of Service and Community Guidelines (marked "template — not legal advice"), served on the web and linked in-app, plus ToS acceptance before posting and a 16+ age gate.',
+    },
+    {
+      key: 'SEC-E3',
+      title: 'User data rights: export & deletion',
+      phase: 'P2',
+      summary:
+        'Users can export their data and delete their account from the app or the web; the backend actually removes their data (Play-compliant even though we are not on Play yet).',
+    },
+  ],
+  issues: [
+    {
+      key: 'SEC-001',
+      epic: 'SEC-E1',
+      title: 'Write the STRIDE threat model for groups, chat and tokens',
+      phase: 'P0',
+      priority: 'high',
+      size: 'M',
+      type: 'docs',
+      agent: true,
+      context: `Cloudflare has no row-level security, so authorization is entirely ours (docs/adr/0009-*.md). Before building, enumerate data flows (Android ↔ Worker ↔ D1/Durable Objects/Queues, Strava/FCM/Anthropic egress) and apply STRIDE per element. Mitigations become acceptance criteria on other issues.`,
+      acceptance: [
+        'docs/security/threat-model.md contains a data-flow diagram (Mermaid) with trust boundaries.',
+        'Every element has STRIDE threats listed with a mitigation and an owning issue key or "accepted risk".',
+        'Covers: invite-link guessing, IDOR across groups, WebSocket auth, token theft, LLM prompt injection via chat, Strava data visibility.',
+        'Reviewed checklist of residual risks linked from SECURITY.md.',
+      ],
+      testPlan: [
+        '`pnpm check` passes.',
+        'Reviewer confirms each mitigation maps to an existing issue key.',
+      ],
+      files: ['docs/security/threat-model.md', 'SECURITY.md'],
+    },
+    {
+      key: 'SEC-003',
+      epic: 'SEC-E1',
+      title: 'Adopt the OWASP MASVS L1 checklist for the Android app',
+      phase: 'P1',
+      priority: 'medium',
+      size: 'S',
+      type: 'docs',
+      agent: true,
+      context:
+        'MASVS v2 L1 is the baseline for an app holding health and social data. Track each control with its status and the test that proves it (e.g. no cleartext traffic, tokens in Keystore-backed DataStore + Tink, backups excluded).',
+      acceptance: [
+        'docs/security/masvs-l1.md lists every MASVS v2 L1 control with status (met / planned / n/a) and evidence.',
+        'Network Security Config disallows cleartext except for the debug local backend host.',
+        '`android:allowBackup` / data-extraction rules exclude auth and token stores.',
+        'A unit test asserts the merged manifest has no cleartext permission in release.',
+      ],
+      testPlan: [
+        '`./gradlew -p android :app:testReleaseUnitTest` includes a manifest/NSC assertion test.',
+        '`./gradlew -p android lint` reports no security warnings.',
+      ],
+      files: [
+        'docs/security/masvs-l1.md',
+        'android/app/src/main/res/xml/network_security_config.xml',
+        'android/app/src/main/res/xml/data_extraction_rules.xml',
+      ],
+      dependsOn: ['ANDF-001', 'ANDF-003'],
+    },
+    {
+      key: 'SEC-004',
+      epic: 'SEC-E1',
+      title: 'Encrypt Strava tokens at rest with AES-GCM (WebCrypto)',
+      phase: 'P2',
+      priority: 'high',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Strava access/refresh tokens stored in D1 must be encrypted with AES-GCM using a key held as a Worker secret, with a key id to allow rotation. Plaintext tokens must never be logged.',
+      acceptance: [
+        '`apps/cloud/src/crypto/token-box.ts` exposes `seal`/`open` with random 96-bit IVs and a key-id prefix.',
+        'Strava token columns store only sealed values; a migration converts any existing rows.',
+        'Key rotation: tokens sealed with an old key id still open; re-seal on next refresh.',
+        'Logger redacts fields named `*token*`.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `token-box.test.ts` (round-trip, tamper detection, rotation).',
+        'Integration test in vitest-pool-workers asserts the D1 row does not contain the plaintext token.',
+      ],
+      files: [
+        'apps/cloud/src/crypto/token-box.ts',
+        'apps/cloud/test/token-box.test.ts',
+        'apps/cloud/migrations/*',
+      ],
+      dependsOn: ['INTEG-002', 'CLOUD-002'],
+    },
+    {
+      key: 'SEC-005',
+      epic: 'SEC-E1',
+      title: 'Add gitleaks secret scanning to CI',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'chore',
+      agent: true,
+      context:
+        'With Wrangler secrets, keystores and service accounts in play, a leaked credential is the most likely incident. Run gitleaks on every PR in addition to GitHub push protection.',
+      acceptance: [
+        'A gitleaks job (SHA-pinned, OSS CLI, no license key required) runs on PRs and pushes to main.',
+        'The job is aggregated into the `build` gate.',
+        '`.gitleaks.toml` allowlists only test fixtures with fake tokens.',
+      ],
+      testPlan: [
+        'CI run on the PR shows the gitleaks job green.',
+        'A throwaway local commit with a fake AWS key is detected by `gitleaks detect` (documented in the PR).',
+      ],
+      files: ['.github/workflows/ci.yml', '.gitleaks.toml'],
+      dependsOn: ['GOV-001'],
+    },
+    {
+      key: 'SEC-012',
+      epic: 'SEC-E1',
+      title: 'Implement and test Strava strict-mode flags (visibility + AI)',
+      phase: 'P2',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'The Strava API Agreement restricts display to the owning athlete and bans AI use; the project accepted this risk (docs/adr/0006-*.md) but must be able to switch to strict mode by config. `STRAVA_VISIBILITY=group|owner` and `STRAVA_AI=on|off` gate every read path.',
+      acceptance: [
+        'With `STRAVA_VISIBILITY=owner`, Strava-sourced activities are excluded from group feeds, comments and stats for non-owners.',
+        'A `filterForAi()` helper drops `source: strava` rows when `STRAVA_AI=off`; it is the only sanctioned way to build coach context (COACH-001 consumes it).',
+        'Flags are enforced in the authz policy module, not per route.',
+        'docs/adr/0006 and AGENTS.md document both flags and their defaults.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `strava-flags.test.ts` runs the route×role matrix under both flag values.',
+        '`filter-for-ai.test.ts` asserts no `source: strava` rows survive when `STRAVA_AI=off`.',
+      ],
+      files: [
+        'apps/cloud/src/policy/*',
+        'apps/cloud/test/strava-flags.test.ts',
+        'docs/adr/0006-*.md',
+      ],
+      dependsOn: ['INTEG-002', 'CLOUD-005'],
+    },
+    {
+      key: 'SEC-013',
+      epic: 'SEC-E1',
+      title: 'Add rate limiting and abuse controls to the API',
+      phase: 'P1',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Use the Workers Rate Limiting binding keyed by user id (and IP for unauthenticated routes) to protect auth, invite redemption, posting and coach endpoints. Return `429` with `{ error, requestId }` like the existing API.',
+      acceptance: [
+        'Rate-limit middleware with per-route budgets defined in one config module.',
+        'Invite redemption and sign-in limited by IP; posting and coach calls limited by user.',
+        '429 responses include `Retry-After` and the request id.',
+        'Limits are disabled/raised in the local test environment via binding mocks, not code branches.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `rate-limit.test.ts` drives N+1 requests and expects 429.',
+      ],
+      files: [
+        'apps/cloud/src/middleware/rate-limit.ts',
+        'apps/cloud/wrangler.jsonc',
+        'apps/cloud/test/rate-limit.test.ts',
+      ],
+      dependsOn: ['CLOUD-001', 'CLOUD-004'],
+    },
+    {
+      key: 'SEC-002',
+      epic: 'SEC-E2',
+      title: 'Draft Privacy Policy, Terms of Service and Community Guidelines',
+      phase: 'P1',
+      priority: 'high',
+      size: 'M',
+      type: 'docs',
+      agent: true,
+      context:
+        'Stride Groups processes health/fitness data and user-generated content. Draft templates covering GDPR, CCPA/CPRA and the Washington My Health My Data Act (consumer health data consent and deletion), clearly marked "template — not legal advice". Must reflect actual data flows from the threat model (Strava, Health Connect, FCM, Anthropic as processors).',
+      acceptance: [
+        'docs/legal/privacy-policy.md, terms-of-service.md, community-guidelines.md exist, each with a "template — not legal advice" banner and a version/effective date.',
+        'Privacy policy lists data categories, purposes, processors (Cloudflare, Google/FCM, Anthropic, Strava), retention (incl. Strava 7-day cache), and rights requests.',
+        'Community guidelines define prohibited content and the report/block process (SOCIAL-004).',
+        'ToS sets minimum age 16 and states the app is not medical advice (reuse the core DISCLAIMER wording).',
+      ],
+      testPlan: [
+        '`pnpm check` passes.',
+        'Doc-sync test asserts the processor list matches the Worker egress allowlist once it exists.',
+      ],
+      files: [
+        'docs/legal/privacy-policy.md',
+        'docs/legal/terms-of-service.md',
+        'docs/legal/community-guidelines.md',
+      ],
+      dependsOn: ['SEC-001'],
+    },
+    {
+      key: 'SEC-006',
+      epic: 'SEC-E2',
+      title: 'Serve legal pages from apps/web under /legal/*',
+      phase: 'P1',
+      priority: 'high',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Legal docs must be reachable on the web (and later from the Play listing) and linked in-app. Render the markdown from docs/legal at build time in the Vite app; no runtime fetch.',
+      acceptance: [
+        'Routes `/legal/privacy`, `/legal/terms`, `/legal/community` render the docs with their effective dates.',
+        'Pages work without the API running (static content).',
+        'Footer of the web app links to all three pages.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/web e2e` — `legal.spec.ts` visits each route and asserts the heading and template banner.',
+      ],
+      files: ['apps/web/src/routes/legal/*', 'apps/web/e2e/legal.spec.ts'],
+      dependsOn: ['SEC-002'],
+    },
+    {
+      key: 'SEC-010',
+      epic: 'SEC-E2',
+      title: 'Enforce a 16+ age gate at sign-up',
+      phase: 'P1',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Minimum age is 16 (GDPR digital consent ceiling, avoids COPPA). Collect birth year at onboarding, reject under-16 server-side, and store only the year.',
+      acceptance: [
+        'Onboarding asks for birth year; under-16 users see a neutral refusal and no account is created.',
+        'The Worker rejects profile creation with an age below 16 regardless of client.',
+        'Only the birth year is stored (no full date).',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `age-gate.test.ts`.',
+        '`./gradlew -p android :feature:onboarding:testDebugUnitTest` covers the refusal state.',
+      ],
+      files: ['apps/cloud/src/routes/profile.ts', 'android/feature/onboarding/**'],
+      dependsOn: ['CLOUD-004', 'ANDX-001'],
+    },
+    {
+      key: 'SEC-011',
+      epic: 'SEC-E2',
+      title: 'Require ToS and Community Guidelines acceptance before posting',
+      phase: 'P2',
+      priority: 'high',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'UGC best practice (and Play policy, for later) requires users to accept terms before they post. Record the accepted terms version; bump the version to force re-acceptance.',
+      acceptance: [
+        '`user_consents` table stores user id, document, version and timestamp.',
+        'Posting comments, chat messages or creating groups returns 403 `terms_not_accepted` until the current version is accepted.',
+        'Android shows an acceptance sheet linking to the /legal pages.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `consent.test.ts` covers accept, version bump, and blocked posting.',
+        'Robolectric test for the acceptance sheet in the Android feature module.',
+      ],
+      files: [
+        'apps/cloud/src/routes/consent.ts',
+        'apps/cloud/migrations/*',
+        'android/feature/onboarding/**',
+      ],
+      dependsOn: ['SEC-002', 'CLOUD-004', 'CLOUD-005'],
+    },
+    {
+      key: 'SEC-007',
+      epic: 'SEC-E3',
+      title: 'Implement account deletion with a backend cascade job',
+      phase: 'P2',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Deleting an account must actually remove server data: profile, memberships, activities, comments, reactions, Strava tokens (and revoke them), FCM tokens and chat history in each GroupRoom Durable Object. A Cron-triggered job finishes within 30 days (Strava requirement) — we target 24h.',
+      acceptance: [
+        '`DELETE /me` marks the account for deletion, signs out all sessions and revokes Strava tokens.',
+        'A cron job hard-deletes all user rows in D1 and runs every registered `purgeUser` hook (a registry the chat GroupRoom plugs into when it lands).',
+        'Group ownership transfers to the longest-standing admin, or the group is deleted if empty.',
+        'A deletion audit record (user id hash + timestamp only) is retained.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `account-deletion.test.ts` seeds a user across all tables + a fake purge hook and asserts nothing remains.',
+      ],
+      files: [
+        'apps/cloud/src/routes/me.ts',
+        'apps/cloud/src/jobs/deletion.ts',
+        'apps/cloud/test/account-deletion.test.ts',
+      ],
+      dependsOn: ['CLOUD-002', 'CLOUD-004', 'SOCIAL-003'],
+    },
+    {
+      key: 'SEC-008',
+      epic: 'SEC-E3',
+      title: 'Add the web account-deletion request page',
+      phase: 'P2',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Users must be able to request deletion without the app installed (a Play requirement we satisfy up front). The page signs the user in with Google and calls the same `DELETE /me` path.',
+      acceptance: [
+        '`/account/delete` explains what is deleted and when, signs in, and confirms deletion.',
+        'The page links to the privacy policy section on retention.',
+        'Works against the local seeded backend.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/web e2e` — `account-delete.spec.ts` against a mocked API route.',
+      ],
+      files: ['apps/web/src/routes/account/delete.tsx', 'apps/web/e2e/account-delete.spec.ts'],
+      dependsOn: ['SEC-007', 'SEC-006'],
+    },
+    {
+      key: 'SEC-014',
+      epic: 'SEC-E3',
+      title: 'Add in-app "Delete account" to Android settings',
+      phase: 'P2',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'The in-app path calls `DELETE /me`, clears local Room data, DataStore and Keystore keys, and returns to sign-in.',
+      acceptance: [
+        'Settings → Delete account shows a two-step confirmation describing consequences.',
+        'On success all local databases, DataStore files and cached images are wiped.',
+        'Failure surfaces a retryable error without partial local wipe.',
+      ],
+      testPlan: [
+        'ViewModel unit test with a fake repository; Robolectric UI test for the confirmation flow; Roborazzi screenshot.',
+      ],
+      files: ['android/feature/settings/**'],
+      dependsOn: ['SEC-007', 'ANDF-003', 'ANDF-004'],
+    },
+    {
+      key: 'SEC-009',
+      epic: 'SEC-E3',
+      title: 'Provide a user data export (JSON) endpoint',
+      phase: 'P3',
+      priority: 'low',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'GDPR access/portability: a user can download their profile, activities they own, comments, messages they authored and consents as JSON. Other members’ content is excluded.',
+      acceptance: [
+        '`GET /me/export` streams a JSON document validated by a Zod schema.',
+        'Only the requesting user’s own content is included (authz test).',
+        'Rate-limited to a few exports per day.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/cloud test` — `export.test.ts` asserts schema validity and no foreign data.',
+      ],
+      files: ['apps/cloud/src/routes/export.ts', 'apps/cloud/test/export.test.ts'],
+      dependsOn: ['CLOUD-004', 'CLOUD-005', 'INTEG-001'],
+    },
+  ],
+};
