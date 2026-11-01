@@ -16,7 +16,7 @@
     "lint": "biome check ."
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.1",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
     "dotenv": "catalog:",
