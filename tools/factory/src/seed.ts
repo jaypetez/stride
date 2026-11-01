@@ -385,10 +385,10 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
     ensureViews(gh, pid, t.ws === null, act);
 
     // Items
-    const items = loadItems(gh, pid);
+    let items = loadItems(gh, pid);
     const missing = t.keys.filter((k) => byKey.has(k) && !items.has(byKey.get(k)!.id));
-    for (let i = 0; i < missing.length; i += 20) {
-      const chunk = missing.slice(i, i + 20);
+    for (let i = 0; i < missing.length; i += 8) {
+      const chunk = missing.slice(i, i + 8);
       act('project.items.add', `${t.title}: +${chunk.length}`, () => {
         const m = chunk
           .map(
@@ -396,12 +396,15 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
               `a${j}: addProjectV2ItemById(input:{projectId:${JSON.stringify(pid)}, contentId:${JSON.stringify(byKey.get(k)!.id)}}){ item{ id } }`,
           )
           .join('\n');
-        const d = gh.graphql(`mutation{ ${m} }`);
-        chunk.forEach((k, j) => {
-          items.set(byKey.get(k)!.id, { itemId: d[`a${j}`].item.id, values: {} });
-        });
+        try {
+          gh.graphql(`mutation{ ${m} }`);
+        } catch (err) {
+          // A retried batch may have partly applied already; that's fine.
+          if (!/Content already exists in this project/.test(String(err))) throw err;
+        }
       });
     }
+    if (missing.length && !dryRun) items = loadItems(gh, pid);
 
     // Field values
     const updates: string[] = [];
@@ -440,8 +443,8 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
         descs.push(`${k}.${field}=${value}`);
       }
     }
-    for (let i = 0; i < updates.length; i += 25) {
-      const chunk = updates.slice(i, i + 25);
+    for (let i = 0; i < updates.length; i += 10) {
+      const chunk = updates.slice(i, i + 10);
       act('project.fields.set', `${t.title}: ${chunk.length} values`, () => {
         gh.graphql(`mutation{ ${chunk.map((u, j) => `u${j}: ${u}`).join('\n')} }`);
       });
