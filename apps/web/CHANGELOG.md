@@ -1,5 +1,15 @@
 # @stride/web
 
+## 0.2.15
+
+### Patch Changes
+
+- Dependency maintenance: `@anthropic-ai/sdk` 0.133.0 → 1.3.0, `hono` 4.13.14, `@hono/node-server` 2.1.5, `@modelcontextprotocol/sdk` 1.32.2, `react`/`react-dom` 19.3.1, `@tanstack/react-query` 5.104.5, `dotenv` 18.0.9; dev tooling (`tsup` 9, `biome` 2.6.3, `vitest` 5.0.5, `turbo` 2.11.10, `vite` 8.3.5, `happy-dom` 21.0.4, commitlint 21.2.4); `github/codeql-action` 4.39.1. Added overrides for `launch-editor` and `body-parser` to clear high-severity advisories.
+- Updated dependencies
+  - @stride/api@0.2.15
+  - @stride/core@0.2.15
+  - @stride/schemas@0.2.15
+
 ## 0.2.14
 
 ### Patch Changes
