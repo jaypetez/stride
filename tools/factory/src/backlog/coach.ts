@@ -1,0 +1,225 @@
+import type { WorkstreamBacklog } from '../types.ts';
+
+export const backlog: WorkstreamBacklog = {
+  workstream: {
+    key: 'COACH',
+    title: 'AI Coach',
+    area: 'coach',
+    description:
+      'Claude explains workouts and plans and answers @coach in group chat, using only pre-computed facts from `packages/core` (compute-in-code, reason-in-LLM). Safety screening, budgets, auditability and the `STRAVA_AI` flag are built in.',
+  },
+  epics: [
+    {
+      key: 'COACH-E1',
+      title: 'Coach service on the Worker',
+      phase: 'P5',
+      summary:
+        'Run the existing coach orchestration (`packages/core/src/coach/coach.ts`) on Cloudflare with injectable LLM, budgets, audit logging and an offline eval suite.',
+    },
+    {
+      key: 'COACH-E2',
+      title: 'Coach in the product',
+      phase: 'P5',
+      summary:
+        'Workout analysis, plan explanations and the @coach chat participant, all with safety screening.',
+    },
+  ],
+  issues: [
+    {
+      key: 'COACH-001',
+      epic: 'COACH-E1',
+      title: 'Coach service on the Worker with injectable AnthropicLike',
+      phase: 'P5',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Wrap `createCoachLLM` (packages/core/src/coach/anthropic.ts) behind a Worker service that receives an `AnthropicLike`. Production uses `@anthropic-ai/sdk` with the key from a Worker secret; tests use a deterministic fake LLM so CI never touches the network. GOAL.md §8.',
+      acceptance: [
+        '`apps/cloud/src/coach/service.ts` constructs the coach from env, with `AnthropicLike` injectable',
+        'A `FakeAnthropic` in `apps/cloud/test/fakes/` returns scripted responses and records requests',
+        'LLM errors are logged (not swallowed silently) and surface as a typed `CoachUnavailable` result',
+        'Missing `ANTHROPIC_API_KEY` disables coach routes with a clear 503',
+      ],
+      testPlan: ['`apps/cloud/test/coach.service.test.ts` using `FakeAnthropic`'],
+      files: ['apps/cloud/src/coach/service.ts', 'apps/cloud/test/fakes/anthropic.ts'],
+      dependsOn: ['ENGINE-001', 'CLOUD-001', 'GOV-014'],
+    },
+    {
+      key: 'COACH-002',
+      epic: 'COACH-E1',
+      title: 'Coach context builder honoring STRAVA_AI',
+      phase: 'P5',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'The coach only sees pre-computed facts (PMC, zones, plan, recent activities) assembled server-side, like `packages/core/src/coach/context.ts`. When `STRAVA_AI=off`, Strava-sourced activities and anything derived solely from them are excluded. See docs/adr/0006-data-sources-and-strava-risk.md.',
+      acceptance: [
+        'A `buildCoachContext(userId, groupId?)` routes every row through `filterForAi()` (SEC-012)',
+        'Context contains computed numbers only; no raw streams',
+        'With `STRAVA_AI=off`, a test asserts zero Strava-sourced ids or values in the prompt payload',
+        'Context size is bounded (documented max activities/days)',
+      ],
+      testPlan: [
+        '`apps/cloud/test/coach.context.test.ts`: flag on/off snapshot of the fake LLM request',
+      ],
+      files: ['apps/cloud/src/coach/context.ts'],
+      dependsOn: ['COACH-001', 'ENGINE-007', 'SEC-012'],
+    },
+    {
+      key: 'COACH-003',
+      epic: 'COACH-E1',
+      title: 'LLM budgets, rate limits and prompt caching',
+      phase: 'P5',
+      priority: 'medium',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'The app is free, so LLM spend needs hard caps. Track per-user and per-group token usage with `toLlmUsage` and enforce daily budgets; keep the frozen persona + athlete profile at the prompt prefix with cache_control (GOAL.md §8).',
+      acceptance: [
+        'Daily token budgets per user and per group configurable via env; exceeding returns a friendly "coach is resting" response',
+        'Usage persisted per call in D1',
+        'System prompt and profile placed first with ephemeral cache control; a test asserts prefix stability',
+        'Workers rate-limit binding applied to coach routes',
+      ],
+      testPlan: [
+        '`apps/cloud/test/coach.budget.test.ts` with fake usage numbers crossing the budget',
+      ],
+      files: ['apps/cloud/src/coach/budget.ts'],
+      dependsOn: ['COACH-001'],
+    },
+    {
+      key: 'COACH-004',
+      epic: 'COACH-E1',
+      title: 'Model tiering and audit log',
+      phase: 'P5',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'GOAL.md §6 tiers models by task (plan generation, conversational, classification). Model IDs there are stale; consult the `claude-api` skill at implementation time for current IDs. Log `request_id`, model, usage and the metric ids fed in, via `logLlmCall` (packages/core/src/coach/llm-log.ts).',
+      acceptance: [
+        'Model per task is configured in one table with env overrides',
+        'Every call writes an audit row: request id, model, tokens, task, input fact ids (no prompt text with personal notes)',
+        'GOAL.md §6 table updated to current model IDs',
+      ],
+      testPlan: ['`apps/cloud/test/coach.audit.test.ts`'],
+      files: ['apps/cloud/src/coach/models.ts', 'apps/cloud/src/coach/audit.ts', 'GOAL.md'],
+      dependsOn: ['COACH-001'],
+    },
+    {
+      key: 'COACH-005',
+      epic: 'COACH-E1',
+      title: 'Offline coach eval suite with golden prompts',
+      phase: 'P5',
+      priority: 'medium',
+      size: 'M',
+      type: 'test',
+      agent: true,
+      context:
+        'Guard against prompt regressions without network: golden request snapshots for each coach task, plus checks that responses never introduce numbers absent from the facts (compute-in-code rule).',
+      acceptance: [
+        'Golden snapshots of the LLM request for analyze, explain-plan and chat tasks',
+        'A `numbersAreGrounded(response, facts)` checker flags numbers not present in facts; used in tests with scripted fake responses (one passing, one failing)',
+        'Runs in `pnpm test` with no network',
+      ],
+      testPlan: ['`apps/cloud/test/coach.eval.test.ts`'],
+      files: ['apps/cloud/test/coach.eval.test.ts', 'packages/core/src/coach/grounding.ts'],
+      dependsOn: ['COACH-002'],
+    },
+    {
+      key: 'COACH-006',
+      epic: 'COACH-E2',
+      title: 'Workout analysis prose for an activity',
+      phase: 'P5',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Members tap "Explain this run" and get a short analysis from `analyzeWorkout` (packages/core/src/coach/coach.ts) over computed metrics. Results are cached per activity version.',
+      acceptance: [
+        '`POST /v1/activities/:id/analysis` returns prose plus the facts it cites',
+        'Only the owner, or group members if visibility allows, can request it',
+        'Cached result reused until the activity changes',
+        'Response includes the standard disclaimer from `DISCLAIMER`',
+      ],
+      testPlan: [
+        '`apps/cloud/test/coach.analyze.test.ts` with `FakeAnthropic`',
+        'Authz matrix rows',
+      ],
+      files: ['apps/cloud/src/routes/coach.ts'],
+      dependsOn: ['COACH-002', 'INTEG-001'],
+    },
+    {
+      key: 'COACH-007',
+      epic: 'COACH-E2',
+      title: 'Plan explanation for a member program',
+      phase: 'P5',
+      priority: 'medium',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        'Explain why this week looks the way it does (phase, ramp, long run) using the guardrail-validated plan as facts. The LLM explains; it never edits the plan (ADR 0003).',
+      acceptance: [
+        "`GET /v1/programs/:id/explain?week=` returns prose for the caller's plan week",
+        'Prompt contains the validated plan and guardrail constants as facts',
+        'No plan mutation path exists from this endpoint',
+      ],
+      testPlan: ['`apps/cloud/test/coach.explain-plan.test.ts`'],
+      files: ['apps/cloud/src/routes/coach.ts'],
+      dependsOn: ['COACH-002', 'ENGINE-004'],
+    },
+    {
+      key: 'COACH-008',
+      epic: 'COACH-E2',
+      title: 'Safety red-flag screening for chat and notes',
+      phase: 'P5',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        'Before any coach reply, screen user text with `detectRedFlags` / `shouldHalt` (packages/core/src/coach/safety.ts). Chest pain, dizziness or injury keywords produce a deterministic "stop and see a professional" response instead of coaching (GOAL.md §8).',
+      acceptance: [
+        'All coach entry points run the safety screen first',
+        'Halting cases return the fixed safety message and do not call the LLM',
+        'Red-flag events are counted (no message text stored) for the safety audit',
+      ],
+      testPlan: [
+        '`apps/cloud/test/coach.safety.test.ts`: fake LLM asserted not called on red flags',
+      ],
+      files: ['apps/cloud/src/coach/safety.ts'],
+      dependsOn: ['COACH-001'],
+    },
+    {
+      key: 'COACH-009',
+      epic: 'COACH-E2',
+      title: '@coach participant in group chat',
+      phase: 'P5',
+      priority: 'high',
+      size: 'L',
+      type: 'feature',
+      agent: true,
+      context:
+        "Mentioning `@coach` in a group chat makes the coach answer in-thread, using read-only tools (`packages/core/src/coach/tools.ts`) over group members' pre-computed facts the asker is allowed to see. The `GroupRoom` Durable Object forwards mentions to the coach service and posts the reply as a coach message.",
+      acceptance: [
+        'Messages containing `@coach` trigger one coach reply per message, posted with `author=coach`',
+        'Tools only return data the asker is allowed to see (policy module + Strava flags)',
+        'Safety screen, budgets and audit apply',
+        'Coach typing indicator and failure message when unavailable',
+      ],
+      testPlan: [
+        '`apps/cloud/test/chat.coach.test.ts` driving the DO over WebSocket in Miniflare with `FakeAnthropic`',
+      ],
+      files: ['apps/cloud/src/chat/coach-bridge.ts', 'apps/cloud/src/do/GroupRoom.ts'],
+      dependsOn: ['CHAT-001', 'COACH-002', 'COACH-008', 'COACH-003'],
+    },
+  ],
+};

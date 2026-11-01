@@ -34,6 +34,20 @@ One TypeScript monorepo with one shared domain core (`packages/core`) consumed b
 - **Web UI** — a dashboard (fitness/fatigue/form chart, workout analysis, next workout, plan).
 - **MCP server** — expose the coach's tools to any MCP client (“bring your Stride coach into Claude”).
 
+### Stride Groups (added 2026-11-01)
+A second product mode on top of the same core: **small private groups** of
+friends and family who train on a shared program, see each other's runs,
+comment, chat and use the AI coach. It ships as a **native Android app**
+(`android/`) backed by a **Cloudflare** service (`apps/cloud`). See ADRs
+[0005](docs/adr/0005-group-mode-hosted-cloudflare.md)–[0009](docs/adr/0009-authorization-policy.md)
+and the factory runbook [`docs/factory/README.md`](docs/factory/README.md).
+
+For Stride Groups, the first two non-goals below are **lifted**. Groups are
+multi-user and hosted, and they share activities within a group. They never
+add public feeds, leaderboards or cohort analytics. The single-user CLI, API,
+web and MCP surfaces keep the original non-goals. §4 explains what lifting
+them means for Strava data.
+
 ### MVP non-goals (explicitly out of scope for v0 — do not build these yet)
 - **No multi-user hosting.** Stride is self-hosted and single-user (see §4, §5).
 - **No cross-user features.** No leaderboards, no comparisons, no cohort analytics, no social feed — Strava's terms forbid it and it isn't the product.
@@ -74,6 +88,20 @@ One TypeScript monorepo with one shared domain core (`packages/core`) consumed b
 | **Attribution & look/feel** | Link back with the exact text **“View on Strava”** (Strava orange `#FC5200`); show a compliant **“Powered by Strava”** badge (never your app icon, never more prominent than your own brand). Keep a look/feel distinct from Strava. Add **Garmin attribution** if displaying Garmin-derived data. |
 | **Access tier / economics (2026)** | New apps start in **Single-Player Mode** (capacity 1 — just the developer). Self-upgrade to 10 athletes; beyond 10 needs app review. Standard-tier access requires a **per-developer** Strava subscription (~$11.99/mo, ~June 2026). **This is exactly why Stride is local-first, bring-your-own-credentials.** |
 | **Base URL** | `https://www.strava.com/api/v3` today; a migration to `https://api-v3.strava.com` is announced for Jan 4, 2027 — **parameterize the host.** |
+
+> **June 2026 revision, and Stride Groups.**
+> - **New policy terms.** Strava's API Policy (2026-06-01) now bans AI use
+>   outright: §5.3 covers "ingestion into a context window". It also bans
+>   charging users (§5.8) and MCP servers (§5.16).
+> - **The accepted risk.** Stride Groups knowingly shares Strava-sourced
+>   activities within private groups and lets the coach read them. This is a
+>   documented, accepted risk for a small, free, private deployment. See
+>   [ADR 0006](docs/adr/0006-data-sources-and-strava-risk.md).
+> - **Strict-mode switches.** `STRAVA_VISIBILITY=owner` and `STRAVA_AI=off`
+>   restore strict compliance by configuration.
+> - **Other sources.** Health Connect (which carries Garmin data) and FIT/GPX
+>   import are the compliance-safe paths.
+> - **Before any public launch,** re-verify the live terms first.
 
 ---
 
@@ -235,6 +263,21 @@ Each milestone is independently useful and shippable. **Do M0 and M1 before any 
 ### Later (post-MVP)
 - **FIT/GPX upload ingestion** as the *compliance-safe durable store* (removes the 7-day-cache and AI-data-restriction dependence on Strava for long-term history).
 - Multisport, Critical-Speed D′, precise VDOT race prediction, Garmin/Apple ingestion, hosted multi-user mode (with the full compliance surface from §4).
+
+### Stride Groups roadmap (2026-11)
+Stride Groups is tracked as **backlog-as-code** in `tools/factory/src/backlog/`
+and seeded into GitHub Projects. Its phases are:
+- **P0:** Foundations
+- **P1:** Walking skeleton
+- **P2:** Activities and integrations
+- **P3:** Programs and stats
+- **P4:** Chat and push
+- **P5:** AI coach
+- **P6:** Hardening and the v0.1 APK
+- **Later:** parked work (photos in chat, Play Store publication, direct
+  Garmin API, iOS in Swift)
+
+See [`docs/factory/README.md`](docs/factory/README.md).
 
 ---
 

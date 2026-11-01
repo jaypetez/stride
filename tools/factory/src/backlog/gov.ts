@@ -1,0 +1,331 @@
+import type { WorkstreamBacklog } from '../types.ts';
+
+export const backlog: WorkstreamBacklog = {
+  workstream: {
+    key: 'GOV',
+    title: 'Foundations & Governance',
+    area: 'governance',
+    description:
+      'Repo-level foundations for Stride Groups: the CI gate that covers cloud, Android and web, contributor docs, CODEOWNERS, Dependabot and CodeQL coverage for Kotlin, plus the human-only account and secret setup every other workstream depends on.',
+  },
+  epics: [
+    {
+      key: 'GOV-E1',
+      title: 'CI gate & repo governance for cloud + Android',
+      phase: 'P0',
+      summary:
+        'Extend the existing single required `build` gate so every PR touching `apps/cloud`, `android/` or `apps/web` is fully validated offline, and keep supply-chain tooling (Dependabot, CodeQL) covering the new languages.',
+    },
+    {
+      key: 'GOV-E2',
+      title: 'Contributor & agent docs for the multi-surface repo',
+      phase: 'P0',
+      summary:
+        'Update AGENTS.md, CONTRIBUTING.md and CODEOWNERS so humans and factory agents know how to build, test and own the new cloud and Android surfaces.',
+    },
+    {
+      key: 'GOV-E3',
+      title: 'Accounts, credentials & secrets (human-only)',
+      phase: 'P0',
+      summary:
+        'One-time account setup the factory cannot do: Cloudflare, Strava, Firebase, Google OAuth, Anthropic, Android signing and a domain. Each issue ends with secrets stored in GitHub/Wrangler, never in the repo.',
+    },
+  ],
+  issues: [
+    {
+      key: 'GOV-001',
+      epic: 'GOV-E1',
+      title: 'Add path-filtered cloud/android/web CI aggregated into the build gate',
+      phase: 'P0',
+      priority: 'high',
+      size: 'M',
+      type: 'chore',
+      agent: true,
+      context: `The only required status check on \`main\` is the always-running \`build\` job in .github/workflows/ci.yml. New surfaces (\`apps/cloud\`, \`android/\`, web e2e) must run only when their paths change, but the gate must still always report, otherwise a skipped required check deadlocks PRs. See the plan's testing section and AGENTS.md "Commands".`,
+      acceptance: [
+        'A `changes` job (dorny/paths-filter pinned by SHA, or an equivalent git-diff script) outputs `cloud`, `android`, `web` booleans.',
+        'Cloud and Android jobs run only when their filter is true; the `build` gate treats `skipped` as success only for path-filtered jobs and fails on any `failure`/`cancelled`.',
+        'Root package.json gains `check:android` (runs `./android/gradlew -p android check` when `android/` exists, else prints a skip notice) and `check:all` (`pnpm check && pnpm check:android`).',
+        'All new actions are pinned to full commit SHAs with least-privilege `permissions`.',
+        'A docs-only PR still produces a green `build` check.',
+      ],
+      testPlan: [
+        '`pnpm check` passes locally.',
+        '`pnpm check:android` exits 0 with a skip notice before android/ exists.',
+        'actionlint (via `pnpm dlx actionlint` or the rhysd/actionlint action) reports no errors on ci.yml.',
+      ],
+      files: ['.github/workflows/ci.yml', 'package.json', 'scripts/check-android.mjs'],
+    },
+    {
+      key: 'GOV-002',
+      epic: 'GOV-E1',
+      title: 'Enable Dependabot for Gradle and the cloud Worker',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'chore',
+      agent: true,
+      context:
+        'Dependabot currently covers npm (root) and GitHub Actions weekly. The Android Gradle build and the version catalog need the same treatment, grouped so AndroidX/Compose bumps arrive together (mirrors the react/react-dom pairing lesson).',
+      acceptance: [
+        '.github/dependabot.yml has a `gradle` ecosystem entry for `/android` on a weekly schedule.',
+        'Groups exist for `androidx.compose*`, `androidx.*`, `org.jetbrains.kotlin*` and test libraries.',
+        'Open PR limit is set (≤ 10) and commit messages use the conventional `build(deps):` prefix.',
+      ],
+      testPlan: [
+        '`pnpm check` passes (YAML is linted by the existing workflow).',
+        'GitHub "Insights → Dependency graph → Dependabot" shows the gradle updater after merge (manual spot check).',
+      ],
+      files: ['.github/dependabot.yml'],
+      dependsOn: ['ANDF-001'],
+    },
+    {
+      key: 'GOV-003',
+      epic: 'GOV-E1',
+      title: 'Add java-kotlin to CodeQL analysis',
+      phase: 'P1',
+      priority: 'medium',
+      size: 'S',
+      type: 'chore',
+      agent: true,
+      context:
+        'codeql.yml currently analyzes JavaScript/TypeScript only. Once the Android project builds, CodeQL should also scan Kotlin using build-mode `none` (no Gradle build needed) or `autobuild` if required.',
+      acceptance: [
+        'codeql.yml matrix includes `java-kotlin` with an explicit build mode.',
+        'The Kotlin leg only runs when `android/` changes on PRs, but always on push to main and on schedule.',
+        'Actions remain SHA-pinned; permissions stay least-privilege (`security-events: write` only on the analyze job).',
+      ],
+      testPlan: [
+        'CodeQL workflow succeeds on the PR (CI evidence).',
+        'actionlint passes on codeql.yml.',
+      ],
+      files: ['.github/workflows/codeql.yml'],
+      dependsOn: ['ANDF-001', 'GOV-001'],
+    },
+    {
+      key: 'GOV-004',
+      epic: 'GOV-E1',
+      title: 'Document the main branch ruleset and required checks',
+      phase: 'P0',
+      priority: 'low',
+      size: 'XS',
+      type: 'docs',
+      agent: true,
+      context:
+        'Branch protection on `main` lives only in GitHub settings (GOAL.md §10 says "require PR review + green CI"). Agents and contributors need a written description of the ruleset, the single `build` gate, DCO and the solo-maintainer admin-merge practice.',
+      acceptance: [
+        'docs/governance/branch-ruleset.md describes required checks (`build`, DCO/commitlint), review requirement and who may bypass.',
+        'It includes the `gh api repos/jaypetez/stride/rulesets` command to verify the live configuration.',
+        'CONTRIBUTING.md links to the new doc.',
+      ],
+      testPlan: ['`pnpm lint` passes (markdown is excluded, so this checks nothing else broke).'],
+      files: ['docs/governance/branch-ruleset.md', 'CONTRIBUTING.md'],
+    },
+    {
+      key: 'GOV-005',
+      epic: 'GOV-E2',
+      title: 'Update AGENTS.md and CONTRIBUTING.md for cloud and Android',
+      phase: 'P1',
+      priority: 'high',
+      size: 'S',
+      type: 'docs',
+      agent: true,
+      context:
+        'AGENTS.md is the source of truth for the agent inner loop. It must gain the cloud (`wrangler dev`, vitest-pool-workers) and Android (`./gradlew check`, Roborazzi record/verify) commands, the JDK/Android SDK requirements and the new gotchas, so factory agents can run every surface offline.',
+      acceptance: [
+        'AGENTS.md "Commands" table lists `pnpm check:android`, `pnpm check:all`, `pnpm --filter @stride/cloud dev|test` and the Gradle tasks.',
+        'A "Running each surface offline" entry exists for the cloud Worker and the Android app (emulator against local `wrangler dev`).',
+        'Gotchas cover JDK 21, ANDROID_HOME, Roborazzi golden updates, and Workers-only subpath imports of @stride/core.',
+        'CONTRIBUTING.md layout section mentions `apps/cloud`, `android/` and `tools/factory`.',
+      ],
+      testPlan: [
+        '`pnpm check` passes.',
+        'Every command quoted in AGENTS.md runs successfully on a fresh clone (reviewer spot check).',
+      ],
+      files: ['AGENTS.md', 'CONTRIBUTING.md'],
+      dependsOn: ['CLOUD-001', 'ANDF-001'],
+    },
+    {
+      key: 'GOV-006',
+      epic: 'GOV-E2',
+      title: 'Add CODEOWNERS entries for android/, apps/cloud and tools/factory',
+      phase: 'P0',
+      priority: 'low',
+      size: 'XS',
+      type: 'chore',
+      agent: true,
+      context:
+        'CODEOWNERS currently covers core, schemas and .github. The new security-sensitive surfaces (the authorization policy module, auth, Android signing config) should require owner review.',
+      acceptance: [
+        '.github/CODEOWNERS has entries for `/android/`, `/apps/cloud/`, `/tools/factory/`.',
+        'The authz policy path (`/apps/cloud/src/policy/`) and release workflows are explicitly listed.',
+        'GitHub shows no CODEOWNERS syntax errors on the PR.',
+      ],
+      testPlan: [
+        '`gh api repos/jaypetez/stride/codeowners/errors` returns an empty `errors` array.',
+      ],
+      files: ['.github/CODEOWNERS'],
+    },
+    {
+      key: 'GOV-007',
+      epic: 'GOV-E2',
+      title: 'Document factory labels, phases and the issue lifecycle',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'docs',
+      agent: true,
+      context:
+        'The factory seeder creates `area:*`, `phase:*`, `size:*`, `type:*`, `agent:ok` and `human-only` labels plus phase milestones. Contributors need one page explaining what each means and how an issue moves from Ready to Done.',
+      acceptance: [
+        'docs/factory/labels.md lists every label family with meaning and who sets it.',
+        'It describes the lifecycle: Backlog → Ready → In progress → In review → Done, and when `human-only` issues block agents.',
+        'docs/factory/README.md links to it.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/factory test` passes (label names in the doc match the seeder constants via a doc-sync test).',
+      ],
+      files: [
+        'docs/factory/labels.md',
+        'docs/factory/README.md',
+        'tools/factory/test/docs-sync.test.ts',
+      ],
+    },
+    {
+      key: 'GOV-010',
+      epic: 'GOV-E3',
+      title: 'Create Cloudflare account, scoped API token and GH secrets',
+      phase: 'P0',
+      priority: 'high',
+      size: 'S',
+      type: 'task',
+      agent: false,
+      context:
+        'Deploying the Worker (REL-001) needs a Cloudflare account with Workers Paid (Durable Objects SQLite + Queues), a least-privilege API token, and the account id available to GitHub Actions. Local development never needs these.',
+      acceptance: [
+        'Cloudflare account exists with Workers Paid plan enabled.',
+        'API token scoped to Workers Scripts, D1, Durable Objects, Queues, R2 and KV edit for this account only.',
+        '`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` stored as GitHub environment secrets for `dev` and `prod` environments.',
+      ],
+      testPlan: ['`gh secret list --env dev` and `gh secret list --env prod` show both secrets.'],
+    },
+    {
+      key: 'GOV-011',
+      epic: 'GOV-E3',
+      title: 'Register the Strava API app and raise capacity to 10 athletes',
+      phase: 'P0',
+      priority: 'high',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'Strava connections (INTEG-002) need a registered API application with the Worker callback domain. New apps start in Single-Player Mode; capacity can be self-raised to 10 athletes, enough for a friends group. The accepted Strava terms risk is recorded in docs/adr/0006-*.md.',
+      acceptance: [
+        'Strava API application created with authorization callback domain set to the dev/prod API domain.',
+        'Athlete capacity raised to 10.',
+        '`STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET` and `STRAVA_WEBHOOK_VERIFY_TOKEN` stored as Wrangler secrets for dev and prod.',
+      ],
+      testPlan: [
+        '`wrangler secret list --env dev` and `--env prod` show the three Strava secrets.',
+      ],
+      dependsOn: ['GOV-010', 'GOV-016'],
+    },
+    {
+      key: 'GOV-012',
+      epic: 'GOV-E3',
+      title: 'Create Firebase project for FCM and store the service account',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'Push notifications use FCM HTTP v1 from the Worker, which needs a (free) Firebase project and a service account key. The Android app needs the `google-services.json` values, injected at build time, never committed.',
+      acceptance: [
+        'Firebase project created with the Android app id registered.',
+        'Service account JSON with only the FCM send role stored as Wrangler secret `FCM_SERVICE_ACCOUNT` (dev, prod).',
+        'Android FCM config values stored as GitHub secrets for the release workflow.',
+      ],
+      testPlan: [
+        '`wrangler secret list --env dev` shows `FCM_SERVICE_ACCOUNT`; `gh secret list` shows the Android FCM secrets.',
+      ],
+    },
+    {
+      key: 'GOV-013',
+      epic: 'GOV-E3',
+      title: 'Create Google OAuth client IDs for Android and web',
+      phase: 'P0',
+      priority: 'high',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'Sign in with Google via Credential Manager (ANDX-001) needs a Web client id (the server audience) and Android client ids bound to the debug and release signing SHA-256 fingerprints.',
+      acceptance: [
+        'Google Cloud OAuth consent screen configured (external, testing mode is fine).',
+        'Web client id created; Android client ids created for debug and release keystore fingerprints.',
+        '`GOOGLE_WEB_CLIENT_ID` stored as Wrangler secret (dev, prod) and as a GitHub secret for Android builds.',
+      ],
+      testPlan: [
+        '`wrangler secret list --env dev` shows `GOOGLE_WEB_CLIENT_ID`; `gh secret list` shows it too.',
+      ],
+      dependsOn: ['GOV-015'],
+    },
+    {
+      key: 'GOV-014',
+      epic: 'GOV-E3',
+      title: 'Provision the Anthropic API key as a Worker secret',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'The AI coach (COACH-001) runs server-side with a project key. Set a monthly spend limit in the Anthropic console; per-group budgets are enforced in code.',
+      acceptance: [
+        'Anthropic API key created for the Stride project with a monthly spend cap.',
+        '`ANTHROPIC_API_KEY` stored as Wrangler secret for dev and prod.',
+        'The key never appears in the repo or CI logs.',
+      ],
+      testPlan: ['`wrangler secret list --env prod` shows `ANTHROPIC_API_KEY`.'],
+      dependsOn: ['GOV-010'],
+    },
+    {
+      key: 'GOV-015',
+      epic: 'GOV-E3',
+      title: 'Generate the Android release keystore and store it as GH secrets',
+      phase: 'P0',
+      priority: 'high',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'Signed APKs (REL-002) need a release keystore kept offline with a backup. CI receives it base64-encoded via secrets. Losing it means users cannot upgrade in place.',
+      acceptance: [
+        'Release keystore generated (RSA 4096 or EC), backed up in two offline locations.',
+        '`ANDROID_KEYSTORE_B64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` stored as GitHub secrets in a `release` environment.',
+        'Release SHA-256 fingerprint recorded in docs/release/signing.md (public value only).',
+      ],
+      testPlan: ['`gh secret list --env release` shows the four keystore secrets.'],
+    },
+    {
+      key: 'GOV-016',
+      epic: 'GOV-E3',
+      title: 'Register a domain for the API and legal pages',
+      phase: 'P0',
+      priority: 'medium',
+      size: 'XS',
+      type: 'task',
+      agent: false,
+      context:
+        'The Worker API, the web legal pages (privacy, terms, account deletion) and invite links need a stable HTTPS domain on Cloudflare. A custom domain is also required later for R2 + CSAM scanning (LATER workstream).',
+      acceptance: [
+        'Domain registered or delegated to Cloudflare DNS.',
+        'Subdomains planned and documented: `api.`, `api-dev.`, and the web root for /legal and invite landing.',
+        'Domain recorded in docs/release/environments.md.',
+      ],
+      testPlan: ['`nslookup -type=NS <domain>` returns Cloudflare name servers.'],
+      dependsOn: ['GOV-010'],
+    },
+  ],
+};

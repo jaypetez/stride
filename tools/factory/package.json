@@ -1,0 +1,17 @@
+{
+  "name": "@stride/factory",
+  "version": "0.2.15",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Backlog-as-code, GitHub seeder and work dispatcher for the Stride software factory.",
+  "bin": {
+    "stride-factory": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "factory": "tsx src/cli.ts"
+  }
+}
