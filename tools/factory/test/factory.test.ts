@@ -3,7 +3,7 @@ import { BACKLOG } from '../src/backlog/index.ts';
 import type { GhClient } from '../src/gh.ts';
 import { type Candidate, isReady, pick, rank } from '../src/next.ts';
 import { factoryLabels, parseHash, parseKey, renderIssueBody } from '../src/render.ts';
-import { projectFieldSpecs, seed } from '../src/seed.ts';
+import { projectFieldSpecs, seed, topoOrder } from '../src/seed.ts';
 import type { Issue, WorkstreamBacklog } from '../src/types.ts';
 import { ANCHORS, phaseIndex, validateBacklog } from '../src/validate.ts';
 
@@ -166,6 +166,17 @@ describe('dispatcher', () => {
     ]);
     expect(pick(cands, { workstream: 'ANDF' }).map((x) => x.key)).toEqual(['ANDF-001']);
     expect(pick(cands, { maxPhase: 'P1' }).map((x) => x.key)).toEqual(['ANDF-001', 'CLOUD-001']);
+  });
+});
+
+describe('topoOrder', () => {
+  it('puts every real-backlog issue after its dependencies', () => {
+    const order = topoOrder(BACKLOG.flatMap((b) => b.issues));
+    const pos = new Map(order.map((i, n) => [i.key, n]));
+    expect(order.length).toBe(BACKLOG.reduce((n, b) => n + b.issues.length, 0));
+    for (const i of order) {
+      for (const d of i.dependsOn ?? []) expect(pos.get(d)!).toBeLessThan(pos.get(i.key)!);
+    }
   });
 });
 

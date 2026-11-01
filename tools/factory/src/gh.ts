@@ -45,8 +45,10 @@ export function createCliGh(opts: CliGhOptions = {}): GhClient {
         });
       } catch (err: any) {
         const text = `${err.stderr ?? ''}${err.stdout ?? ''}${err.message ?? ''}`;
-        if (attempt < 6 && RETRYABLE.test(text)) {
-          const backoff = Math.min(120_000, 15_000 * attempt);
+        // Secondary (content-creation) limits can take minutes to clear; the seeder
+        // is idempotent, so giving up after ~20 min and re-running is also fine.
+        if (attempt < 10 && RETRYABLE.test(text)) {
+          const backoff = Math.min(300_000, 30_000 * attempt);
           log(`  gh: retryable error (attempt ${attempt}); sleeping ${backoff / 1000}s`);
           sleep(backoff);
           continue;

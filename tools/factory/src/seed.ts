@@ -219,7 +219,23 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
     phase: (typeof PHASES)[number];
     render: () => string;
   };
+  // Issues in dependency order (so "Depends on #n" resolves at creation time),
+  // then epics (so their child lists resolve). Pass 2 is then a near no-op,
+  // which keeps us well under GitHub's content-creation rate limits.
   const entries: Entry[] = [];
+  const wsOf = new Map<string, Workstream>();
+  for (const b of backlogs) for (const i of b.issues) wsOf.set(i.key, b.workstream);
+  for (const i of topoOrder(backlogs.flatMap((b) => b.issues))) {
+    const ws = wsOf.get(i.key)!;
+    entries.push({
+      key: i.key,
+      ws,
+      title: issueTitle(i),
+      labels: issueLabels(ws, i),
+      phase: i.phase,
+      render: () => renderIssueBody(ws, i, num),
+    });
+  }
   for (const b of backlogs) {
     for (const e of b.epics) {
       const children = b.issues.filter((i) => i.epic === e.key);
@@ -232,19 +248,9 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
         render: () => renderEpicBody(b.workstream, e, children, num),
       });
     }
-    for (const i of b.issues) {
-      entries.push({
-        key: i.key,
-        ws: b.workstream,
-        title: issueTitle(i),
-        labels: issueLabels(b.workstream, i),
-        phase: i.phase,
-        render: () => renderIssueBody(b.workstream, i, num),
-      });
-    }
   }
 
-  // ── Pass 1: create missing issues (epics first so children can link) ──────
+  // ── Pass 1: create missing issues ───────────────────────────────────────────
   for (const en of entries) {
     if (byKey.has(en.key)) continue;
     act('issue.create', en.title, () => {
@@ -443,6 +449,26 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
   }
 
   return stats;
+}
+
+/** Stable topological order: every issue appears after the issues it depends on. */
+export function topoOrder(issues: Issue[]): Issue[] {
+  const byKey = new Map(issues.map((i) => [i.key, i]));
+  const done = new Set<string>();
+  const out: Issue[] = [];
+  const visit = (i: Issue, path: Set<string>) => {
+    if (done.has(i.key) || path.has(i.key)) return;
+    path.add(i.key);
+    for (const d of i.dependsOn ?? []) {
+      const dep = byKey.get(d);
+      if (dep) visit(dep, path);
+    }
+    path.delete(i.key);
+    done.add(i.key);
+    out.push(i);
+  };
+  for (const i of issues) visit(i, new Set());
+  return out;
 }
 
 type Act = (kind: string, desc: string, fn: () => void) => void;
