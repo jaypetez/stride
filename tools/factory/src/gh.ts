@@ -12,7 +12,7 @@ export interface GhClient {
 }
 
 const RETRYABLE =
-  /secondary rate limit|abuse detection|was submitted too quickly|HTTP 50[234]|HTTP 429|timeout|ECONNRESET/i;
+  /secondary rate limit|abuse detection|was submitted too quickly|HTTP 50[234]|HTTP 429|timeout|ECONNRESET|unexpected end of JSON input|Something went wrong while executing/i;
 
 function sleep(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
