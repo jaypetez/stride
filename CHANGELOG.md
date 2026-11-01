@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.15] - 2026-11-01
+
+A dependency maintenance release. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 0.133.0 → 1.3.0, `hono` 4.13.13 → 4.13.14,
+  `@hono/node-server` 2.1.4 → 2.1.5, `@modelcontextprotocol/sdk` 1.32.1 → 1.32.2,
+  `react`/`react-dom` 19.3.0 → 19.3.1, `@tanstack/react-query` 5.104.2 → 5.104.5,
+  `dotenv` 18.0.7 → 18.0.9.
+- **Dev tooling**: `tsup` 8.5.1 → 9.0.0, `@biomejs/biome` 2.5.15 → 2.6.3,
+  `vitest`/`@vitest/coverage-v8` → 5.0.5, `turbo` → 2.11.10, `vite` → 8.3.5,
+  `happy-dom` → 21.0.4, commitlint → 21.2.4.
+- **CI**: `github/codeql-action` (`init`/`analyze`/`upload-sarif`) 4.38.3 → 4.39.1,
+  all three pinned to the same SHA.
+
+### Security
+
+- Added `pnpm.overrides` for `launch-editor` (>=2.14.2) and `body-parser@2`
+  (>=2.4.0) to clear two high-severity advisories.
+
 ## [0.2.14] - 2026-10-15
 
 A dependency maintenance release. Per-package details are in each package's
