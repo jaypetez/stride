@@ -41,6 +41,14 @@ tools/factory/src/backlog/*.ts  ──pnpm factory seed──▶  GitHub issues 
   - Claim state: `status:in-progress` and `status:needs-human`.
 - **Native GitHub links:** sub-issues link each issue to its epic, and "blocked by" links carry the dependencies.
 
+### Focus: the current phase
+`tools/factory/src/focus.ts` sets `FOCUS_PHASE`. It is currently **`MVP`**: the Solo Garmin, local-only Android app (ADR 0010).
+- **Dispatcher:** only hands out issues in the focus phase or earlier. Use `--any-phase` to override.
+- **Seeder:** keeps every later issue at Status=Backlog.
+- **Where MVP work lives:** the **Stride · MVP — Solo Garmin** Project collects all MVP-phase issues, including Android foundation, CI and release issues re-phased from other workstreams.
+
+When the MVP ships, change `FOCUS_PHASE` (for example to `P0`) and re-run `pnpm factory seed`.
+
 ### How an issue becomes ready
 The dispatcher reads **live** GitHub state. An issue is ready when it meets all of these:
 - it is open and labelled `agent:ok`, and is not an epic

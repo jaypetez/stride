@@ -140,14 +140,14 @@ export const backlog: WorkstreamBacklog = {
     {
       key: 'LATER-006',
       epic: 'LATER-E3',
-      title: 'Integrate the Garmin Connect API when the program reopens',
+      title: 'Integrate the Garmin Connect API (Starter tier) for group mode',
       phase: 'Later',
       priority: 'low',
       size: 'L',
       type: 'feature',
       agent: true,
       context:
-        'The Garmin Connect Developer Program paused new sign-ups in 2026; Garmin data currently arrives via Health Connect and FIT import. When access is granted, add the Activity API push/ping flow feeding the normalized ingestion API, with Garmin attribution in the UI.',
+        'Garmin reopened its Connect Developer Program on 2026-10-21 (Personal / Starter / Enterprise tiers). The Solo Garmin MVP uses Personal keys on-device (docs/adr/0010-solo-garmin-mvp.md), but multi-user group mode needs the Starter tier (docs/adr/0006-data-sources-and-strava-risk.md addendum). Once approved, add the Activity API push/ping flow feeding the normalized ingestion API, with Garmin attribution in the UI.',
       acceptance: [
         'Garmin OAuth connect/disconnect flow on the Worker.',
         'Ping/push webhook handler enqueues FIT downloads and feeds INTEG-001.',

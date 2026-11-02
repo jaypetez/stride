@@ -8,10 +8,11 @@
  */
 
 /** Delivery phases. Each maps to a GitHub milestone and ends in a demoable slice. */
-export const PHASES = ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'Later'] as const;
+export const PHASES = ['MVP', 'P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'Later'] as const;
 export type Phase = (typeof PHASES)[number];
 
 export const PHASE_TITLES: Record<Phase, string> = {
+  MVP: 'MVP — Solo Garmin (local Android)',
   P0: 'P0 — Foundations',
   P1: 'P1 — Walking skeleton',
   P2: 'P2 — Activities & integrations',
@@ -23,6 +24,7 @@ export const PHASE_TITLES: Record<Phase, string> = {
 };
 
 export const PHASE_DESCRIPTIONS: Record<Phase, string> = {
+  MVP: 'Single-user, local-only Android app: connect your own Garmin Personal API key, sync on device, see load/form/VO2max/zones computed on device. No backend, no groups (ADR 0010).',
   P0: 'Docs, ADRs, CI gate, scaffolds (cloud Worker, Android project), auth spike, human-only account setup.',
   P1: 'Sign in on Android → create a group → invite a friend → see the member list, against local `wrangler dev`.',
   P2: 'Strava, Health Connect (Garmin) and FIT/GPX activities flow into a group feed with comments and reactions.',
@@ -52,6 +54,11 @@ export interface Workstream {
   area: string;
   /** One-paragraph Project README / short description. */
   description: string;
+  /**
+   * Also add every issue (from any workstream) in these phases to this
+   * workstream's Project — e.g. the MVP Project collects re-phased ANDF/GOV work.
+   */
+  includePhases?: Phase[];
 }
 
 /** An epic is a parent GitHub issue; its issues are attached as sub-issues. */

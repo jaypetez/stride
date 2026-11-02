@@ -7,6 +7,7 @@
  * never removes human-added labels/links, and never moves an item's Status out
  * of In progress / In review / Done.
  */
+import { FOCUS_PHASE } from './focus.ts';
 import type { GhClient } from './gh.ts';
 import {
   epicLabels,
@@ -29,6 +30,7 @@ import {
   type Workstream,
   type WorkstreamBacklog,
 } from './types.ts';
+import { phaseIndex } from './validate.ts';
 
 export interface SeedOptions {
   owner: string;
@@ -55,6 +57,8 @@ interface GhIssue {
   milestone: number | null;
   parentId: string | null;
   blockedByIds: Set<string>;
+  /** Blocker node id → its factory key (null when the blocker isn't a factory issue). */
+  blockerKeys: Map<string, string | null>;
 }
 
 /** Labels the factory may add *and remove*; anything else on an issue is left alone. */
@@ -186,7 +190,7 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
         issues(first:100, after:$c, labels:["factory"], states:[OPEN,CLOSED]){
           pageInfo{ hasNextPage endCursor }
           nodes{ id number title body url labels(first:30){nodes{name}} milestone{number}
-                 parent{ id } blockedBy(first:50){ nodes{ id } } } } } }`,
+                 parent{ id } blockedBy(first:50){ nodes{ id body } } } } } }`,
       { o: owner, r: repo, c: cursor },
     );
     const conn = data.repository.issues;
@@ -203,6 +207,7 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
         milestone: n.milestone?.number ?? null,
         parentId: n.parent?.id ?? null,
         blockedByIds: new Set(n.blockedBy.nodes.map((b: any) => b.id)),
+        blockerKeys: new Map(n.blockedBy.nodes.map((b: any) => [b.id, parseKey(b.body)])),
       });
     }
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
@@ -270,6 +275,7 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
         milestone: milestones.get(PHASE_TITLES[en.phase]) ?? null,
         parentId: null,
         blockedByIds: new Set(),
+        blockerKeys: new Map(),
       });
     });
   }
@@ -326,6 +332,18 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
           ),
         );
       }
+      // Drop factory-owned links whose dependency was removed from the backlog
+      // (e.g. after re-phasing). Links to non-factory issues are human-owned.
+      const wanted = new Set(i.dependsOn ?? []);
+      for (const [blockerId, blockerKey] of cur.blockerKeys) {
+        if (!blockerKey || wanted.has(blockerKey)) continue;
+        act('blockedby.remove', `${i.key} ⟵ ${blockerKey}`, () =>
+          gh.graphql(
+            `mutation($i:ID!,$b:ID!){ removeBlockedBy(input:{issueId:$i, blockingIssueId:$b}){ clientMutationId } }`,
+            { i: cur.id, b: blockerId },
+          ),
+        );
+      }
     }
   }
 
@@ -356,7 +374,7 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
     ...backlogs.map((b) => ({
       title: `${PROJECT_PREFIX}${b.workstream.title}`,
       ws: b.workstream,
-      keys: [...b.epics.map((e) => e.key), ...b.issues.map((i) => i.key)],
+      keys: projectKeys(backlogs, b),
     })),
   ];
 
@@ -429,7 +447,8 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
       if (!curStatus || !PROTECTED_STATUS.has(curStatus)) {
         const blocked = (iss?.dependsOn ?? []).length > 0 && !isEpic;
         // Readiness is recomputed live by the dispatcher; this is a coarse board hint.
-        want.Status = isEpic || blocked || !iss?.agent ? 'Backlog' : 'Ready';
+        const afterFocus = phaseIndex(phase) > phaseIndex(FOCUS_PHASE);
+        want.Status = isEpic || blocked || afterFocus || !iss?.agent ? 'Backlog' : 'Ready';
         if (blocked && gi.blockedByIds.size === 0 && !dryRun) want.Status = 'Backlog';
       }
       for (const [field, value] of Object.entries(want)) {
@@ -452,6 +471,19 @@ export function seed(gh: GhClient, backlogs: WorkstreamBacklog[], opts: SeedOpti
   }
 
   return stats;
+}
+
+/** Keys a workstream's Project holds: its own epics/issues plus any `includePhases` issues. */
+export function projectKeys(backlogs: WorkstreamBacklog[], b: WorkstreamBacklog): string[] {
+  const keys = [...b.epics.map((e) => e.key), ...b.issues.map((i) => i.key)];
+  const phases = new Set(b.workstream.includePhases ?? []);
+  if (phases.size) {
+    for (const other of backlogs) {
+      if (other === b) continue;
+      for (const i of other.issues) if (phases.has(i.phase)) keys.push(i.key);
+    }
+  }
+  return [...new Set(keys)];
 }
 
 /** Stable topological order: every issue appears after the issues it depends on. */

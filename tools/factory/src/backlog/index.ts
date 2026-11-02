@@ -8,13 +8,15 @@ import { backlog as engine } from './engine.ts';
 import { backlog as gov } from './gov.ts';
 import { backlog as integ } from './integ.ts';
 import { backlog as later } from './later.ts';
+import { backlog as mvp } from './mvp.ts';
 import { backlog as qa } from './qa.ts';
 import { backlog as rel } from './rel.ts';
 import { backlog as sec } from './sec.ts';
 import { backlog as social } from './social.ts';
 
-/** All workstreams, in Project display order. `LATER` is always last. */
+/** All workstreams, in Project display order. `MVP` first (current focus), `LATER` last. */
 export const BACKLOG: WorkstreamBacklog[] = [
+  mvp,
   gov,
   cloud,
   social,
