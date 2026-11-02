@@ -58,3 +58,9 @@ the research and sources.
   (`scripts/factory/setup-cloud-env.sh`).
 - Versions in this ADR are snapshots. Check Google Maven release notes before
   pinning anything.
+
+## Addendum (2026-11-01): Solo Garmin MVP
+For the local-only MVP (ADR 0010) there is no backend, so the app **does**
+compute metrics. It uses a Kotlin `core:science` port that is parity-tested
+against golden outputs from `packages/core`. Everything else in this ADR
+applies unchanged.

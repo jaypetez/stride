@@ -267,6 +267,9 @@ Each milestone is independently useful and shippable. **Do M0 and M1 before any 
 ### Stride Groups roadmap (2026-11)
 Stride Groups is tracked as **backlog-as-code** in `tools/factory/src/backlog/`
 and seeded into GitHub Projects. Its phases are:
+- **MVP:** Solo Garmin. A single-user, local-only Android app on the Garmin
+  Personal API, with science computed on the device. No backend and no groups.
+  This is the current focus; see [ADR 0010](docs/adr/0010-solo-garmin-mvp.md).
 - **P0:** Foundations
 - **P1:** Walking skeleton
 - **P2:** Activities and integrations

@@ -5,7 +5,8 @@
  *   pnpm factory validate                       # check the backlog (offline)
  *   pnpm factory stats                          # counts by workstream / phase (offline)
  *   pnpm factory seed [--dry-run] [--skip-projects] [--private]
- *   pnpm factory next [--workstream cloud] [--max-phase P1] [--all] [--json] [--include-human]
+ *   pnpm factory next [--workstream cloud] [--max-phase P1 | --any-phase] [--all] [--json] [--include-human]
+ *     (defaults to --max-phase FOCUS_PHASE from src/focus.ts)
  *   pnpm factory claim <issue#>
  *   pnpm factory release <issue#> [--needs-human]
  *   pnpm factory status <issue#> "<Status>"     # Backlog | Ready | In progress | In review | Done
@@ -13,6 +14,7 @@
  * Repo defaults to jaypetez/stride; override with FACTORY_REPO=owner/name.
  */
 import { BACKLOG } from './backlog/index.ts';
+import { FOCUS_PHASE } from './focus.ts';
 import { createCliGh } from './gh.ts';
 import { claim, loadCandidates, pick, release, setStatus } from './next.ts';
 import { seed } from './seed.ts';
@@ -85,12 +87,15 @@ switch (cmd) {
     const gh = createCliGh();
     const picked = pick(loadCandidates(gh, owner, repo), {
       workstream: opt('workstream'),
-      maxPhase: opt('max-phase') as any,
+      maxPhase: flag('any-phase') ? undefined : ((opt('max-phase') as any) ?? FOCUS_PHASE),
       includeHuman: flag('include-human'),
     });
     const list = flag('all') ? picked : picked.slice(0, 1);
     if (flag('json')) out(JSON.stringify(list, null, 2));
-    else if (!list.length) out('No ready issues. (All blocked, claimed, or done.)');
+    else if (!list.length)
+      out(
+        `No ready issues up to phase ${flag('any-phase') ? 'any' : (opt('max-phase') ?? FOCUS_PHASE)}. (All blocked, claimed, or done — try --any-phase.)`,
+      );
     else for (const c of list) out(`#${c.number}\t${c.title}\t${c.url}`);
     break;
   }

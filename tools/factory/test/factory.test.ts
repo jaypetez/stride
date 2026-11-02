@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BACKLOG } from '../src/backlog/index.ts';
+import { FOCUS_PHASE } from '../src/focus.ts';
 import type { GhClient } from '../src/gh.ts';
 import { type Candidate, isReady, pick, rank } from '../src/next.ts';
 import { factoryLabels, parseHash, parseKey, renderIssueBody } from '../src/render.ts';
-import { projectFieldSpecs, seed, topoOrder } from '../src/seed.ts';
+import { projectFieldSpecs, projectKeys, seed, topoOrder } from '../src/seed.ts';
 import type { Issue, WorkstreamBacklog } from '../src/types.ts';
 import { ANCHORS, phaseIndex, validateBacklog } from '../src/validate.ts';
 
@@ -205,5 +206,122 @@ describe('seed (dry run against an empty repo)', () => {
     expect(stats['project.create']).toBe(BACKLOG.length + 1);
     expect(stats['subissue.add']).toBe(issues);
     expect(mutations).toEqual([]);
+  });
+});
+
+describe('MVP focus', () => {
+  const all = BACKLOG.flatMap((b) => b.issues);
+
+  it('focuses the factory on the MVP phase, ordered first', () => {
+    expect(FOCUS_PHASE).toBe('MVP');
+    expect(phaseIndex('MVP')).toBe(0);
+  });
+
+  it('keeps MVP issues free of dependencies on any later phase', () => {
+    const byKey = new Map(all.map((i) => [i.key, i]));
+    for (const i of all.filter((x) => x.phase === 'MVP')) {
+      for (const d of i.dependsOn ?? [])
+        expect(byKey.get(d)!.phase, `${i.key} -> ${d}`).toBe('MVP');
+    }
+  });
+
+  it('has agent-startable MVP work with no dependencies', () => {
+    const starters = all.filter((i) => i.phase === 'MVP' && i.agent && !(i.dependsOn ?? []).length);
+    expect(starters.length).toBeGreaterThan(0);
+  });
+
+  it('collects every MVP-phase issue into the MVP Project via includePhases', () => {
+    const mvp = BACKLOG.find((b) => b.workstream.key === 'MVP')!;
+    const keys = new Set(projectKeys(BACKLOG, mvp));
+    for (const i of all.filter((x) => x.phase === 'MVP')) expect(keys.has(i.key), i.key).toBe(true);
+    // ...and nothing from later phases in other workstreams.
+    expect(keys.has('CLOUD-001')).toBe(false);
+  });
+
+  it('does not pull other phases into ordinary workstream Projects', () => {
+    const cloud = BACKLOG.find((b) => b.workstream.key === 'CLOUD')!;
+    expect(projectKeys(BACKLOG, cloud).every((k) => k.startsWith('CLOUD-'))).toBe(true);
+  });
+});
+
+describe('seed: stale blocked-by links', () => {
+  it('removes factory-owned links that left dependsOn, keeps human-added ones', () => {
+    const mutations: string[] = [];
+    const ws = { key: 'AAA', title: 'A', area: 'a', description: 'd' };
+    const backlog: WorkstreamBacklog[] = [
+      {
+        workstream: ws,
+        epics: [{ key: 'AAA-E1', title: 'E', phase: 'P0', summary: 's' }],
+        issues: [
+          {
+            key: 'AAA-001',
+            epic: 'AAA-E1',
+            title: 'one',
+            phase: 'P0',
+            priority: 'high',
+            size: 'S',
+            type: 'task',
+            agent: true,
+            context: 'c',
+            acceptance: ['a'],
+            testPlan: ['t'],
+          },
+        ],
+      },
+    ];
+    const node = (key: string, extra: object = {}) => ({
+      id: `N-${key}`,
+      number: 1,
+      title: `[${key}] x`,
+      body: `<!-- factory-key: ${key} -->`,
+      url: '',
+      labels: { nodes: [] },
+      milestone: null,
+      parent: null,
+      blockedBy: { nodes: [] },
+      ...extra,
+    });
+    const fake: GhClient = {
+      graphql(query: string): any {
+        if (/^\s*mutation/.test(query)) {
+          mutations.push(query);
+          return {};
+        }
+        if (query.includes('user(login:$o){ id }'))
+          return { repository: { id: 'R' }, user: { id: 'U' } };
+        return {
+          repository: {
+            issues: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [
+                node('AAA-E1'),
+                node('AAA-001', {
+                  parent: { id: 'N-AAA-E1' },
+                  blockedBy: {
+                    nodes: [
+                      { id: 'N-CLOUD-004', body: '<!-- factory-key: CLOUD-004 -->' },
+                      { id: 'N-human', body: 'a human-filed issue' },
+                    ],
+                  },
+                }),
+              ],
+            },
+          },
+        };
+      },
+      rest(): any {
+        return [];
+      },
+    };
+    const stats = seed(fake, backlog, {
+      owner: 'o',
+      repo: 'r',
+      dryRun: false,
+      skipProjects: true,
+      log: () => {},
+    });
+    expect(stats['blockedby.remove']).toBe(1);
+    const removals = mutations.filter((m) => m.includes('removeBlockedBy'));
+    expect(removals).toHaveLength(1);
   });
 });

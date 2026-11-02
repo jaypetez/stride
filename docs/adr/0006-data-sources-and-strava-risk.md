@@ -57,3 +57,11 @@ Strava" attribution is shown on Strava-sourced activities.
 - Before any public or larger-scale launch, re-verify the live terms and ask
   Strava for written guidance (parked issue).
 - This is not legal advice.
+
+## Addendum (2026-11-01): Garmin reopened
+On 2026-10-21 Garmin reopened its Connect Developer Program with three tiers:
+**Personal**, Starter and Enterprise. The Personal API key is free and
+personal-use only. The Solo Garmin MVP uses it directly from the device
+(ADR 0010). Group mode serves multiple users, so it would need the
+**Starter** tier rather than Personal keys. Until then, Health Connect and FIT
+import remain the group-mode Garmin path.

@@ -10,6 +10,8 @@ Read `AGENTS.md` first. Its conventions and stop conditions are binding.
 Do **one** issue per invocation.
 
 ## 1. Pick
+The dispatcher only returns issues up to the current focus phase (`tools/factory/src/focus.ts`, currently `MVP`: the Solo Garmin local-only Android app, ADR 0010). Don't work on later-phase issues unless the user explicitly asks.
+
 - **No argument:** run `pnpm -s factory next --json`. The `-s` keeps pnpm's banner out of the JSON.
 - **Workstream argument:** run `pnpm -s factory next --workstream <arg> --json`.
 - **Issue-number argument:** use that issue, but only if `pnpm -s factory next --all --json` lists it as ready.
