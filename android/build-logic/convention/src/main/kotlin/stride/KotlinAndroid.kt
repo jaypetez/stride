@@ -105,6 +105,8 @@ internal fun Project.configureUnitTests() {
         systemProperty("robolectric.pixelCopyRenderMode", "hardware")
         systemProperty("robolectric.enabledSdks", StrideSdk.ROBOLECTRIC_SDK.toString())
         maxHeapSize = "1536m"
+        // A hung Robolectric/Compose test must fail fast instead of eating the CI hour.
+        timeout.set(java.time.Duration.ofMinutes(20))
         // Robolectric on JDK 17+ reaches into JDK internals (e.g. FileDescriptor.fd for SDK 36).
         jvmArgs(
             "--add-opens=java.base/java.io=ALL-UNNAMED",
