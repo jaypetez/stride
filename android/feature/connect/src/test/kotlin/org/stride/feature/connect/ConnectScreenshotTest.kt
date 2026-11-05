@@ -1,7 +1,7 @@
 package org.stride.feature.connect
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +33,7 @@ class ConnectScreenshotTest {
     @Test fun disconnectDialog() = snap("disconnect", base.copy(connected = true, keyExpiry = today.plusDays(120), showDisconnect = true))
 
     private fun snap(name: String, state: ConnectUiState, dark: Boolean = false) =
-        captureRoboImage("src/test/screenshots/connect_$name.png") {
+        captureScreenshot("src/test/screenshots/connect_$name.png") {
             StrideTheme(darkTheme = dark) { ConnectScreen(state = state, onEvent = {}, onOpenGarmin = {}, onBack = {}) }
         }
 }

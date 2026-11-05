@@ -1,7 +1,7 @@
 package org.stride.feature.activities
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -54,7 +54,7 @@ class ActivitiesScreenshotTest {
     private fun snap(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/activities_${name}_$theme.png") { StrideTheme(darkTheme = dark) { content() } }
+            captureScreenshot("src/test/screenshots/activities_${name}_$theme.png") { StrideTheme(darkTheme = dark) { content() } }
         }
     }
 

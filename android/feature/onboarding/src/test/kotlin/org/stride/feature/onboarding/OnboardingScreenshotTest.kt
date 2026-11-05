@@ -1,7 +1,7 @@
 package org.stride.feature.onboarding
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -65,7 +65,7 @@ class OnboardingScreenshotTest {
     )
 
     private fun snap(name: String, state: OnboardingUiState, dark: Boolean = false) =
-        captureRoboImage("src/test/screenshots/onboarding_$name.png") {
+        captureScreenshot("src/test/screenshots/onboarding_$name.png") {
             StrideTheme(darkTheme = dark) { OnboardingScreen(state = state, onEvent = {}) }
         }
 }

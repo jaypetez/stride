@@ -2,7 +2,7 @@ package org.stride.core.designsystem.chart
 
 import androidx.compose.runtime.Composable
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -26,7 +26,7 @@ class ChartScreenshotTest {
     private fun snap(name: String, content: @Composable () -> Unit) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/chart_${name}_$theme.png") {
+            captureScreenshot("src/test/screenshots/chart_${name}_$theme.png") {
                 StrideTheme(darkTheme = dark) { content() }
             }
         }

@@ -1,7 +1,7 @@
 package org.stride.feature.today
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -41,7 +41,7 @@ class TodayScreenshotTest {
     private fun snap(name: String, state: TodayUiState) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/today_${name}_$theme.png") {
+            captureScreenshot("src/test/screenshots/today_${name}_$theme.png") {
                 StrideTheme(darkTheme = dark) { TodayScreen(state = state, onRefresh = {}, onOpenActivity = {}) }
             }
         }

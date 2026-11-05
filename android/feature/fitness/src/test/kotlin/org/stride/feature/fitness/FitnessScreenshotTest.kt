@@ -1,7 +1,7 @@
 package org.stride.feature.fitness
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -35,7 +35,7 @@ class FitnessScreenshotTest {
     private fun snap(name: String, state: FitnessUiState) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/fitness_${name}_$theme.png") {
+            captureScreenshot("src/test/screenshots/fitness_${name}_$theme.png") {
                 StrideTheme(darkTheme = dark) { FitnessScreen(state = state, onSelectRange = {}) }
             }
         }

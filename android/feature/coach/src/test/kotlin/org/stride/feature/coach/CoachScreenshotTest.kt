@@ -1,7 +1,7 @@
 package org.stride.feature.coach
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import java.time.ZoneOffset
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,7 +48,7 @@ class CoachScreenshotTest {
     )
 
     private fun snap(name: String, state: CoachUiState, dark: Boolean = false) =
-        captureRoboImage("src/test/screenshots/coach_$name.png") {
+        captureScreenshot("src/test/screenshots/coach_$name.png") {
             StrideTheme(darkTheme = dark) { CoachScreen(state = state, onEvent = {}, onBack = {}) }
         }
 }

@@ -1,7 +1,7 @@
 package org.stride.feature.settings
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
+import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -61,5 +61,5 @@ class SettingsScreenshotTest {
     @Test fun licences() = snap("licences", false) { LicencesScreen(onBack = {}) }
 
     private fun snap(name: String, dark: Boolean, content: @androidx.compose.runtime.Composable () -> Unit) =
-        captureRoboImage("src/test/screenshots/$name.png") { StrideTheme(darkTheme = dark) { content() } }
+        captureScreenshot("src/test/screenshots/$name.png") { StrideTheme(darkTheme = dark) { content() } }
 }
