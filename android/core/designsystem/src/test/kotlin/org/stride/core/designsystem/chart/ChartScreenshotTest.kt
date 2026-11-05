@@ -2,13 +2,13 @@ package org.stride.core.designsystem.chart
 
 import androidx.compose.runtime.Composable
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** The Canvas chart toolkit in light and dark. */
 @RunWith(AndroidJUnit4::class)

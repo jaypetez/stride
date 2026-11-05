@@ -1,7 +1,6 @@
 package org.stride.feature.onboarding
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -11,6 +10,7 @@ import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.model.Sex
 import org.stride.core.science.coach.PARQ_QUESTIONS
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 import org.stride.core.ui.profile.ProfileField
 import org.stride.core.ui.profile.ProfileFormState
 import org.stride.core.ui.profile.RaceDistance

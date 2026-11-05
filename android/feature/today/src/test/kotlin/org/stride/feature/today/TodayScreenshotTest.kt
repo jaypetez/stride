@@ -1,7 +1,6 @@
 package org.stride.feature.today
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -15,6 +14,7 @@ import org.stride.core.data.sync.SyncProgress
 import org.stride.core.data.testing.DemoDataFixture
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Today in demo mode (MVP-014 / MVP-017), built from the real demo pipeline. */
 @RunWith(AndroidJUnit4::class)

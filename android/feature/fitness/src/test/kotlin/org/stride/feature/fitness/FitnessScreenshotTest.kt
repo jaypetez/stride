@@ -1,7 +1,6 @@
 package org.stride.feature.fitness
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -12,6 +11,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.stride.core.data.testing.DemoDataFixture
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Fitness in demo mode (MVP-016), built from the real demo pipeline. */
 @RunWith(AndroidJUnit4::class)

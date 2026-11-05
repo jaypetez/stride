@@ -1,7 +1,6 @@
 package org.stride.feature.connect
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -9,6 +8,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Connect Garmin: empty, error, connected, expiring and rejected (MVP-005). */
 @RunWith(AndroidJUnit4::class)

@@ -1,7 +1,6 @@
 package org.stride.feature.coach
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import java.time.ZoneOffset
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -10,6 +9,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.model.UnitSystem
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Coach: setup (off by default), activity facts and an answer (MVP-019). */
 @RunWith(AndroidJUnit4::class)

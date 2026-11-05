@@ -21,7 +21,7 @@ data class OpenSourceLicence(val name: String, val licence: String, val url: Str
 val LICENCES = listOf(
     OpenSourceLicence(
         "Garmin FIT SDK",
-        "Flexible and Interoperable Data Transfer (FIT) Protocol License",
+        "FIT Protocol License (Flexible and Interoperable Data Transfer)",
         "https://developer.garmin.com/fit/download/"
     ),
     OpenSourceLicence("AndroidX and Jetpack Compose", "Apache License 2.0", "https://developer.android.com/jetpack/androidx"),

@@ -1,7 +1,6 @@
 package org.stride.feature.settings
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,6 +11,7 @@ import org.stride.core.model.AthleteProfile
 import org.stride.core.model.RaceGoal
 import org.stride.core.model.Sex
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 import org.stride.core.ui.profile.ProfileFormState
 
 /** The "You" tab, profile edit and licences (MVP-021). */

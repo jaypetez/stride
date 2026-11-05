@@ -1,7 +1,6 @@
 package org.stride.feature.plan
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.stride.core.testing.captureScreenshot
 import java.time.LocalDate
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -20,6 +19,7 @@ import org.stride.core.science.model.GuardrailViolation
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.plan.validatePlan
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Plan tab with a plan generated for the demo athlete (MVP-018). */
 @RunWith(AndroidJUnit4::class)
