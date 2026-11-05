@@ -1,6 +1,7 @@
 import type { WorkstreamBacklog } from '../types.ts';
 import { backlog as andf } from './andf.ts';
 import { backlog as andx } from './andx.ts';
+import { backlog as aud } from './aud.ts';
 import { backlog as chat } from './chat.ts';
 import { backlog as cloud } from './cloud.ts';
 import { backlog as coach } from './coach.ts';
@@ -29,5 +30,6 @@ export const BACKLOG: WorkstreamBacklog[] = [
   qa,
   sec,
   rel,
+  aud,
   later,
 ];
