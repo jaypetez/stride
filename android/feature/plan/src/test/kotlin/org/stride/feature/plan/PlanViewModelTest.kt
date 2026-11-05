@@ -135,7 +135,7 @@ class PlanViewModelTest {
             scheduler.advanceTimeBy(61_000)
             val after = awaitWhere { it.today == "2026-11-23" }
             assertEquals(3, after.currentWeekIndex)
-            assertEquals(LocalDate.parse("2026-11-30"), after.earliestRaceDate)
+            assertEquals(LocalDate.parse("2026-12-06"), after.earliestRaceDate)
             cancelAndIgnoreRemainingEvents()
         }
     }

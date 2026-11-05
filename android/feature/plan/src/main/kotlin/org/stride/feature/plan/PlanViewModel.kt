@@ -90,7 +90,7 @@ class PlanViewModel @Inject constructor(
         initial.copy(
             isLoading = false,
             today = todayKey,
-            earliestRaceDate = planStartDate(day),
+            earliestRaceDate = earliestRaceDate(day),
             plan = plan,
             currentWeekIndex = plan?.weeks?.indexOfFirst { w -> w.days.any { it.date == todayKey } }?.takeIf { it >= 0 },
             form = f,
