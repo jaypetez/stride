@@ -74,7 +74,6 @@ private fun configureStrideLint(lint: com.android.build.api.dsl.Lint, project: P
     lint.checkDependencies = false
     lint.xmlReport = true
     lint.sarifReport = true
-    lint.baseline = project.file("lint-baseline.xml")
     // Version-freshness checks are Dependabot's job (GOV-002), not a build breaker.
     lint.disable += setOf(
         "GradleDependency",
