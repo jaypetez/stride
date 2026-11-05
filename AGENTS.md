@@ -22,14 +22,15 @@ run/verify → observe — locally with **no secrets and no network**.
 |---|---|
 | `pnpm check` | **The gate.** lint → typecheck → test → script tests → build → verify, fail-fast. Run before committing. |
 | `pnpm verify` | **Runtime smoke** (`scripts/smoke.mjs`): boots the API on a real socket, drives the MCP stdio protocol, runs the CLI — all offline — and asserts. The deterministic verifier. |
-| `pnpm lint` / `pnpm format` | Biome check / autofix (whole repo, incl. CLI). |
-| `pnpm typecheck` | `tsc --noEmit` per package (Turbo). |
-| `pnpm test:scripts` | `node --test` for plain-Node repo scripts (`scripts/**/*.test.mjs`, e.g. the Garmin probe sanitizer). Runs in CI's lint job. |
+| `pnpm lint` / `pnpm format` | Biome check / autofix (whole repo, incl. CLI and `scripts/**/*.mjs`). |
+| `pnpm typecheck` | `tsc --noEmit` per package (Turbo, incl. `apps/web/e2e`), then `typecheck:scripts` (`tsc -p scripts`: `science-golden.mts`, `scripts/*.test.ts`). |
+| `pnpm test:scripts` | `node --test` for plain-Node repo scripts (`scripts/**/*.test.mjs`, e.g. the Garmin probe sanitizer and the `osv-gate` vulnerability gate). Runs in CI's lint job. |
 | `pnpm test` | Vitest per package (Turbo), then root `vitest run` for `scripts/**/*.test.ts`. Covers schemas, core, cli, api, mcp, web, scripts. |
 | `pnpm science:golden` | Regenerate `contracts/science-golden/*.json` (the Kotlin-port parity contract) from `packages/core`; `--check` fails if they are stale. **Run after any core science/planner/guardrail/safety change.** |
 | `pnpm test:watch` | `turbo watch test` — re-runs on change. |
-| `pnpm test:affected` | Only packages changed vs `origin/main`. |
-| `pnpm coverage` | Vitest v8 coverage per package + root scripts; **fails below each package's `coverage.thresholds`**. `pnpm coverage:ratchet` raises them (floored) after coverage improves. Policy: [`docs/testing/coverage.md`](docs/testing/coverage.md). |
+| `pnpm test:affected` | `turbo run test --affected`: only packages changed vs `main` (uses `GITHUB_BASE_REF` in Actions; a too-shallow clone falls back to running everything). |
+| `pnpm coverage` | Vitest v8 coverage per package + root scripts; **fails below each package's `coverage.thresholds`**. `pnpm coverage:ratchet` raises them (floored) after coverage improves. Policy: [`docs/testing/coverage.md`](docs/testing/coverage.md). Runs in CI's `coverage` job, not in `pnpm check`. |
+| `pnpm --filter @stride/web e2e` | Playwright browser smoke for the web dashboard (`apps/web/e2e/`; boots `vite` itself). One-time: `pnpm --filter @stride/web exec playwright install chromium`. **Not in `pnpm check`**; gated in CI by the required `e2e` job. Run it after any `apps/web` UI change. |
 | `pnpm build` | tsup (cli/api/mcp) + vite (web) → runnable `dist/`. |
 | `pnpm check:android` | **The Android gate:** `./gradlew -p android check` (unit + Robolectric tests, Lint, Detekt, ktlint, Kover). Skips with a notice if `android/` is absent. Needs JDK 21 + Android SDK. See [`android/README.md`](android/README.md). |
 | `pnpm check:all` | `pnpm check && pnpm check:android`. |
@@ -56,6 +57,7 @@ Stride Groups is a native Android app (`android/`) backed by Cloudflare (`apps/c
 
 - **CLI:** `pnpm --filter @stride/cli dev -- analyze --demo` (also `next --demo`, `plan --demo --race 10k --weeks 8`, `profile`, `doctor`). Add `--json` for machine-readable output, `--note "<text>"` to pass free-text the safety layer screens for red flags, and (live) `sync --rebuild|--backfill|--reconcile`.
 - **API:** `pnpm --filter @stride/api dev` → `http://localhost:8720`; hit `/health`, `/analyze/demo`, `/next?demo=true`, `/pmc?demo=true`, `POST /plan {"demo":true}`.
+  - **`POST /plan` writes to the store unless `demo: true`:** a live call overwrites `plan.json` *and* `goal.json` in the data dir (the goal is rebuilt from the body's `race`/`date`, falling back to the stored goal). Always pass `{"demo":true}` when exploring, or point `STRIDE_DATA_DIR` at a scratch dir. Demo calls are read-only.
 - **Web:** `pnpm --filter @stride/web dev` → `http://localhost:5173` (defaults to demo mode; proxies `/api` to the API — start the API too for live data).
 - **MCP:** `pnpm --filter @stride/mcp dev` — speaks MCP over **stdio**; exposes **8 tools** (5 read-only fact tools + 3 action tools) shared with `packages/core/src/coach/tools.ts`; call them with `{ "demo": true }`. Logs go to **stderr** (stdout is the protocol channel).
 - **`stride doctor`** prints tooling, configured credentials, and exactly what runs offline vs needs creds.
