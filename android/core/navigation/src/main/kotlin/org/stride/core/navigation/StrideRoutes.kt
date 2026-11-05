@@ -41,3 +41,7 @@ data class CoachRoute(val activityId: Long? = null) : NavKey
 
 @Serializable
 data object LicencesRoute : NavKey
+
+/** Settings → Edit profile (MVP-021). */
+@Serializable
+data object ProfileEditRoute : NavKey

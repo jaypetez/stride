@@ -80,6 +80,22 @@ object Format {
         }
     }
 
+    /** Signed distance change, e.g. "+3.5" / "−1.2" (km or mi). */
+    fun signedDistance(metres: Double, units: UnitSystem, decimals: Int = 1): String {
+        val v = if (units == UnitSystem.IMPERIAL) metres / METRES_PER_MILE else metres / 1000.0
+        return signed(v, decimals)
+    }
+
+    /** Signed duration change, e.g. "+42m" / "−1h 5m" / "0m". */
+    fun signedDurationShort(seconds: Double): String {
+        val body = durationShort(abs(seconds))
+        return when {
+            body == "0m" -> body
+            seconds > 0 -> "+$body"
+            else -> "−$body"
+        }
+    }
+
     fun percent(fraction: Double, decimals: Int = 0): String = "%.${decimals}f%%".format(Locale.ROOT, fraction * 100)
 
     private val DAY = DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK)
