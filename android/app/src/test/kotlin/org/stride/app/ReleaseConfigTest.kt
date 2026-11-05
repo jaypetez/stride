@@ -25,6 +25,16 @@ class ReleaseConfigTest {
     }
 
     @Test
+    fun pullRequestCiBuildsTheMinifiedReleaseAndReleasesKeepTheMapping() {
+        // The merged-manifest checks live in ManifestSecurityTest; this keeps CI honest (AUD-040).
+        val prCi = File("../../.github/workflows/android.yml").readText()
+        assertTrue(":app:assembleRelease" in prCi, "android.yml must build the minified release on PRs")
+        val release = File("../../.github/workflows/release-android.yml").readText()
+        assertTrue("dist/*-mapping.txt" in release, "the R8 mapping must be attached to each GitHub Release")
+        assertTrue("mapping.txt" in File("../../scripts/android/release-build.sh").readText())
+    }
+
+    @Test
     fun versionComesFromVersionJson() {
         assertTrue(buildFile.contains("version.json"))
         assertTrue(File("../version.json").readText().contains("versionCode"))

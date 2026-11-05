@@ -1,0 +1,67 @@
+# Rotation, process death and deep back navigation (AUD-039): demo → Runs →
+# activity detail → rotate both ways → kill and relaunch (demo mode and
+# onboarding survive) → back out of the detail → Runs → Today.
+# Run: maestro test android/maestro/rotation.yaml   (debug build installed, offline)
+appId: org.stride.app.debug
+name: Rotation, process death and back navigation
+tags:
+  - offline
+---
+- runFlow: common/onboard-demo.yaml
+
+# Deep in the back stack: Runs → first activity detail.
+- tapOn: "Runs tab"
+- extendedWaitUntil:
+    visible: ".*run.*"
+    timeout: 10000
+- tapOn:
+    text: ".*(Easy run|Long run|Tempo run|intervals|Recovery jog).*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Training load"
+    timeout: 15000
+
+# Configuration change: the detail is still shown in landscape and back in portrait.
+# In landscape the second card ("Training load") is below the fold, so scroll to it;
+# the title proves the same detail survived the recreation.
+- setOrientation: LANDSCAPE_LEFT
+- extendedWaitUntil:
+    visible: ".*(Easy run|Long run|Tempo run|intervals|Recovery jog).*"
+    timeout: 10000
+- takeScreenshot: detail-landscape
+- scrollUntilVisible:
+    element: "Training load"
+    timeout: 15000
+- setOrientation: PORTRAIT
+- scrollUntilVisible:
+    element: "Training load"
+    timeout: 15000
+
+# Deep back navigation: detail → Runs list → Today.
+- back
+- extendedWaitUntil:
+    visible: "Runs tab"
+    timeout: 5000
+- assertNotVisible: "Training load"
+- back
+- extendedWaitUntil:
+    visible: "Next workout"
+    timeout: 10000
+
+# Process death: kill and relaunch without clearing state. Onboarding stays done
+# and demo mode stays on (the demo database is re-attached at startup).
+- killApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Next workout"
+    timeout: 60000
+- assertNotVisible: "Welcome to Stride"
+- assertVisible: "Exit demo"
+
+# Rotating Today keeps its content.
+- setOrientation: LANDSCAPE_LEFT
+- extendedWaitUntil:
+    visible: "Exit demo"
+    timeout: 10000
+- setOrientation: PORTRAIT
+- takeScreenshot: today-after-relaunch

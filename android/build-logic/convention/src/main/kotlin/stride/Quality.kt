@@ -54,11 +54,24 @@ internal fun Project.configureQuality() {
     tasks.named("check").configure { dependsOn("spotlessCheck") }
     configureHardcodedTextCheck()
 
+    val floor = CoverageFloors.forPath(path)
     extensions.configure<KoverProjectExtension> {
         currentProject {
             sources {
                 excludedSourceSets.addAll("debug", "release")
             }
         }
+        if (floor != null) {
+            reports {
+                verify {
+                    rule("Module line coverage ($path)") {
+                        minBound(floor)
+                    }
+                }
+            }
+        }
+    }
+    if (floor != null) {
+        tasks.named("check").configure { dependsOn("koverVerify") }
     }
 }

@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -55,7 +56,9 @@ data class ProfileEditUiState(
     val errors: Map<ProfileField, UiText> = emptyMap(),
     val saving: Boolean = false,
     /** The profile could not be read; the screen shows an error with "Try again" (AUD-032). */
-    val loadFailed: Boolean = false
+    val loadFailed: Boolean = false,
+    /** Set when the profile could not be written; the form stays editable so the user can retry. */
+    val saveError: UiText? = null
 )
 
 @HiltViewModel
@@ -102,9 +105,17 @@ class ProfileEditViewModel @Inject constructor(
             state.update { it.copy(errors = validation.errors) }
             return
         }
-        state.update { it.copy(saving = true) }
+        state.update { it.copy(saving = true, saveError = null) }
         viewModelScope.launch {
-            prefs.updateProfile(profile)
+            try {
+                prefs.updateProfile(profile)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A failed write leaves the saved profile untouched: no recompute, no navigation.
+                state.update { it.copy(saving = false, saveError = UiText(R.string.settings_profile_save_failed)) }
+                return@launch
+            }
             // Anchors (max/resting/threshold HR) feed every metric: rebuild them all,
             // in the app scope so leaving the screen doesn't cancel it.
             appScope.launch { recomputer.recompute(changedActivityIds = null, fromDate = null) }
@@ -160,6 +171,9 @@ fun ProfileEditScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 ProfileForm(state = state.form, onChange = onChange, errors = state.errors)
+                state.saveError?.let {
+                    Text(it.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                }
                 Text(
                     stringResource(R.string.settings_profile_save_note),
                     style = MaterialTheme.typography.bodySmall,

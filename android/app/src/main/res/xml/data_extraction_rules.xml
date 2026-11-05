@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Stride is local-only (ADR 0010): nothing goes to cloud backup. Device-to-device
-  transfer may carry synced data, but never secrets: the Garmin key / cached token
-  and the Anthropic key are encrypted with a Keystore-bound Tink key that cannot
-  move to another device anyway (MVP-004, SEC-003).
+  Stride is local-only (ADR 0010) and its Room database is not encrypted at rest
+  (ADR 0011), so the database never leaves the device: nothing goes to cloud
+  backup, and device-to-device transfer carries neither the database nor any
+  secret. The Garmin key / cached token and the Anthropic key are encrypted with
+  a Keystore-bound Tink key that cannot move to another device anyway
+  (MVP-004, SEC-003). A new phone re-syncs its runs from Garmin.
 -->
 <data-extraction-rules>
     <cloud-backup>
@@ -14,6 +16,7 @@
         <exclude domain="external" path="." />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="database" path="." />
         <exclude domain="file" path="datastore/stride_secrets.preferences_pb" />
         <exclude domain="sharedpref" path="stride_tink_keyset.xml" />
     </device-transfer>

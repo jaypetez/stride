@@ -1,4 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
 import groovy.json.JsonSlurper
+import org.gradle.process.CommandLineArgumentProvider
 
 plugins {
     alias(libs.plugins.stride.android.application.compose)
@@ -89,7 +91,26 @@ dependencies {
     debugImplementation(libs.leakcanary.android)
 
     testImplementation(project(":core:testing"))
+    testImplementation(project(":core:data-testing"))
 }
+
+// ManifestSecurityTest asserts on the merged *release* manifest (AUD-040), not just on
+// the debug variant Robolectric runs: every unit-test task gets its path and depends on it.
+abstract class ReleaseManifestArgument : CommandLineArgumentProvider {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    override fun asArguments(): List<String> = listOf("-Dstride.releaseManifest=${manifest.get().asFile.absolutePath}")
+}
+
+val releaseManifest = objects.newInstance<ReleaseManifestArgument>()
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        releaseManifest.manifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+    }
+}
+tasks.withType<Test>().configureEach { jvmArgumentProviders.add(releaseManifest) }
 
 tasks.register("printVersion") {
     val name = appVersion["versionName"]

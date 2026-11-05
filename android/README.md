@@ -24,9 +24,16 @@ This is a standalone Gradle build — not part of the pnpm workspace.
 | `./gradlew -p android checkHardcodedText` | Fails on user-facing text hard-coded in Kotlin UI code; strings belong in `res/values/strings.xml` (AUD-034). |
 | `./gradlew -p android spotlessApply` | Auto-format Kotlin and `.kts`. |
 | `./gradlew -p android koverHtmlReport` | Aggregated coverage report (threshold: 60% lines, see root `build.gradle.kts`). |
+| `./gradlew -p android :app:assembleRelease` | R8-minified release APK (debug-signed without release secrets). CI builds it on every Android PR. |
+| `./gradlew -p android connectedDebugAndroidTest` | Instrumented tests on a running emulator/device (the SecretStore round trip on the real Keystore). |
+| `maestro test android/maestro/ --exclude-tags=dark` | Offline Maestro flows on an emulator with the debug APK installed: demo smoke, plan, wipe, rotation/process death. |
+| `adb shell cmd uimode night yes && maestro test android/maestro/ --include-tags=dark` | The dark-mode flow (switch back with `night no`). |
 
-`check` runs unit tests, Android Lint, Detekt, ktlint, `checkHardcodedText` and `koverVerify`. CI adds
-`-Proborazzi.test.verify=true` so the same test run also verifies screenshots.
+`check` runs unit tests, Android Lint, Detekt, ktlint, `checkHardcodedText` and `koverVerify` (the 60%
+aggregate plus per-module floors in `build-logic/.../CoverageFloors.kt`). CI adds
+`-Proborazzi.test.verify=true` so the same test run also verifies screenshots, builds
+`:app:assembleRelease`, and runs an emulator job (instrumented tests + the Maestro
+smoke flow) on every Android PR. The other Maestro flows run nightly (`android-e2e.yml`).
 
 ## Modules
 ```

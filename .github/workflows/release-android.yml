@@ -79,12 +79,6 @@ jobs:
         run: |
           if [ -z "$KEYSTORE_B64" ]; then echo "::error::release keystore secrets are missing (GOV-015)"; exit 1; fi
           scripts/android/release-build.sh "stride-${GITHUB_REF_NAME}"
-      - name: Upload R8 mapping (private workflow artifact)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: r8-mapping-${{ github.ref_name }}
-          path: android/app/build/outputs/mapping/release/mapping.txt
-          retention-days: 90
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -95,8 +89,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+        # The R8 mapping (dist/*-mapping.txt) is a release asset, so it lives as long as the
+        # release instead of expiring with a workflow artifact (AUD-040).
         run: |
-          gh release create "$TAG" dist/*.apk dist/*.aab dist/SHA256SUMS \
+          gh release create "$TAG" dist/*.apk dist/*.aab dist/*-mapping.txt dist/SHA256SUMS \
             --title "Stride for Android ${TAG#android-v}" \
             --notes "Signed APK for sideloading or Obtainium — see docs/release/install-android.md. Verify with: gh attestation verify <apk> -R ${GITHUB_REPOSITORY}" \
             --verify-tag
