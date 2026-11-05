@@ -82,6 +82,15 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Turbo's local task cache (AUD-024): restore the last run's .turbo so
+      # unchanged packages replay instead of re-running typecheck/test/build.
+      - name: Cache Turbo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('pnpm-lock.yaml') }}-
       # typecheck & build drive platform-specific native binaries (the TS 7
       # native compiler, esbuild) that occasionally crash on the Windows runner
       # under load. Bounded retry rides out that transient flake; a real error
@@ -111,6 +120,15 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # Turbo's local task cache (AUD-024): restore the last run's .turbo so
+      # unchanged packages replay instead of re-running typecheck/test/build.
+      - name: Cache Turbo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-coverage-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-coverage-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       # Fails the job when any package drops below its `coverage.thresholds`
       # (per-package vitest configs; policy in docs/testing/coverage.md).
       - name: Coverage (enforces thresholds)
@@ -161,23 +179,32 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Audit dependencies (fail on high+)
-        # `pnpm audit` POSTs to npm's legacy audit endpoints, which npm has
-        # retired (HTTP 410 → ERR_PNPM_AUDIT_BAD_RESPONSE). Treat that specific
-        # infra failure as a soft warning so it can't wedge the required gate,
-        # while still failing hard on genuine high+ advisories. Vulnerability
-        # coverage is redundantly enforced by dependency-review + CodeQL.
+      # `pnpm audit` called npm's retired audit endpoint (HTTP 410), so it could
+      # only soft-pass. osv-scanner (OSS, checksum-verified) scans the lockfile
+      # against OSV.dev; scripts/osv-gate.mjs fails on High/Critical (AUD-024).
+      # dependency-review.yml additionally blocks PRs that add High+ deps.
+      - name: Install osv-scanner
+        env:
+          OSV_VERSION: 2.7.0
+          OSV_SHA256: 160c6253e2922e9e0a6a9771c5c4c40a4b3c6090b34a3cdd5e80c96cc2e4218b
+        run: |
+          curl -fsSL -o osv-scanner "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  osv-scanner" | sha256sum -c -
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/osv-scanner
+      - name: Scan dependencies (fail on high+)
         shell: bash
         run: |
           set +e
-          out="$(pnpm audit --audit-level=high 2>&1)"
+          osv-scanner scan source --format json --lockfile pnpm-lock.yaml > osv.json
           code=$?
-          echo "$out"
-          if [ "$code" -ne 0 ] && echo "$out" | grep -qE "ERR_PNPM_AUDIT_BAD_RESPONSE|being retired"; then
-            echo "::warning::npm audit endpoint retired; advisory fetch skipped (covered by dependency-review + CodeQL)."
-            exit 0
+          set -e
+          # Exit 1 means "vulnerabilities found" (graded by the gate); anything
+          # else non-zero is a scanner error and fails the job.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+            echo "::error::osv-scanner failed (exit $code)"; exit "$code"
           fi
-          exit "$code"
+          node scripts/osv-gate.mjs osv.json
 
   # Android (ANDF-005): reusable workflow, run only when android/ or contracts/ change.
   android:
