@@ -30,7 +30,7 @@ run/verify → observe — locally with **no secrets and no network**.
 | `pnpm test:watch` | `turbo watch test` — re-runs on change. |
 | `pnpm test:affected` | `turbo run test --affected`: only packages changed vs `main` (uses `GITHUB_BASE_REF` in Actions; a too-shallow clone falls back to running everything). |
 | `pnpm coverage` | Vitest v8 coverage per package + root scripts; **fails below each package's `coverage.thresholds`**. `pnpm coverage:ratchet` raises them (floored) after coverage improves. Policy: [`docs/testing/coverage.md`](docs/testing/coverage.md). Runs in CI's `coverage` job, not in `pnpm check`. |
-| `pnpm --filter @stride/web e2e` | Playwright browser smoke for the web dashboard (`apps/web/e2e/`; boots `vite` itself). One-time: `pnpm --filter @stride/web exec playwright install chromium`. **Not in `pnpm check`**; gated in CI by the required `e2e` job. Run it after any `apps/web` UI change. |
+| `pnpm --filter @stride/web e2e` | Playwright browser smoke for the web dashboard (`apps/web/e2e/`; the dev servers it needs are started by `apps/web/playwright.config.ts`). One-time: `pnpm --filter @stride/web exec playwright install chromium`. **Not in `pnpm check`**; gated in CI by the required `e2e` job. Run it after any `apps/web` UI change. |
 | `pnpm build` | tsup (cli/api/mcp) + vite (web) → runnable `dist/`. |
 | `pnpm check:android` | **The Android gate:** `./gradlew -p android check` (unit + Robolectric tests, Lint, Detekt, ktlint, Kover). Skips with a notice if `android/` is absent. Needs JDK 21 + Android SDK. See [`android/README.md`](android/README.md). |
 | `pnpm check:all` | `pnpm check && pnpm check:android`. |
