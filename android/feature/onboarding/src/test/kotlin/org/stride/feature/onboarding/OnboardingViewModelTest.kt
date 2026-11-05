@@ -3,16 +3,26 @@ package org.stride.feature.onboarding
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -46,6 +56,29 @@ class OnboardingViewModelTest {
 
         override suspend fun exit() {
             exited++
+        }
+    }
+
+    /**
+     * Mirrors DemoMode.enter(): a slow load that ends by writing demoMode=true inside withContext(io),
+     * whose prompt-cancellation guarantee then throws if the caller was cancelled meanwhile.
+     */
+    private class SlowDemo : DemoController {
+        val loading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var demoMode = false
+
+        override suspend fun enter() {
+            withContext(NonCancellable) {
+                loading.complete(Unit)
+                release.await()
+                demoMode = true
+            }
+            currentCoroutineContext().ensureActive()
+        }
+
+        override suspend fun exit() {
+            demoMode = false
         }
     }
 
@@ -167,5 +200,28 @@ class OnboardingViewModelTest {
         assertEquals(1, demo.entered)
         assertFalse(demo.active, "demo mode is rolled back")
         assertFalse(prefs.current().onboardingComplete)
+    }
+
+    /**
+     * AUD-030: backing out of onboarding while the demo loads cancels viewModelScope. The demo load and
+     * the save finish together anyway, so the app never ends with demo on but onboarding incomplete.
+     */
+    @Test
+    fun cancellationDuringDemoLoadStillCompletesOnboarding() = runTest(main.testDispatcher) {
+        val prefs = prefs()
+        val demo = SlowDemo()
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        vm.walkToFinish()
+        vm.onEvent(OnboardingEvent.TryDemo)
+        runCurrent()
+        assertTrue(demo.loading.isCompleted, "demo load started")
+        vm.viewModelScope.cancel()
+        demo.release.complete(Unit)
+        runCurrent()
+        assertTrue(demo.demoMode)
+        val settings = withContext(Dispatchers.Default) {
+            withTimeout(5_000) { prefs.settings.first { it.onboardingComplete } }
+        }
+        assertTrue(settings.onboardingComplete, "demo on implies onboarding complete")
     }
 }

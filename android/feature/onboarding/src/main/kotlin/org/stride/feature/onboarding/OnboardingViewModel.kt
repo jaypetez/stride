@@ -146,11 +146,14 @@ class OnboardingViewModel @Inject constructor(
         state.update { it.copy(working = true, error = null) }
         viewModelScope.launch {
             try {
-                // Load the demo first so the shell never shows an empty Today screen.
-                if (enterDemo) demo.enter()
-                // Persist before handing off, and finish even if the screen goes away, so the app
-                // never ends with demo on but onboarding incomplete (AUD-030).
-                withContext(NonCancellable) { persist(profile, parqFlagged = !current.screening.cleared, rollbackDemo = enterDemo) }
+                // Load the demo first so the shell never shows an empty Today screen, then persist
+                // before handing off. Both run as one non-cancellable unit: DemoMode.enter() writes
+                // demoMode=true as its last step, so if the screen went away mid-load a cancellation
+                // there would leave demo on but onboarding incomplete (AUD-030).
+                withContext(NonCancellable) {
+                    if (enterDemo) demo.enter()
+                    persist(profile, parqFlagged = !current.screening.cleared, rollbackDemo = enterDemo)
+                }
                 finished.send(if (enterDemo) TodayRoute else ConnectGarminRoute)
             } catch (cancelled: CancellationException) {
                 throw cancelled

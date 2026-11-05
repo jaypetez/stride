@@ -1,9 +1,14 @@
 package org.stride.core.garmin.fit
 
 import com.garmin.fit.CRC
+import com.garmin.fit.Decode
+import com.garmin.fit.FitRuntimeException
+import com.garmin.fit.MesgBroadcaster
+import java.io.ByteArrayInputStream
 import kotlin.random.Random
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -95,18 +100,74 @@ class FitParserTest {
     fun corruptedFilesWithValidCrcNeverThrow() {
         val good = SyntheticFit.run(60)
         val random = Random(42)
+        val outcomes = mutableMapOf<String, Int>()
         repeat(300) {
             val bad = good.copyOf()
             repeat(1 + random.nextInt(8)) {
                 val i = HEADER_SIZE + random.nextInt(bad.size - HEADER_SIZE - 2)
                 bad[i] = random.nextInt(256).toByte()
             }
-            var crc = 0
-            for (i in 0 until bad.size - 2) crc = CRC.get16(crc, bad[i])
-            bad[bad.size - 2] = (crc and 0xFF).toByte()
-            bad[bad.size - 1] = (crc shr 8 and 0xFF).toByte()
-            // Must return a typed result, whatever the bytes are.
-            FitParser.parse(bad, 1)
+            // Must return a typed result, whatever the bytes are: a throw here fails the test.
+            val result = FitParser.parse(withValidCrc(bad), 1)
+            val key = when (result) {
+                is StrideResult.Ok -> "ok"
+                is StrideResult.Err -> result.error::class.simpleName!!
+            }
+            outcomes.merge(key, 1, Int::plus)
+        }
+        assertEquals(300, outcomes.values.sum())
+        // The CRC fix-up means the decoder itself rejects most mutations, not the integrity check.
+        assertTrue((outcomes["Corrupt"] ?: 0) > 0, "decoder failures are typed as Corrupt: $outcomes")
+    }
+
+    /**
+     * AUD-028: the SDK throws plain RuntimeExceptions, not only FitRuntimeException, on input that passes
+     * the CRC check. These single-byte corruptions of the synthetic run were found by fuzzing; each first
+     * proves the raw SDK really throws that non-FIT exception (so this test fails on a parser that only
+     * caught FitRuntimeException), then that FitParser turns it into FitError.Corrupt.
+     */
+    @Test
+    fun nonFitRuntimeExceptionsFromTheSdkAreCorrupt() {
+        // Byte 19 is the first definition message's field count (5 -> 22): the SDK indexes past its field table.
+        val badFieldCount = corrupt(index = 19, value = 22)
+        assertFailsWith<ArrayIndexOutOfBoundsException> { rawSdkDecode(badFieldCount) }
+        assertEquals(
+            StrideResult.Err(FitError.Corrupt("ArrayIndexOutOfBoundsException")),
+            FitParser.parse(badFieldCount, 1)
+        )
+
+        // A record header turned into a developer-data message with no developer data index: the SDK NPEs.
+        val badDeveloperData = corrupt(index = 1217, value = 207)
+        assertFailsWith<NullPointerException> { rawSdkDecode(badDeveloperData) }
+        assertEquals(
+            StrideResult.Err(FitError.Corrupt("NullPointerException")),
+            FitParser.parse(badDeveloperData, 1)
+        )
+    }
+
+    /** The synthetic 60 s run with one byte replaced and the file CRC recomputed, so the CRC still matches. */
+    private fun corrupt(index: Int, value: Int): ByteArray {
+        val bytes = SyntheticFit.run(60)
+        bytes[index] = value.toByte()
+        return withValidCrc(bytes)
+    }
+
+    private fun withValidCrc(bytes: ByteArray): ByteArray {
+        var crc = 0
+        for (i in 0 until bytes.size - 2) crc = CRC.get16(crc, bytes[i])
+        bytes[bytes.size - 2] = (crc and 0xFF).toByte()
+        bytes[bytes.size - 1] = (crc shr 8 and 0xFF).toByte()
+        return bytes
+    }
+
+    /** Decodes with the bare SDK, letting any non-FitRuntimeException escape. */
+    private fun rawSdkDecode(bytes: ByteArray) {
+        val decode = Decode()
+        val broadcaster = MesgBroadcaster(decode)
+        try {
+            decode.read(ByteArrayInputStream(bytes), broadcaster, broadcaster)
+        } catch (e: FitRuntimeException) {
+            throw AssertionError("expected a non-FIT RuntimeException, got $e", e)
         }
     }
 
