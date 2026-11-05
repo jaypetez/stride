@@ -10,4 +10,5 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.okhttp.mockwebserver)
+    testImplementation(project(":core:data-testing"))
 }

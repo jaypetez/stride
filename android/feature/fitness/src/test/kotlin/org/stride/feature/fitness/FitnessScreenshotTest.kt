@@ -11,7 +11,9 @@ import org.robolectric.annotation.GraphicsMode
 import org.stride.core.data.testing.DemoDataFixture
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.ScreenshotVariant
 import org.stride.core.testing.captureScreenshot
+import org.stride.core.testing.variantPath
 
 /** Fitness in demo mode (MVP-016), built from the real demo pipeline. */
 @RunWith(AndroidJUnit4::class)
@@ -32,10 +34,14 @@ class FitnessScreenshotTest {
         return state
     }
 
-    private fun snap(name: String, state: FitnessUiState) {
+    private fun snap(name: String, state: FitnessUiState, variant: ScreenshotVariant = ScreenshotVariant.DEFAULT) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureScreenshot("src/test/screenshots/fitness_${name}_$theme.png") {
+            captureScreenshot(
+                variantPath("src/test/screenshots/fitness_$name", variant, theme),
+                variant = variant,
+                accessibilityChecks = !dark
+            ) {
                 StrideTheme(darkTheme = dark) { FitnessScreen(state = state, onSelectRange = {}) }
             }
         }
@@ -46,9 +52,20 @@ class FitnessScreenshotTest {
 
     /** Full scroll height: zones, VDOT, predictions and zone tables. */
     @Test
-    @Config(qualifiers = "w411dp-h2600dp-xxhdpi")
+    @Config(qualifiers = "en-rGB-w411dp-h2600dp-xxhdpi")
     fun demoFullSixMonths() = snap("demo_full_6m", demoState(FitnessRange.SIX_MONTHS))
 
     @Test
     fun empty() = snap("empty", FitnessUiState(isLoading = false))
+
+    /** AUD-032: the insights could not be computed. */
+    @Test
+    fun error() = snap("error", FitnessUiState(isLoading = false, loadFailed = true))
+
+    /** AUD-035: large text and right-to-left. */
+    @Test
+    fun demoFont150() = snap("demo", demoState(FitnessRange.THREE_MONTHS), ScreenshotVariant.FONT_150)
+
+    @Test
+    fun demoRtl() = snap("demo", demoState(FitnessRange.THREE_MONTHS), ScreenshotVariant.RTL)
 }

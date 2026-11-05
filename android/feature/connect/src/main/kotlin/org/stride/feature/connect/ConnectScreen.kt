@@ -28,17 +28,20 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.StatusPill
 import org.stride.core.designsystem.component.StrideButton
@@ -58,7 +62,7 @@ import org.stride.core.designsystem.component.ThemePreviews
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.navigation.LocalNavigator
 import org.stride.core.ui.Format
-import org.stride.core.ui.GARMIN_ATTRIBUTION
+import org.stride.core.ui.R as CoreUiR
 import org.stride.core.ui.formInsets
 import org.stride.core.ui.profile.toUtcDate
 import org.stride.core.ui.profile.toUtcMillis
@@ -67,11 +71,11 @@ import org.stride.core.ui.profile.toUtcMillis
 const val GARMIN_KEY_URL = "https://connect.garmin.com/app/settings/personalApiToken"
 
 val SETUP_STEPS = listOf(
-    "Open Garmin Connect in your browser and sign in.",
-    "Go to Settings, then Personal API.",
-    "Create a key and choose how long it lasts: 30, 90 or 180 days, or 1 year.",
-    "Copy the key straight away. Garmin shows it only once.",
-    "Paste it below, check the expiry date and tap Connect."
+    R.string.connect_step_1,
+    R.string.connect_step_2,
+    R.string.connect_step_3,
+    R.string.connect_step_4,
+    R.string.connect_step_5
 )
 
 /** Stateful entry for [org.stride.core.navigation.ConnectGarminRoute]. */
@@ -97,7 +101,18 @@ fun ConnectScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Garmin", onBack = onBack) }) { padding ->
+    Scaffold(modifier = modifier, topBar = {
+        StrideTopAppBar(title = stringResource(R.string.connect_title), onBack = onBack)
+    }) { padding ->
+        if (state.loadFailed) {
+            ErrorState(
+                title = stringResource(CoreUiR.string.load_error_title),
+                message = stringResource(CoreUiR.string.load_error_message),
+                onRetry = { onEvent(ConnectEvent.Retry) },
+                modifier = Modifier.padding(padding)
+            )
+            return@Scaffold
+        }
         if (state.loading) {
             LoadingState(modifier = Modifier.padding(padding).fillMaxSize())
             return@Scaffold
@@ -124,7 +139,7 @@ fun ConnectScreen(
                 KeyForm(state, onEvent)
             }
             Text(
-                "Your key is stored encrypted on this phone and is only ever sent to Garmin. $GARMIN_ATTRIBUTION",
+                stringResource(R.string.connect_storage_note, stringResource(CoreUiR.string.garmin_attribution)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -135,11 +150,11 @@ fun ConnectScreen(
 
 @Composable
 private fun RejectedBanner() {
-    StrideCard(title = "Garmin rejected your key", trailing = {
+    StrideCard(title = stringResource(R.string.connect_rejected_title), trailing = {
         Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error)
     }) {
         Text(
-            "Sync has stopped. The key may have expired or been deleted. Create a new key in Garmin Connect and paste it below.",
+            stringResource(R.string.connect_rejected_text),
             style = MaterialTheme.typography.bodyMedium
         )
     }
@@ -148,11 +163,11 @@ private fun RejectedBanner() {
 /** The Keystore lost the key that protected saved secrets (AUD-027). */
 @Composable
 private fun KeyLostBanner() {
-    StrideCard(title = "Re-enter your Garmin key", trailing = {
+    StrideCard(title = stringResource(R.string.connect_key_lost_title), trailing = {
         Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error)
     }) {
         Text(
-            "Stride could not unlock your saved key on this phone, so it was removed. Paste your Garmin key again to resume sync.",
+            stringResource(R.string.connect_key_lost_body),
             style = MaterialTheme.typography.bodyMedium
         )
     }
@@ -162,10 +177,17 @@ private fun KeyLostBanner() {
 private fun ConnectedCard(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit, onDone: () -> Unit) {
     val warn = state.expired || state.expiringSoon
     StrideCard(
-        title = "Garmin Connect",
+        title = stringResource(R.string.connect_garmin_connect),
         trailing = {
+            // The status is spelled out, never shown by colour alone (AUD-035).
             StatusPill(
-                text = if (state.expired) "Expired" else "Connected",
+                text = stringResource(
+                    when {
+                        state.expired -> R.string.connect_status_expired
+                        state.expiringSoon -> R.string.connect_status_expiring_soon
+                        else -> R.string.connect_status_connected
+                    }
+                ),
                 color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
         }
@@ -174,38 +196,42 @@ private fun ConnectedCard(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit
         val days = state.daysLeft
         Text(
             when {
-                expiry == null || days == null -> "Key expiry not set."
-                state.expired -> "Your key expired on ${Format.day(expiry)} ${expiry.year}."
-                days == 0L -> "Your key expires today."
-                else -> "Key expires on ${Format.day(expiry)} ${expiry.year} (in $days ${if (days == 1L) "day" else "days"})."
+                expiry == null || days == null -> stringResource(R.string.connect_expiry_unset)
+                state.expired -> stringResource(R.string.connect_expired_on, Format.dayWithYear(expiry))
+                days == 0L -> stringResource(R.string.connect_expires_today)
+                else -> pluralStringResource(R.plurals.connect_expires_on, days.toInt(), Format.dayWithYear(expiry), days.toInt())
             },
             style = MaterialTheme.typography.bodyMedium
         )
         if (warn && !state.expired) {
             Text(
-                "Create a new key in Garmin Connect before it expires and paste it below to keep syncing.",
+                stringResource(R.string.connect_expiring_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StrideOutlinedButton(text = "Disconnect", onClick = { onEvent(ConnectEvent.DisconnectClicked) })
-            if (!state.needsNewKey) StrideButton(text = "Done", onClick = onDone)
+            StrideOutlinedButton(text = stringResource(R.string.connect_disconnect), onClick = { onEvent(ConnectEvent.DisconnectClicked) })
+            if (!state.needsNewKey) StrideButton(text = stringResource(R.string.connect_done), onClick = onDone)
         }
     }
 }
 
 @Composable
 private fun SetupSteps(onOpenGarmin: () -> Unit) {
-    StrideCard(title = "Get your Garmin Personal API key") {
+    StrideCard(title = stringResource(R.string.connect_steps_title)) {
         SETUP_STEPS.forEachIndexed { index, step ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${index + 1}.", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                Text(step, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.connect_step_number, index + 1),
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(stringResource(step), style = MaterialTheme.typography.bodyMedium)
             }
         }
         StrideOutlinedButton(
-            text = "Open Garmin Connect",
+            text = stringResource(R.string.connect_open_garmin),
             onClick = onOpenGarmin,
             leadingIcon = Icons.AutoMirrored.Outlined.OpenInNew,
             modifier = Modifier.fillMaxWidth()
@@ -216,12 +242,13 @@ private fun SetupSteps(onOpenGarmin: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun KeyForm(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit) {
-    var pickingDate by remember { mutableStateOf(false) }
-    StrideCard(title = if (state.connected) "Paste a new key" else "Paste your key") {
+    // rememberSaveable: an open date picker survives rotation and process death (AUD-033).
+    var pickingDate by rememberSaveable { mutableStateOf(false) }
+    StrideCard(title = stringResource(if (state.connected) R.string.connect_paste_new_key else R.string.connect_paste_key)) {
         OutlinedTextField(
             value = state.keyInput,
             onValueChange = { onEvent(ConnectEvent.KeyChanged(it)) },
-            label = { Text("Personal API key") },
+            label = { Text(stringResource(R.string.connect_key_label)) },
             singleLine = true,
             visualTransformation = if (state.keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
@@ -229,34 +256,36 @@ private fun KeyForm(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit) {
                 IconButton(onClick = { onEvent(ConnectEvent.ToggleKeyVisible) }) {
                     Icon(
                         if (state.keyVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                        contentDescription = if (state.keyVisible) "Hide key" else "Show key"
+                        contentDescription = stringResource(
+                            if (state.keyVisible) CoreUiR.string.common_hide_key else CoreUiR.string.common_show_key
+                        )
                     )
                 }
             },
             isError = state.error != null,
-            supportingText = state.error?.let { error -> { Text(error.message) } },
+            supportingText = state.error?.let { error -> { Text(error.message.resolve()) } },
             modifier = Modifier.fillMaxWidth()
         )
-        Text("Key lifetime you chose in Garmin Connect", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.connect_lifetime_title), style = MaterialTheme.typography.labelLarge)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             KeyLifetime.entries.forEach { lifetime ->
                 FilterChip(
                     selected = state.lifetime == lifetime,
                     onClick = { onEvent(ConnectEvent.LifetimeChosen(lifetime)) },
-                    label = { Text(lifetime.label) }
+                    label = { Text(stringResource(lifetime.labelRes)) }
                 )
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Expires ${Format.day(state.expiry)} ${state.expiry.year}",
+                stringResource(R.string.connect_expires, Format.dayWithYear(state.expiry)),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = { pickingDate = true }) { Text("Change") }
+            TextButton(onClick = { pickingDate = true }) { Text(stringResource(CoreUiR.string.common_change)) }
         }
         StrideButton(
-            text = "Connect",
+            text = stringResource(R.string.connect_connect),
             onClick = { onEvent(ConnectEvent.Connect) },
             loading = state.connecting,
             enabled = !state.connecting,
@@ -265,6 +294,7 @@ private fun KeyForm(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit) {
         if (pickingDate) {
             ExpiryPicker(
                 initial = state.expiry,
+                today = state.today,
                 onPicked = {
                     onEvent(ConnectEvent.ExpiryPicked(it))
                     pickingDate = false
@@ -277,14 +307,20 @@ private fun KeyForm(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ExpiryPicker(initial: LocalDate, onPicked: (LocalDate) -> Unit, onDismiss: () -> Unit) {
-    val pickerState = rememberDatePickerState(initialSelectedDateMillis = initial.toUtcMillis())
+internal fun ExpiryPicker(initial: LocalDate, today: LocalDate, onPicked: (LocalDate) -> Unit, onDismiss: () -> Unit) {
+    val pickerState = rememberDatePickerState(
+        initialSelectedDateMillis = maxOf(initial, today).toUtcMillis(),
+        yearRange = today.year..(today.year + MAX_KEY_YEARS),
+        selectableDates = FutureDates(today)
+    )
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { pickerState.selectedDateMillis?.let { onPicked(it.toUtcDate()) } ?: onDismiss() }) { Text("OK") }
+            TextButton(onClick = { pickerState.selectedDateMillis?.let { onPicked(it.toUtcDate()) } ?: onDismiss() }) {
+                Text(stringResource(CoreUiR.string.common_ok))
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(CoreUiR.string.common_cancel)) } }
     ) {
         DatePicker(state = pickerState)
     }
@@ -294,10 +330,10 @@ private fun ExpiryPicker(initial: LocalDate, onPicked: (LocalDate) -> Unit, onDi
 private fun DisconnectDialog(state: ConnectUiState, onEvent: (ConnectEvent) -> Unit) {
     AlertDialog(
         onDismissRequest = { onEvent(ConnectEvent.DisconnectDismissed) },
-        title = { Text("Disconnect Garmin?") },
+        title = { Text(stringResource(R.string.connect_disconnect_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Stride removes your key from this phone and stops syncing.")
+                Text(stringResource(R.string.connect_disconnect_text))
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -309,16 +345,18 @@ private fun DisconnectDialog(state: ConnectUiState, onEvent: (ConnectEvent) -> U
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(checked = state.deleteSyncedData, onCheckedChange = null)
-                    Text("Also delete all synced data", modifier = Modifier.padding(start = 8.dp))
+                    Text(stringResource(R.string.connect_disconnect_delete_data), modifier = Modifier.padding(start = 8.dp))
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = { onEvent(ConnectEvent.DisconnectConfirmed) }, enabled = !state.disconnecting) {
-                Text("Disconnect", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.connect_disconnect), color = MaterialTheme.colorScheme.error)
             }
         },
-        dismissButton = { TextButton(onClick = { onEvent(ConnectEvent.DisconnectDismissed) }) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(onClick = { onEvent(ConnectEvent.DisconnectDismissed) }) { Text(stringResource(CoreUiR.string.common_cancel)) }
+        }
     )
 }
 
@@ -333,4 +371,15 @@ private fun ConnectScreenPreview() {
             onBack = {}
         )
     }
+}
+
+/** Garmin keys last at most a year; the picker offers a little headroom. */
+private const val MAX_KEY_YEARS = 2
+
+/** Key expiry dates: today or later only — a key cannot already have expired when you paste it (AUD-037). */
+@OptIn(ExperimentalMaterial3Api::class)
+internal class FutureDates(private val today: LocalDate) : SelectableDates {
+    override fun isSelectableDate(utcTimeMillis: Long): Boolean = !utcTimeMillis.toUtcDate().isBefore(today)
+
+    override fun isSelectableYear(year: Int): Boolean = year >= today.year
 }

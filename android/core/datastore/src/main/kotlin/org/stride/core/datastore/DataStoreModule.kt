@@ -68,13 +68,18 @@ object DataStoreModule {
     @Singleton
     fun secretCipher(@ApplicationContext context: Context): SecretCipher = KeystoreAead.recoveringCipher(context)
 
+    /**
+     * The cipher is injected lazily (AUD-036): even building it must not run on the main
+     * thread while Hilt injects the Application. It is built on first encrypt/decrypt,
+     * inside a coroutine on [io].
+     */
     @Provides
     @Singleton
     fun secretStore(
         @SecretsStore dataStore: DataStore<Preferences>,
-        cipher: SecretCipher,
+        cipher: dagger.Lazy<SecretCipher>,
         @Dispatcher(StrideDispatchers.IO) io: CoroutineDispatcher
-    ): SecretStore = SecretStore(dataStore, cipher, io)
+    ): SecretStore = SecretStore(dataStore, LazySecretCipher(cipher::get), io)
 
     @Provides
     @Singleton

@@ -1,5 +1,6 @@
 package org.stride.feature.fitness
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,12 +18,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import org.stride.core.data.insights.ACWR_SPIKE
 import org.stride.core.data.insights.ACWR_SWEET_SPOT_MAX
 import org.stride.core.data.insights.ACWR_SWEET_SPOT_MIN
@@ -40,6 +40,7 @@ import org.stride.core.designsystem.chart.StackedBar
 import org.stride.core.designsystem.chart.StackedBarChart
 import org.stride.core.designsystem.chart.ThresholdLine
 import org.stride.core.designsystem.component.EmptyState
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.StrideCard
 import org.stride.core.designsystem.component.StrideTopAppBar
@@ -49,25 +50,38 @@ import org.stride.core.science.model.HrZone
 import org.stride.core.science.model.PaceZone
 import org.stride.core.ui.Format
 import org.stride.core.ui.LocalUnitSystem
+import org.stride.core.ui.R as CoreUiR
 
 @Composable
 fun FitnessRoute(modifier: Modifier = Modifier, viewModel: FitnessViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    FitnessScreen(state = state, onSelectRange = viewModel::selectRange, modifier = modifier)
+    FitnessScreen(state = state, onSelectRange = viewModel::selectRange, onRetry = viewModel::retry, modifier = modifier)
 }
 
 /** Fitness (MVP-016): PMC, ACWR, weekly intensity split, VDOT, race estimates and zones. */
 @Composable
-fun FitnessScreen(state: FitnessUiState, onSelectRange: (FitnessRange) -> Unit, modifier: Modifier = Modifier) {
+fun FitnessScreen(
+    state: FitnessUiState,
+    onSelectRange: (FitnessRange) -> Unit,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {}
+) {
     CompositionLocalProvider(LocalUnitSystem provides state.units) {
-        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Fitness") }) { padding ->
+        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = stringResource(R.string.fitness_title)) }) { padding ->
             val insights = state.insights
             when {
+                state.loadFailed -> ErrorState(
+                    title = stringResource(CoreUiR.string.load_error_title),
+                    message = stringResource(CoreUiR.string.load_error_message),
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(padding)
+                )
+
                 state.isLoading -> LoadingState(modifier = Modifier.padding(padding))
 
                 state.isEmpty || insights == null -> EmptyState(
-                    title = "No fitness data yet",
-                    message = "Fitness, fatigue and form appear once a few runs have synced.",
+                    title = stringResource(R.string.fitness_empty_title),
+                    message = stringResource(R.string.fitness_empty_message),
                     modifier = Modifier.padding(padding)
                 )
 
@@ -97,7 +111,7 @@ fun FitnessScreen(state: FitnessUiState, onSelectRange: (FitnessRange) -> Unit, 
 private fun RangeChips(selected: FitnessRange, onSelect: (FitnessRange) -> Unit, modifier: Modifier = Modifier) {
     Row(modifier = modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FitnessRange.entries.forEach { r ->
-            FilterChip(selected = r == selected, onClick = { onSelect(r) }, label = { Text(r.label) })
+            FilterChip(selected = r == selected, onClick = { onSelect(r) }, label = { Text(stringResource(r.labelRes)) })
         }
     }
 }
@@ -108,24 +122,44 @@ private fun PmcCard(window: List<DailyLoadPoint>, rampRatePerWeek: Double?, modi
     val latest = window.lastOrNull()
     StrideCard(
         modifier = modifier,
-        title = "Fitness, fatigue & form",
-        subtitle = rampRatePerWeek?.let { "Fitness ramp ${Format.signed(it, 1)} CTL/week" }
+        title = stringResource(R.string.fitness_pmc_title),
+        subtitle = rampRatePerWeek?.let { stringResource(R.string.fitness_pmc_ramp, Format.signed(it, 1)) }
     ) {
         LineChart(
             series = listOf(
-                LineSeries("Fitness (CTL)", window.map { it.ctl }, colors.fitness, latest?.let { Format.number(it.ctl, 0) }),
-                LineSeries("Fatigue (ATL)", window.map { it.atl }, colors.fatigue, latest?.let { Format.number(it.atl, 0) }),
-                LineSeries("Form (TSB)", window.map { it.tsb }, colors.form, latest?.let { Format.signed(it.tsb) })
+                LineSeries(
+                    stringResource(R.string.fitness_ctl),
+                    window.map {
+                        it.ctl
+                    },
+                    colors.fitness,
+                    latest?.let { Format.number(it.ctl, 0) }
+                ),
+                LineSeries(
+                    stringResource(R.string.fitness_atl),
+                    window.map {
+                        it.atl
+                    },
+                    colors.fatigue,
+                    latest?.let { Format.number(it.atl, 0) }
+                ),
+                LineSeries(stringResource(R.string.fitness_tsb), window.map { it.tsb }, colors.form, latest?.let { Format.signed(it.tsb) })
             ),
             contentDescription = latest?.let {
-                "Performance management chart over ${window.size} days. Latest fitness ${Format.number(it.ctl, 0)}, " +
-                    "fatigue ${Format.number(it.atl, 0)}, form ${Format.signed(it.tsb)}."
-            } ?: "Performance management chart, no data",
+                pluralStringResource(
+                    R.plurals.fitness_pmc_description,
+                    window.size,
+                    window.size,
+                    Format.number(it.ctl, 0),
+                    Format.number(it.atl, 0),
+                    Format.signed(it.tsb)
+                )
+            } ?: stringResource(R.string.fitness_pmc_no_data),
             xLabels = dateLabels(window.map { it.date }),
             zeroLine = true
         )
         Text(
-            text = "Fitness is your 42-day training load, fatigue the 7-day load; form is yesterday's fitness minus fatigue.",
+            text = stringResource(R.string.fitness_pmc_explanation),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -139,23 +173,32 @@ private fun AcwrCard(window: List<DailyLoadPoint>, modifier: Modifier = Modifier
     if (values.none { it.isFinite() }) return
     val spikes = values.indices.filter { values[it] > ACWR_SPIKE }
     val latest = values.lastOrNull { it.isFinite() }
-    StrideCard(modifier = modifier, title = "Acute:chronic workload", subtitle = latest?.let { "Now ${Format.number(it, 2)}" }) {
+    StrideCard(
+        modifier = modifier,
+        title = stringResource(R.string.fitness_acwr_title),
+        subtitle = latest?.let { stringResource(R.string.fitness_acwr_now, Format.number(it, 2)) }
+    ) {
         LineChart(
-            series = listOf(LineSeries("ACWR", values, colors.fitness)),
-            contentDescription = "Acute to chronic workload ratio over ${window.size} days" +
-                (latest?.let { ", now ${Format.number(it, 2)}" } ?: "") +
-                ", ${spikes.size} days above ${Format.number(ACWR_SPIKE, 1)}.",
+            series = listOf(LineSeries(stringResource(R.string.fitness_acwr), values, colors.fitness)),
+            contentDescription = listOfNotNull(
+                pluralStringResource(R.plurals.fitness_acwr_window, window.size, window.size),
+                latest?.let { stringResource(R.string.fitness_acwr_now_part, Format.number(it, 2)) },
+                pluralStringResource(R.plurals.fitness_acwr_spikes, spikes.size, spikes.size, Format.number(ACWR_SPIKE, 1))
+            ).joinToString(", ", postfix = "."),
             xLabels = dateLabels(window.map { it.date }),
-            band = HorizontalBand(ACWR_SWEET_SPOT_MIN, ACWR_SWEET_SPOT_MAX, colors.fresh, "sweet spot"),
-            thresholds = listOf(ThresholdLine(ACWR_SPIKE, colors.overreaching, "spike")),
+            band = HorizontalBand(ACWR_SWEET_SPOT_MIN, ACWR_SWEET_SPOT_MAX, colors.fresh, stringResource(R.string.fitness_acwr_sweet_spot)),
+            thresholds = listOf(ThresholdLine(ACWR_SPIKE, colors.overreaching, stringResource(R.string.fitness_acwr_spike))),
             markers = spikes.map { ChartMarker(it, colors.overreaching) },
             showLegend = false,
             height = 160.dp
         )
         Text(
-            text = "Last 7 days of load against the last 28. Between ${Format.number(ACWR_SWEET_SPOT_MIN, 1)} and " +
-                "${Format.number(ACWR_SWEET_SPOT_MAX, 1)} is the usual sweet spot; above ${Format.number(ACWR_SPIKE, 1)} " +
-                "(red dots) load rose quickly. One signal among several, not a prediction.",
+            text = stringResource(
+                R.string.fitness_acwr_explanation,
+                Format.number(ACWR_SWEET_SPOT_MIN, 1),
+                Format.number(ACWR_SWEET_SPOT_MAX, 1),
+                Format.number(ACWR_SPIKE, 1)
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -168,18 +211,31 @@ private fun ZonesCard(weeks: List<WeeklyZones>, modifier: Modifier = Modifier) {
     val latest = weeks.last().distribution
     StrideCard(
         modifier = modifier,
-        title = "Intensity distribution",
-        subtitle = "Easy share this week ${Format.number(latest.easyPct, 0)} % · target ~${Format.number(POLARIZED_EASY_TARGET_PCT, 0)} %"
+        title = stringResource(R.string.fitness_intensity_title),
+        subtitle = stringResource(
+            R.string.fitness_intensity_subtitle,
+            Format.number(latest.easyPct, 0),
+            Format.number(POLARIZED_EASY_TARGET_PCT, 0)
+        )
     ) {
         StackedBarChart(
             bars = weeks.map { w ->
                 StackedBar(shortDate(w.weekStart), listOf(w.distribution.easyPct, w.distribution.moderatePct, w.distribution.hardPct))
             },
             segmentColors = listOf(colors.zone2, colors.zone3, colors.zone5),
-            segmentNames = listOf("Easy", "Moderate", "Hard"),
-            contentDescription = "Weekly easy, moderate and hard running time over ${weeks.size} weeks. " +
-                "This week ${Format.number(latest.easyPct, 0)} percent easy, ${Format.number(latest.moderatePct, 0)} moderate, " +
-                "${Format.number(latest.hardPct, 0)} hard; target 80 percent easy.",
+            segmentNames = listOf(
+                stringResource(R.string.fitness_easy),
+                stringResource(R.string.fitness_moderate),
+                stringResource(R.string.fitness_hard)
+            ),
+            contentDescription = pluralStringResource(
+                R.plurals.fitness_intensity_description,
+                weeks.size,
+                weeks.size,
+                Format.number(latest.easyPct, 0),
+                Format.number(latest.moderatePct, 0),
+                Format.number(latest.hardPct, 0)
+            ),
             maxValue = 100.0,
             target = ThresholdLine(POLARIZED_EASY_TARGET_PCT, colors.positive, "80/20"),
             labelEvery = if (weeks.size > 6) 2 else 1,
@@ -192,13 +248,17 @@ private fun ZonesCard(weeks: List<WeeklyZones>, modifier: Modifier = Modifier) {
 private fun VdotCard(trend: List<VdotPoint>, currentVdot: Double?, predictions: List<RacePrediction>, modifier: Modifier = Modifier) {
     StrideCard(
         modifier = modifier,
-        title = "VDOT & race estimates",
-        subtitle = currentVdot?.let { "Current VDOT ${Format.number(it, 1)}" }
+        title = stringResource(R.string.fitness_vdot_title),
+        subtitle = currentVdot?.let { stringResource(R.string.fitness_vdot_current, Format.number(it, 1)) }
     ) {
         if (trend.size > 1) {
             LineChart(
-                series = listOf(LineSeries("VDOT", trend.map { it.vdot }, StrideTheme.colors.fitness)),
-                contentDescription = "VDOT by week, from ${Format.number(trend.first().vdot, 1)} to ${Format.number(trend.last().vdot, 1)}",
+                series = listOf(LineSeries(stringResource(R.string.fitness_vdot), trend.map { it.vdot }, StrideTheme.colors.fitness)),
+                contentDescription = stringResource(
+                    R.string.fitness_vdot_description,
+                    Format.number(trend.first().vdot, 1),
+                    Format.number(trend.last().vdot, 1)
+                ),
                 xLabels = dateLabels(trend.map { it.weekStart }),
                 showLegend = false,
                 height = 140.dp,
@@ -206,15 +266,19 @@ private fun VdotCard(trend: List<VdotPoint>, currentVdot: Double?, predictions: 
             )
         }
         if (predictions.isNotEmpty()) {
-            Text(text = "Race predictions — estimates", style = MaterialTheme.typography.titleSmall)
+            Text(text = stringResource(R.string.fitness_predictions), style = MaterialTheme.typography.titleSmall)
             predictions.forEach { p ->
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    Text(text = p.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(
+                        text = stringResource(raceLabelRes(p.distanceM)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
                     Text(text = Format.duration(p.timeSec), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             Text(
-                text = "Estimates from your VDOT (Daniels). Real results depend on training for the distance, course, weather and pacing.",
+                text = stringResource(R.string.fitness_predictions_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -227,20 +291,24 @@ private fun ZoneTablesCard(insights: FitnessInsights, modifier: Modifier = Modif
     if (insights.hrZones.isEmpty() && insights.paceZones.isEmpty()) return
     val units = LocalUnitSystem.current
     val zoneColors = StrideTheme.colors.zones
-    StrideCard(modifier = modifier, title = "Your zones") {
+    StrideCard(modifier = modifier, title = stringResource(R.string.fitness_zones_title)) {
         if (insights.hrZones.isNotEmpty()) {
-            Text(text = "Heart rate (bpm)", style = MaterialTheme.typography.titleSmall)
+            Text(text = stringResource(R.string.fitness_zones_hr), style = MaterialTheme.typography.titleSmall)
             insights.hrZones.forEach { z: HrZone ->
-                val range = "${Format.number(z.minBpm, 0)}–${Format.number(z.maxBpm, 0)}"
-                ZoneRow("Z${z.zone}", z.name, range, zoneColors[(z.zone - 1).coerceIn(0, 4)])
+                val range = stringResource(R.string.fitness_range_between, Format.number(z.minBpm, 0), Format.number(z.maxBpm, 0))
+                ZoneRow(stringResource(R.string.fitness_zone_short, z.zone), z.name, range, zoneColors[(z.zone - 1).coerceIn(0, 4)])
             }
         }
         if (insights.paceZones.isNotEmpty()) {
-            Text(text = "Pace (${Format.paceUnit(units)})", style = MaterialTheme.typography.titleSmall)
+            Text(text = stringResource(R.string.fitness_zones_pace, Format.paceUnit(units)), style = MaterialTheme.typography.titleSmall)
             insights.paceZones.forEach { z: PaceZone ->
                 val slow = Format.pace(z.minSpeedMps, units)
                 val fast = Format.pace(z.maxSpeedMps, units)
-                val range = if (z.minSpeedMps <= MIN_SPEED) "slower than $fast" else "$slow–$fast"
+                val range = if (z.minSpeedMps <= MIN_SPEED) {
+                    stringResource(R.string.fitness_slower_than, fast)
+                } else {
+                    stringResource(R.string.fitness_range_between, slow, fast)
+                }
                 ZoneRow(z.label.name, z.name, range, zoneColors[(z.zone - 1).coerceIn(0, 4)])
             }
         }
@@ -257,9 +325,17 @@ private fun ZoneRow(tag: String, name: String, range: String, color: androidx.co
 }
 
 private const val MIN_SPEED = 0.05
-private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMM", Locale.UK)
 
-private fun shortDate(iso: String): String = SHORT_DATE.format(LocalDate.parse(iso))
+private fun shortDate(iso: String): String = Format.shortDate(iso)
+
+/** Race names for the predictions (InsightsRepository.RACES distances). */
+@StringRes
+private fun raceLabelRes(metres: Double): Int = when {
+    metres < 7_500 -> CoreUiR.string.race_5k
+    metres < 15_000 -> CoreUiR.string.race_10k
+    metres < 30_000 -> CoreUiR.string.race_half
+    else -> CoreUiR.string.race_marathon
+}
 
 /** Four evenly spaced date labels. */
 private fun dateLabels(dates: List<String>): List<AxisLabel> {

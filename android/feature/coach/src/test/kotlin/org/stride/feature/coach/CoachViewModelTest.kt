@@ -1,7 +1,5 @@
 package org.stride.feature.coach
 
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -9,11 +7,13 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.stride.core.data.testing.InMemoryPreferences
+import org.stride.core.data.testing.flakyPreferences
 import org.stride.core.datastore.SecretCipher
 import org.stride.core.datastore.SecretStore
 import org.stride.core.datastore.UserPreferences
@@ -51,10 +51,10 @@ class CoachViewModelTest {
         override suspend fun trend() = buildTrendFacts(Samples.today, 48.27, UnitSystem.METRIC)
     }
 
-    private inner class Env(scope: TestScope, reply: CoachLlmResult = CoachLlmResult.Ok("Fitness is 52.4. Form is -8.7.")) {
-        val prefs = UserPreferences(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(tmp.root, "p.preferences_pb") })
+    private inner class Env(reply: CoachLlmResult = CoachLlmResult.Ok("Fitness is 52.4. Form is -8.7.")) {
+        val prefs = UserPreferences(InMemoryPreferences())
         val secrets =
-            SecretStore(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(tmp.root, "s.preferences_pb") }, Cipher)
+            SecretStore(InMemoryPreferences(), Cipher)
         val llm = FakeLlm(reply)
 
         fun vm() = CoachViewModel(prefs, secrets, Facts, llm)
@@ -62,7 +62,7 @@ class CoachViewModelTest {
 
     @Test
     fun offByDefaultAndEnablingNeedsCaveatAndKey() = runTest(main.testDispatcher) {
-        val env = Env(this)
+        val env = Env()
         val vm = env.vm()
         assertFalse(vm.uiState.first { !it.loading }.enabled)
 
@@ -81,7 +81,7 @@ class CoachViewModelTest {
 
     @Test
     fun askSendsFactsAndShowsCheckedAnswer() = runTest(main.testDispatcher) {
-        val env = Env(this, CoachLlmResult.Ok("Fitness is 52.4. Form is -8.7, neutral. Aim for 70 km next week."))
+        val env = Env(CoachLlmResult.Ok("Fitness is 52.4. Form is -8.7, neutral. Aim for 70 km next week."))
         env.secrets.saveAnthropicKey("sk-ant-1")
         env.prefs.setCoachEnabled(true)
         val vm = env.vm()
@@ -101,7 +101,7 @@ class CoachViewModelTest {
 
     @Test
     fun activityRouteExplainsThatActivity() = runTest(main.testDispatcher) {
-        val env = Env(this)
+        val env = Env()
         env.secrets.saveAnthropicKey("k")
         env.prefs.setCoachEnabled(true)
         val vm = env.vm()
@@ -113,7 +113,7 @@ class CoachViewModelTest {
 
     @Test
     fun unverifiableAnswerIsHidden() = runTest(main.testDispatcher) {
-        val env = Env(this, CoachLlmResult.Ok("Run 70 km. Your marathon time is 3:05:00."))
+        val env = Env(CoachLlmResult.Ok("Run 70 km. Your marathon time is 3:05:00."))
         env.secrets.saveAnthropicKey("k")
         env.prefs.setCoachEnabled(true)
         val vm = env.vm()
@@ -126,7 +126,7 @@ class CoachViewModelTest {
 
     @Test
     fun llmErrorsAreShown() = runTest(main.testDispatcher) {
-        val env = Env(this, CoachLlmResult.Err(CoachLlmError.InvalidKey))
+        val env = Env(CoachLlmResult.Err(CoachLlmError.InvalidKey))
         env.secrets.saveAnthropicKey("k")
         env.prefs.setCoachEnabled(true)
         val vm = env.vm()
@@ -136,15 +136,29 @@ class CoachViewModelTest {
         assertEquals(CoachLlmError.InvalidKey.message, vm.uiState.first { it.error != null }.error)
     }
 
+    /** AUD-032: unreadable settings show the error state; "Try again" recovers. */
+    @Test
+    fun settingsErrorShowsErrorStateAndRetryRecovers() = runTest(main.testDispatcher) {
+        val env = Env()
+        val (flaky, _) = flakyPreferences(InMemoryPreferences())
+        val vm = CoachViewModel(flaky, env.secrets, Facts, env.llm)
+        assertTrue(vm.uiState.first { !it.loading }.loadFailed)
+        vm.onEvent(CoachEvent.Retry)
+        val state = vm.uiState.first { !it.loading }
+        assertFalse(state.loadFailed)
+        assertFalse(state.enabled)
+    }
+
     @Test
     fun disableDeletesTheKey() = runTest(main.testDispatcher) {
-        val env = Env(this)
+        val env = Env()
         env.secrets.saveAnthropicKey("k")
         env.prefs.setCoachEnabled(true)
         val vm = env.vm()
         vm.uiState.first { it.enabled }
         vm.onEvent(CoachEvent.Disable)
         vm.uiState.first { !it.enabled }
+        advanceUntilIdle()
         assertNull(env.secrets.anthropicKey())
         // The key is cleared before the flag, so wait for the flag rather than reading it once.
         assertFalse(env.prefs.settings.first { !it.coachEnabled }.coachEnabled)

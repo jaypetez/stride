@@ -27,7 +27,9 @@ data class UserSettings(
     val coachEnabled: Boolean = false,
     val lastSyncEpochSec: Long? = null,
     /** Set when Garmin rejected the key during sync; the Connect screen shows it (MVP-008). */
-    val garminKeyRejected: Boolean = false
+    val garminKeyRejected: Boolean = false,
+    /** Name of the last sync failure (SyncFailure), kept across process death; null after a successful sync (AUD-032). */
+    val lastSyncFailure: String? = null
 ) {
     val unitSystem: UnitSystem get() = profile.unitSystem
 
@@ -50,7 +52,8 @@ class UserPreferences(private val dataStore: DataStore<Preferences>) {
             dynamicColor = p[DYNAMIC_COLOR] ?: false,
             coachEnabled = p[COACH] ?: false,
             lastSyncEpochSec = p[LAST_SYNC],
-            garminKeyRejected = p[KEY_REJECTED] ?: false
+            garminKeyRejected = p[KEY_REJECTED] ?: false,
+            lastSyncFailure = p[LAST_SYNC_FAILURE]
         )
     }
 
@@ -98,6 +101,11 @@ class UserPreferences(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[KEY_REJECTED] = rejected }
     }
 
+    /** Records why the last sync failed (a SyncFailure name), or clears it with null after a success. */
+    suspend fun setLastSyncFailure(reason: String?) {
+        dataStore.edit { if (reason == null) it.remove(LAST_SYNC_FAILURE) else it[LAST_SYNC_FAILURE] = reason }
+    }
+
     /** Settings → Delete all data. */
     suspend fun wipe() {
         dataStore.edit { it.clear() }
@@ -115,5 +123,6 @@ class UserPreferences(private val dataStore: DataStore<Preferences>) {
         private val COACH = booleanPreferencesKey("coach_enabled")
         private val LAST_SYNC = longPreferencesKey("last_sync_epoch_sec")
         private val KEY_REJECTED = booleanPreferencesKey("garmin_key_rejected")
+        private val LAST_SYNC_FAILURE = stringPreferencesKey("last_sync_failure")
     }
 }

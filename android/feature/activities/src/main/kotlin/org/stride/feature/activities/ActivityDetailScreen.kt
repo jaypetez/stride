@@ -1,5 +1,7 @@
 package org.stride.feature.activities
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +34,7 @@ import org.stride.core.designsystem.chart.LineSeries
 import org.stride.core.designsystem.chart.ZoneBarRow
 import org.stride.core.designsystem.chart.ZoneBars
 import org.stride.core.designsystem.component.EmptyState
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.StatTile
 import org.stride.core.designsystem.component.StrideButton
@@ -43,7 +48,10 @@ import org.stride.core.model.Lap
 import org.stride.core.navigation.CoachRoute
 import org.stride.core.navigation.LocalNavigator
 import org.stride.core.ui.Format
+import org.stride.core.ui.LocalIs24HourClock
 import org.stride.core.ui.LocalUnitSystem
+import org.stride.core.ui.R as CoreUiR
+import org.stride.core.ui.labelRes
 
 @Composable
 fun ActivityDetailFlow(activityId: Long, modifier: Modifier = Modifier) {
@@ -57,25 +65,39 @@ fun ActivityDetailFlow(activityId: Long, modifier: Modifier = Modifier) {
         state = state,
         onBack = { navigator.goBack() },
         onAskCoach = { navigator.navigate(CoachRoute(activityId)) },
+        onRetry = viewModel::retry,
         modifier = modifier
     )
 }
 
 /** One activity (MVP-015): stats, load, splits, HR and pace over time, HR zones, efficiency. */
 @Composable
-fun ActivityDetailScreen(state: ActivityDetailUiState, onBack: () -> Unit, onAskCoach: () -> Unit, modifier: Modifier = Modifier) {
+fun ActivityDetailScreen(
+    state: ActivityDetailUiState,
+    onBack: () -> Unit,
+    onAskCoach: () -> Unit,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {}
+) {
     CompositionLocalProvider(LocalUnitSystem provides state.units) {
         val detail = state.detail
         Scaffold(
             modifier = modifier,
-            topBar = { StrideTopAppBar(title = detail?.activity?.name ?: "Run", onBack = onBack) }
+            topBar = { StrideTopAppBar(title = detail?.activity?.name ?: stringResource(R.string.run_title), onBack = onBack) }
         ) { padding ->
             when {
+                state.loadFailed -> ErrorState(
+                    title = stringResource(CoreUiR.string.load_error_title),
+                    message = stringResource(CoreUiR.string.load_error_message),
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(padding)
+                )
+
                 state.isLoading -> LoadingState(modifier = Modifier.padding(padding))
 
                 detail == null -> EmptyState(
-                    title = "Run not found",
-                    message = "This activity is no longer on your device.",
+                    title = stringResource(R.string.run_not_found_title),
+                    message = stringResource(R.string.run_not_found_message),
                     modifier = Modifier.padding(padding)
                 )
 
@@ -94,7 +116,7 @@ fun ActivityDetailScreen(state: ActivityDetailUiState, onBack: () -> Unit, onAsk
                     if (detail.laps.isNotEmpty()) SplitsCard(detail.laps)
                     detail.metrics?.let { EfficiencyCard(it) }
                     StrideButton(
-                        text = "Ask the coach about this run",
+                        text = stringResource(R.string.run_ask_coach),
                         onClick = onAskCoach,
                         leadingIcon = Icons.AutoMirrored.Outlined.Chat,
                         modifier = Modifier.fillMaxWidth()
@@ -112,17 +134,18 @@ private fun HeaderStats(detail: ActivityDetail, modifier: Modifier = Modifier) {
     val a = detail.activity
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            text = "${Format.dayTime(a.startEpochSec, a.timeZone)} · ${a.sport.label}",
+            text = "${Format.dayTime(a.startEpochSec, a.timeZone, LocalIs24HourClock.current)} · ${stringResource(a.sport.labelRes)}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        val res = LocalResources.current
         val tiles = buildList {
-            add(Triple("Distance", Format.distance(a.distanceM, units), Format.distanceUnit(units)))
-            add(Triple("Time", Format.duration(a.movingTimeSec ?: a.durationSec), null))
-            add(Triple("Pace", Format.pace(a.avgSpeedMps, units), Format.paceUnit(units)))
-            a.avgHr?.let { add(Triple("Avg HR", Format.number(it, 0), "bpm")) }
-            a.elevationGainM?.let { add(Triple("Elevation", Format.elevation(it, units), null)) }
-            a.avgCadenceSpm?.let { add(Triple("Cadence", Format.number(it, 0), "spm")) }
+            add(Triple(res.getString(R.string.run_distance), Format.distance(a.distanceM, units), Format.distanceUnit(units)))
+            add(Triple(res.getString(R.string.run_time), Format.duration(a.movingTimeSec ?: a.durationSec), null))
+            add(Triple(res.getString(R.string.run_pace), Format.pace(a.avgSpeedMps, units), Format.paceUnit(units)))
+            a.avgHr?.let { add(Triple(res.getString(R.string.run_avg_hr), Format.number(it, 0), res.getString(R.string.run_bpm))) }
+            a.elevationGainM?.let { add(Triple(res.getString(R.string.run_elevation), Format.elevation(it, units), null)) }
+            a.avgCadenceSpm?.let { add(Triple(res.getString(R.string.run_cadence), Format.number(it, 0), res.getString(R.string.run_spm))) }
         }
         tiles.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -135,20 +158,29 @@ private fun HeaderStats(detail: ActivityDetail, modifier: Modifier = Modifier) {
 
 @Composable
 private fun LoadCard(metrics: ActivityMetrics, modifier: Modifier = Modifier) {
-    StrideCard(modifier = modifier, title = "Training load", subtitle = metrics.loadMethod.label) {
+    StrideCard(
+        modifier = modifier,
+        title = stringResource(R.string.run_training_load),
+        subtitle = stringResource(metrics.loadMethod.labelRes)
+    ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(
-                label = "Load",
+                label = stringResource(R.string.run_load),
                 value = Format.number(metrics.load, 0),
-                caption = metrics.loadMethod.shortLabel(),
+                caption = stringResource(metrics.loadMethod.shortLabelRes()),
                 modifier = Modifier.weight(1f)
             )
             metrics.intensityFactor?.let {
-                StatTile(label = "Intensity", value = Format.number(it, 2), caption = "IF vs threshold", modifier = Modifier.weight(1f))
+                StatTile(
+                    label = stringResource(R.string.run_intensity),
+                    value = Format.number(it, 2),
+                    caption = stringResource(R.string.run_intensity_caption),
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
         Text(
-            text = metrics.loadMethod.explanation(),
+            text = stringResource(metrics.loadMethod.explanationRes()),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -158,13 +190,18 @@ private fun LoadCard(metrics: ActivityMetrics, modifier: Modifier = Modifier) {
 @Composable
 private fun Charts(charts: StreamCharts, modifier: Modifier = Modifier) {
     val units = LocalUnitSystem.current
+    val res = LocalResources.current
     val xLabels = timeLabels(charts.timeSec)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         charts.heartRate?.let { hr ->
-            StrideCard(title = "Heart rate", subtitle = "bpm over time") {
+            val heartRate = stringResource(R.string.run_heart_rate)
+            StrideCard(title = heartRate, subtitle = stringResource(R.string.run_heart_rate_subtitle)) {
                 LineChart(
-                    series = listOf(LineSeries("Heart rate", hr, StrideTheme.colors.zone5)),
-                    contentDescription = "Heart rate over time, ${rangeText(hr, " bpm") { Format.number(it, 0) }}",
+                    series = listOf(LineSeries(heartRate, hr, StrideTheme.colors.zone5)),
+                    contentDescription = stringResource(
+                        R.string.run_heart_rate_description,
+                        rangeText(res, hr, " " + stringResource(R.string.run_bpm)) { Format.number(it, 0) }
+                    ),
                     xLabels = xLabels,
                     showLegend = false,
                     height = 160.dp
@@ -172,11 +209,14 @@ private fun Charts(charts: StreamCharts, modifier: Modifier = Modifier) {
             }
         }
         charts.paceSecPerKm?.let { pace ->
-            StrideCard(title = "Pace", subtitle = "${Format.paceUnit(units).removePrefix("/")} pace over time · faster is higher") {
+            val paceLabel = stringResource(R.string.run_pace)
+            StrideCard(title = paceLabel, subtitle = stringResource(R.string.run_pace_subtitle, Format.paceUnit(units).removePrefix("/"))) {
                 LineChart(
-                    series = listOf(LineSeries("Pace", pace, StrideTheme.colors.fitness)),
-                    contentDescription = "Pace over time, " +
-                        rangeText(pace, " ${Format.paceUnit(units)}") { Format.paceFromSecPerKm(it, units) },
+                    series = listOf(LineSeries(paceLabel, pace, StrideTheme.colors.fitness)),
+                    contentDescription = stringResource(
+                        R.string.run_pace_description,
+                        rangeText(res, pace, " ${Format.paceUnit(units)}") { Format.paceFromSecPerKm(it, units) }
+                    ),
                     xLabels = xLabels,
                     invertY = true,
                     showLegend = false,
@@ -192,18 +232,20 @@ private fun Charts(charts: StreamCharts, modifier: Modifier = Modifier) {
 private fun HrZonesCard(shares: List<Double>, seconds: List<Double>, modifier: Modifier = Modifier) {
     val colors = StrideTheme.colors.zones
     val widest = shares.maxOrNull()?.takeIf { it > 0 } ?: 1.0
-    StrideCard(modifier = modifier, title = "Time in heart-rate zones") {
+    val title = stringResource(R.string.run_hr_zones)
+    val res = LocalResources.current
+    StrideCard(modifier = modifier, title = title) {
         ZoneBars(
             rows = shares.mapIndexed { i, share ->
                 ZoneBarRow(
-                    label = "Z${i + 1}",
+                    label = res.getString(R.string.run_zone_short, i + 1),
                     fraction = (share / widest).toFloat(),
                     valueText = "${Format.percent(share)} · ${Format.durationShort(seconds.getOrElse(i) { 0.0 })}",
                     color = colors[i % colors.size]
                 )
             },
-            contentDescription = shares.mapIndexed { i, s -> "zone ${i + 1} ${Format.percent(s)}" }
-                .joinToString(prefix = "Time in heart-rate zones: ")
+            contentDescription = shares.mapIndexed { i, s -> res.getString(R.string.run_zone_description, i + 1, Format.percent(s)) }
+                .joinToString(prefix = "$title: ")
         )
     }
 }
@@ -211,8 +253,15 @@ private fun HrZonesCard(shares: List<Double>, seconds: List<Double>, modifier: M
 @Composable
 private fun SplitsCard(laps: List<Lap>, modifier: Modifier = Modifier) {
     val units = LocalUnitSystem.current
-    StrideCard(modifier = modifier, title = "Splits", subtitle = "Per lap from the watch") {
-        SplitRow("#", Format.distanceUnit(units), "Pace", "HR", "Elev", header = true)
+    StrideCard(modifier = modifier, title = stringResource(R.string.run_splits), subtitle = stringResource(R.string.run_splits_subtitle)) {
+        SplitRow(
+            "#",
+            Format.distanceUnit(units),
+            stringResource(R.string.run_pace),
+            stringResource(R.string.run_hr),
+            stringResource(R.string.run_elev),
+            header = true
+        )
         laps.forEach { lap ->
             SplitRow(
                 (lap.index + 1).toString(),
@@ -253,20 +302,19 @@ private fun SplitRow(
 @Composable
 private fun EfficiencyCard(metrics: ActivityMetrics, modifier: Modifier = Modifier) {
     if (metrics.efficiencyFactor == null && metrics.decouplingPct == null) return
-    StrideCard(modifier = modifier, title = "Aerobic efficiency") {
+    StrideCard(modifier = modifier, title = stringResource(R.string.run_efficiency)) {
         metrics.efficiencyFactor?.let { ef ->
             Explained(
-                label = "Efficiency factor",
+                label = stringResource(R.string.run_efficiency_factor),
                 value = Format.number(ef, 2),
-                text = "Grade-adjusted speed (m/min) per heartbeat. A rising EF at the same effort means your aerobic fitness is improving."
+                text = stringResource(R.string.run_efficiency_factor_text)
             )
         }
         metrics.decouplingPct?.let { pct ->
             Explained(
-                label = "Aerobic decoupling",
-                value = "${Format.number(pct, 1)} %",
-                text = "How far pace and heart rate drifted apart from the first half to the second. " +
-                    "Under 5 % is good; over 10 % suggests building more base before adding intensity."
+                label = stringResource(R.string.run_decoupling),
+                value = stringResource(R.string.run_percent, Format.number(pct, 1)),
+                text = stringResource(R.string.run_decoupling_text)
             )
         }
     }
@@ -287,7 +335,7 @@ private fun Explained(label: String, value: String, text: String, modifier: Modi
 @Composable
 private fun Attribution(source: DataSource, modifier: Modifier = Modifier) {
     Text(
-        text = if (source == DataSource.GARMIN) "Data from Garmin Connect" else "Synthetic demo data — not from Garmin",
+        text = stringResource(if (source == DataSource.GARMIN) R.string.run_attribution_garmin else R.string.run_attribution_demo),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.fillMaxWidth().padding(vertical = 8.dp)
@@ -300,24 +348,22 @@ private fun timeLabels(timeSec: List<Double>): List<AxisLabel> {
     return listOf(0, last / 3, 2 * last / 3, last).distinct().map { AxisLabel(it, Format.duration(timeSec[it])) }
 }
 
-private fun rangeText(values: List<Double>, unit: String, format: (Double) -> String): String {
+private fun rangeText(res: Resources, values: List<Double>, unit: String, format: (Double) -> String): String {
     val finite = values.filter { it.isFinite() }
-    if (finite.isEmpty()) return "no data"
-    return "from ${format(finite.min())} to ${format(finite.max())}$unit"
+    if (finite.isEmpty()) return res.getString(R.string.run_no_data)
+    return res.getString(R.string.run_range, format(finite.min()), format(finite.max()), unit)
 }
 
-private fun org.stride.core.model.LoadMethod.shortLabel(): String = when (this) {
-    org.stride.core.model.LoadMethod.RTSS -> "rTSS"
-    org.stride.core.model.LoadMethod.TRIMP -> "TRIMP"
-    org.stride.core.model.LoadMethod.DURATION -> "Duration estimate"
+@StringRes
+private fun org.stride.core.model.LoadMethod.shortLabelRes(): Int = when (this) {
+    org.stride.core.model.LoadMethod.RTSS -> R.string.run_load_rtss
+    org.stride.core.model.LoadMethod.TRIMP -> R.string.run_load_trimp
+    org.stride.core.model.LoadMethod.DURATION -> R.string.run_load_duration
 }
 
-private fun org.stride.core.model.LoadMethod.explanation(): String = when (this) {
-    org.stride.core.model.LoadMethod.RTSS ->
-        "Pace-based: grade-adjusted pace relative to your threshold, weighted by duration. 100 ≈ one hour at threshold."
-
-    org.stride.core.model.LoadMethod.TRIMP ->
-        "Heart-rate based (Banister TRIMP): no reliable pace, so load comes from heart-rate reserve and duration."
-
-    org.stride.core.model.LoadMethod.DURATION -> "Estimated from duration only: no usable pace or heart rate for this activity."
+@StringRes
+private fun org.stride.core.model.LoadMethod.explanationRes(): Int = when (this) {
+    org.stride.core.model.LoadMethod.RTSS -> R.string.run_load_rtss_explanation
+    org.stride.core.model.LoadMethod.TRIMP -> R.string.run_load_trimp_explanation
+    org.stride.core.model.LoadMethod.DURATION -> R.string.run_load_duration_explanation
 }

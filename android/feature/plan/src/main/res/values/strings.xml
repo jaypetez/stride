@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plan_title">Training plan</string>
+    <string name="plan_delete">Delete plan</string>
+    <string name="plan_delete_title">Delete plan?</string>
+    <string name="plan_delete_text">Your race goal stays on your profile; you can create a new plan any time.</string>
+    <string name="plan_delete_confirm">Delete</string>
+    <string name="plan_intro">Set a race goal and Stride builds a periodised plan — base, build, peak and taper — that passes the safety guardrails (ramp rate, rest days, no back-to-back hard days, long-run cap).</string>
+    <string name="plan_race_distance">Race distance</string>
+    <string name="plan_race_half">Half</string>
+    <string name="plan_race_date">Race date</string>
+    <string name="plan_race_date_change">Race date %1$s, change</string>
+    <string name="plan_goal_time">Goal time (optional)</string>
+    <string name="plan_goal_time_placeholder">h:mm:ss</string>
+    <string name="plan_create">Create plan</string>
+    <string name="plan_start_note">Plans end on race day and run up to 24 weeks. Earliest race: %1$s.</string>
+    <string name="plan_error_goal_time">Enter the goal time as h:mm:ss or mm:ss.</string>
+    <string name="plan_error_invalid">%1$s</string>
+    <string name="plan_not_saved">Plan not saved</string>
+    <string name="plan_not_saved_subtitle">It broke the safety guardrails even after repair</string>
+    <string name="plan_violation_week">• Week %1$d: %2$s</string>
+    <string name="plan_violation">• %1$s</string>
+    <string name="plan_not_saved_hint">Try a later race date or a shorter distance.</string>
+    <string name="plan_goal">Goal %1$s</string>
+    <string name="plan_no_goal">No goal time</string>
+    <string name="plan_dates">%1$s – %2$s · checked against the safety guardrails</string>
+    <string name="plan_repairs">Adjusted to stay safe: %1$s</string>
+    <string name="plan_week_tss">%1$s TSS</string>
+    <string name="plan_week">Week %1$d</string>
+    <string name="plan_week_current">Week %1$d · this week</string>
+    <string name="plan_today">Today</string>
+    <string name="plan_day">Day %1$d</string>
+    <string name="plan_rest">Rest</string>
+    <string name="plan_phase_base">Base</string>
+    <string name="plan_phase_build">Build</string>
+    <string name="plan_phase_peak">Peak</string>
+    <string name="plan_phase_taper">Taper</string>
+    <string name="plan_phase_recovery">Recovery</string>
+</resources>

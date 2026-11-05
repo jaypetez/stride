@@ -1,5 +1,7 @@
 package org.stride.feature.coach
 
+import android.content.res.Resources
+import androidx.annotation.StringRes
 import java.time.Instant
 import java.time.ZoneId
 import kotlin.math.roundToLong
@@ -157,33 +159,36 @@ fun buildTrendFacts(today: TodayInsights, vdot: Double?, units: UnitSystem): Coa
     )
 }
 
-/** Human-readable lines of what will be sent, for the "What Stride sends" card. */
-fun CoachFacts.describe(): List<Pair<String, String>> = buildList {
-    fun add(label: String, value: Any?) {
-        if (value != null) add(label to value.toString())
+/** Human-readable lines of what will be sent, for the "What Stride sends" card (labels from [res], AUD-034). */
+fun CoachFacts.describe(res: Resources): List<Pair<String, String>> = buildList {
+    fun add(@StringRes label: Int, value: Any?) {
+        if (value != null) add(res.getString(label) to value.toString())
     }
     activity?.let { a ->
-        add("Date", a.date)
-        add("Sport", a.sport)
-        add("Distance", "${a.distance} $distanceUnit")
-        add("Duration", "${a.durationMin} min")
-        add("Average pace", a.avgPace?.let { "$it /$distanceUnit" })
-        add("Average HR", a.avgHr?.let { "$it bpm" })
-        add("Training load", a.load?.let { "$it (${a.loadMethod})" })
-        add("Intensity factor", a.intensityFactor)
-        add("HR zone minutes", a.hrZoneMinutes?.joinToString(" / "))
-        add("VDOT", a.vdot)
-        add("Efficiency factor", a.efficiencyFactor)
-        add("Aerobic decoupling", a.decouplingPct?.let { "$it%" })
+        add(R.string.coach_fact_date, a.date)
+        add(R.string.coach_fact_sport, a.sport)
+        add(R.string.coach_fact_distance, "${a.distance} $distanceUnit")
+        add(R.string.coach_fact_duration, res.getString(R.string.coach_fact_minutes, a.durationMin.toString()))
+        add(R.string.coach_fact_avg_pace, a.avgPace?.let { "$it /$distanceUnit" })
+        add(R.string.coach_fact_avg_hr, a.avgHr?.let { res.getString(R.string.coach_fact_bpm, it.toString()) })
+        add(R.string.coach_fact_load, a.load?.let { "$it (${a.loadMethod})" })
+        add(R.string.coach_fact_intensity, a.intensityFactor)
+        add(R.string.coach_fact_zone_minutes, a.hrZoneMinutes?.joinToString(" / "))
+        add(R.string.coach_fact_vdot, a.vdot)
+        add(R.string.coach_fact_efficiency, a.efficiencyFactor)
+        add(R.string.coach_fact_decoupling, a.decouplingPct?.let { "$it%" })
     }
     fitness?.let { f ->
-        add("Date", f.date)
-        add("Fitness (CTL)", f.ctl)
-        add("Fatigue (ATL)", f.atl)
-        add("Form (TSB)", f.tsb?.let { t -> "$t${f.formBand?.let { " · $it" }.orEmpty()}" })
-        add("Acute:chronic ratio", f.acwr)
-        add("This week", "${f.thisWeek.distance} $distanceUnit · ${f.thisWeek.runs} runs · load ${f.thisWeek.load}")
-        add("Last week", "${f.lastWeek.distance} $distanceUnit · ${f.lastWeek.runs} runs · load ${f.lastWeek.load}")
-        add("VDOT", f.vdot)
+        add(R.string.coach_fact_date, f.date)
+        add(R.string.coach_fact_ctl, f.ctl)
+        add(R.string.coach_fact_atl, f.atl)
+        add(R.string.coach_fact_tsb, f.tsb?.let { t -> "$t${f.formBand?.let { " · $it" }.orEmpty()}" })
+        add(R.string.coach_fact_acwr, f.acwr)
+        fun week(
+            w: WeekFacts
+        ) = res.getQuantityString(R.plurals.coach_fact_week, w.runs, "${w.distance} $distanceUnit", w.runs, w.load.toString())
+        add(R.string.coach_fact_this_week, week(f.thisWeek))
+        add(R.string.coach_fact_last_week, week(f.lastWeek))
+        add(R.string.coach_fact_vdot, f.vdot)
     }
 }

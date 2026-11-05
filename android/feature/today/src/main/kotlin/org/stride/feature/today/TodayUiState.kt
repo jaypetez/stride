@@ -19,7 +19,9 @@ data class TodayUiState(
     val content: TodayContent? = null,
     val sync: SyncProgress = SyncProgress.Idle,
     val units: UnitSystem = UnitSystem.METRIC,
-    val demoMode: Boolean = false
+    val demoMode: Boolean = false,
+    /** The data could not be read; Today shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 ) {
     val isRefreshing: Boolean get() = sync is SyncProgress.Running
 }

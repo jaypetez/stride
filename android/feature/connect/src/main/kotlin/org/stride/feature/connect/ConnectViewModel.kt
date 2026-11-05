@@ -1,5 +1,7 @@
 package org.stride.feature.connect
 
+import androidx.annotation.StringRes
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -13,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.stride.core.common.Retryable
 import org.stride.core.common.StrideClock
 import org.stride.core.common.StrideLog
 import org.stride.core.common.StrideResult
@@ -22,13 +25,14 @@ import org.stride.core.datastore.SecretStore
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.garmin.GarminClient
 import org.stride.core.garmin.GarminError
+import org.stride.core.ui.UiText
 
 /** Personal API key lifetimes Garmin offers (docs/garmin/personal-api.md). */
-enum class KeyLifetime(val label: String) {
-    DAYS_30("30 days"),
-    DAYS_90("90 days"),
-    DAYS_180("180 days"),
-    YEAR_1("1 year");
+enum class KeyLifetime(@StringRes val labelRes: Int) {
+    DAYS_30(R.string.connect_lifetime_30),
+    DAYS_90(R.string.connect_lifetime_90),
+    DAYS_180(R.string.connect_lifetime_180),
+    YEAR_1(R.string.connect_lifetime_365);
 
     fun expiryFrom(today: LocalDate): LocalDate = when (this) {
         DAYS_30 -> today.plusDays(30)
@@ -38,27 +42,27 @@ enum class KeyLifetime(val label: String) {
     }
 }
 
-/** Why a key could not be connected; [message] is shown as-is. */
+/** Why a key could not be connected; [message] is a string resource resolved by the screen (AUD-034). */
 sealed interface ConnectError {
-    val message: String
+    val message: UiText
 
     data object EmptyKey : ConnectError {
-        override val message = "Paste your Garmin Personal API key first."
+        override val message = UiText(R.string.connect_error_empty)
     }
 
     data object InvalidKey : ConnectError {
-        override val message = "Garmin didn't accept this key. Check that you copied all of it, or create a new key and try again."
+        override val message = UiText(R.string.connect_error_invalid)
     }
 
     data object Network : ConnectError {
-        override val message = "Couldn't reach Garmin. Check your internet connection and try again."
+        override val message = UiText(R.string.connect_error_network)
     }
 
-    data class Other(override val message: String) : ConnectError
+    data class Other(override val message: UiText) : ConnectError
 
     companion object {
         /** Saving or deleting on the phone failed (e.g. the Keystore is unavailable). */
-        val SaveFailed = Other("Something went wrong on this phone. Please try again.")
+        val SaveFailed = Other(UiText(R.string.connect_error_save_failed))
     }
 }
 
@@ -81,7 +85,9 @@ data class ConnectUiState(
     val error: ConnectError? = null,
     val showDisconnect: Boolean = false,
     val deleteSyncedData: Boolean = false,
-    val disconnecting: Boolean = false
+    val disconnecting: Boolean = false,
+    /** The connection state could not be read; the screen shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 ) {
     val daysLeft: Long? get() = keyExpiry?.let { ChronoUnit.DAYS.between(today, it) }
     val expired: Boolean get() = (daysLeft ?: 0) < 0
@@ -109,6 +115,8 @@ sealed interface ConnectEvent {
     data class DeleteSyncedDataChanged(val delete: Boolean) : ConnectEvent
 
     data object DisconnectConfirmed : ConnectEvent
+
+    data object Retry : ConnectEvent
 }
 
 @HiltViewModel
@@ -118,18 +126,27 @@ class ConnectViewModel @Inject constructor(
     private val prefs: UserPreferences,
     private val sync: SyncScheduler,
     private val eraser: DataEraser,
-    private val clock: StrideClock
+    private val clock: StrideClock,
+    private val savedState: SavedStateHandle
 ) : ViewModel() {
-    private val state = MutableStateFlow(clock.today().let { ConnectUiState(today = it, expiry = KeyLifetime.DAYS_90.expiryFrom(it)) })
+    private val state = MutableStateFlow(restore(clock.today()))
     val uiState: StateFlow<ConnectUiState> = state.asStateFlow()
+
+    private val retryable = Retryable()
 
     init {
         viewModelScope.launch {
-            combine(secrets.garminConnection, prefs.settings) { connection, settings -> connection to settings.garminKeyRejected }
-                .collect { (connection, rejected) ->
-                    state.update {
+            retryable.flow(onError = { null }) {
+                combine(secrets.garminConnection, prefs.settings) { connection, settings -> connection to settings.garminKeyRejected }
+            }.collect { loaded ->
+                state.update {
+                    if (loaded == null) {
+                        it.copy(loading = false, loadFailed = true)
+                    } else {
+                        val (connection, rejected) = loaded
                         it.copy(
                             loading = false,
+                            loadFailed = false,
                             today = clock.today(),
                             connected = connection.connected,
                             keyExpiry = connection.keyExpiry,
@@ -138,7 +155,31 @@ class ConnectViewModel @Inject constructor(
                         )
                     }
                 }
+            }
         }
+        // The dialog and the form choices survive process death; the pasted key never does (AUD-033).
+        viewModelScope.launch {
+            state.collect { s ->
+                savedState[KEY_LIFETIME] = s.lifetime.name
+                savedState[KEY_EXPIRY] = s.expiry.toString()
+                savedState[KEY_SHOW_DISCONNECT] = s.showDisconnect
+                savedState[KEY_DELETE_DATA] = s.deleteSyncedData
+            }
+        }
+    }
+
+    private fun restore(today: LocalDate): ConnectUiState {
+        val lifetime = savedState.get<String>(KEY_LIFETIME)?.let { name -> KeyLifetime.entries.firstOrNull { it.name == name } }
+            ?: KeyLifetime.DAYS_90
+        val expiry =
+            savedState.get<String>(KEY_EXPIRY)?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: lifetime.expiryFrom(today)
+        return ConnectUiState(
+            today = today,
+            lifetime = lifetime,
+            expiry = expiry,
+            showDisconnect = savedState.get<Boolean>(KEY_SHOW_DISCONNECT) ?: false,
+            deleteSyncedData = savedState.get<Boolean>(KEY_DELETE_DATA) ?: false
+        )
     }
 
     fun onEvent(event: ConnectEvent) {
@@ -152,7 +193,8 @@ class ConnectViewModel @Inject constructor(
                 it.copy(lifetime = event.lifetime, expiry = event.lifetime.expiryFrom(clock.today()))
             }
 
-            is ConnectEvent.ExpiryPicked -> state.update { it.copy(expiry = event.date) }
+            // The picker only offers today or later; clamp anyway so a stale date can never be saved (AUD-037).
+            is ConnectEvent.ExpiryPicked -> state.update { it.copy(expiry = maxOf(event.date, clock.today())) }
 
             ConnectEvent.Connect -> connect()
 
@@ -163,6 +205,11 @@ class ConnectViewModel @Inject constructor(
             is ConnectEvent.DeleteSyncedDataChanged -> state.update { it.copy(deleteSyncedData = event.delete) }
 
             ConnectEvent.DisconnectConfirmed -> disconnect()
+
+            ConnectEvent.Retry -> {
+                state.update { it.copy(loading = true, loadFailed = false) }
+                retryable.retry()
+            }
         }
     }
 
@@ -231,8 +278,13 @@ class ConnectViewModel @Inject constructor(
 fun GarminError.toConnectError(): ConnectError = when (this) {
     GarminError.KeyMissing, GarminError.KeyInvalid -> ConnectError.InvalidKey
     is GarminError.Network -> ConnectError.Network
-    is GarminError.RateLimited -> ConnectError.Other("Garmin is busy right now. Wait a minute and try again.")
-    is GarminError.Server -> ConnectError.Other("Garmin had a problem (HTTP $code). Try again later.")
-    is GarminError.Http -> ConnectError.Other("Garmin returned an unexpected error (HTTP $code). Try again later.")
-    is GarminError.Parse -> ConnectError.Other("Garmin sent a reply Stride couldn't read. Try again later.")
+    is GarminError.RateLimited -> ConnectError.Other(UiText(R.string.connect_error_rate_limited))
+    is GarminError.Server -> ConnectError.Other(UiText(R.string.connect_error_server, code))
+    is GarminError.Http -> ConnectError.Other(UiText(R.string.connect_error_http, code))
+    is GarminError.Parse -> ConnectError.Other(UiText(R.string.connect_error_parse))
 }
+
+private const val KEY_LIFETIME = "connect.lifetime"
+private const val KEY_EXPIRY = "connect.expiry"
+private const val KEY_SHOW_DISCONNECT = "connect.showDisconnect"
+private const val KEY_DELETE_DATA = "connect.deleteSyncedData"

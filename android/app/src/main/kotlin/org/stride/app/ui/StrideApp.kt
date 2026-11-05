@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -29,6 +30,7 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import org.stride.app.R
 import org.stride.app.navigation.StrideNavigationState
 import org.stride.app.navigation.TopLevelDestination
 import org.stride.app.navigation.rememberStrideNavigationState
@@ -85,6 +87,9 @@ fun StrideApp(
         navigationState.goBack()
     }
 
+    // navigationSuiteItems is not composable: resolve the tab labels first (AUD-034).
+    val labels = TopLevelDestination.entries.associateWith { stringResource(it.labelRes) }
+    val tabDescriptions = TopLevelDestination.entries.associateWith { stringResource(R.string.nav_tab, labels.getValue(it)) }
     CompositionLocalProvider(LocalNavigator provides navigationState) {
         NavigationSuiteScaffold(
             modifier = modifier,
@@ -100,8 +105,8 @@ fun StrideApp(
                                 contentDescription = null
                             )
                         },
-                        label = { Text(destination.label) },
-                        modifier = Modifier.semantics { contentDescription = "${destination.label} tab" }
+                        label = { Text(labels.getValue(destination)) },
+                        modifier = Modifier.semantics { contentDescription = tabDescriptions.getValue(destination) }
                     )
                 }
             }

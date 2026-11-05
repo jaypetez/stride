@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
@@ -34,11 +35,14 @@ import org.stride.core.common.ApplicationScope
 import org.stride.core.common.StrideClock
 import org.stride.core.data.metrics.MetricsRecomputer
 import org.stride.core.datastore.UserPreferences
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.StrideButton
 import org.stride.core.designsystem.component.StrideTopAppBar
 import org.stride.core.model.AthleteProfile
 import org.stride.core.navigation.LocalNavigator
+import org.stride.core.ui.R as CoreUiR
+import org.stride.core.ui.UiText
 import org.stride.core.ui.formInsets
 import org.stride.core.ui.profile.ProfileField
 import org.stride.core.ui.profile.ProfileForm
@@ -48,8 +52,10 @@ import org.stride.core.ui.profile.validate
 data class ProfileEditUiState(
     val loading: Boolean = true,
     val form: ProfileFormState = ProfileFormState(),
-    val errors: Map<ProfileField, String> = emptyMap(),
-    val saving: Boolean = false
+    val errors: Map<ProfileField, UiText> = emptyMap(),
+    val saving: Boolean = false,
+    /** The profile could not be read; the screen shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 )
 
 @HiltViewModel
@@ -67,9 +73,19 @@ class ProfileEditViewModel @Inject constructor(
     val saved: Flow<Unit> = savedChannel.receiveAsFlow()
 
     init {
+        load()
+    }
+
+    /** Loads the stored profile; a read error becomes the error state (AUD-032). */
+    fun load() {
+        state.update { it.copy(loading = true, loadFailed = false) }
         viewModelScope.launch {
-            base = prefs.current().profile
-            state.update { it.copy(loading = false, form = ProfileFormState.from(base)) }
+            runCatching { prefs.current().profile }
+                .onSuccess { profile ->
+                    base = profile
+                    state.update { it.copy(loading = false, form = ProfileFormState.from(profile)) }
+                }
+                .onFailure { state.update { it.copy(loading = false, loadFailed = true) } }
         }
     }
 
@@ -107,6 +123,7 @@ fun ProfileEditFlow(modifier: Modifier = Modifier, viewModel: ProfileEditViewMod
         onChange = viewModel::onChange,
         onSave = viewModel::save,
         onBack = { navigator.goBack() },
+        onRetry = viewModel::load,
         modifier = modifier
     )
 }
@@ -117,10 +134,20 @@ fun ProfileEditScreen(
     onChange: (ProfileFormState) -> Unit,
     onSave: () -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {}
 ) {
-    Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Edit profile", onBack = onBack) }) { padding ->
-        if (state.loading) {
+    Scaffold(modifier = modifier, topBar = {
+        StrideTopAppBar(title = stringResource(R.string.settings_edit_profile), onBack = onBack)
+    }) { padding ->
+        if (state.loadFailed) {
+            ErrorState(
+                title = stringResource(CoreUiR.string.load_error_title),
+                message = stringResource(CoreUiR.string.load_error_message),
+                onRetry = onRetry,
+                modifier = Modifier.padding(padding)
+            )
+        } else if (state.loading) {
             LoadingState(Modifier.padding(padding).fillMaxSize())
         } else {
             Column(
@@ -134,12 +161,12 @@ fun ProfileEditScreen(
             ) {
                 ProfileForm(state = state.form, onChange = onChange, errors = state.errors)
                 Text(
-                    "Saving recalculates your zones, training load and fitness from all your runs.",
+                    stringResource(R.string.settings_profile_save_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 StrideButton(
-                    text = "Save",
+                    text = stringResource(R.string.settings_save),
                     onClick = onSave,
                     loading = state.saving,
                     enabled = !state.saving,

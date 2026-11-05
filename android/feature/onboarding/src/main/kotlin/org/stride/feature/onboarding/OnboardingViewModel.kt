@@ -1,9 +1,11 @@
 package org.stride.feature.onboarding
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -20,13 +22,17 @@ import org.stride.core.common.StrideClock
 import org.stride.core.common.StrideLog
 import org.stride.core.data.demo.DemoController
 import org.stride.core.datastore.UserPreferences
+import org.stride.core.model.Sex
+import org.stride.core.model.UnitSystem
 import org.stride.core.navigation.ConnectGarminRoute
 import org.stride.core.navigation.TodayRoute
 import org.stride.core.science.coach.PARQ_QUESTIONS
 import org.stride.core.science.coach.ReadinessScreening
 import org.stride.core.science.coach.screenReadiness
+import org.stride.core.ui.UiText
 import org.stride.core.ui.profile.ProfileField
 import org.stride.core.ui.profile.ProfileFormState
+import org.stride.core.ui.profile.RaceDistance
 import org.stride.core.ui.profile.validate
 
 enum class OnboardingStep {
@@ -40,12 +46,12 @@ enum class OnboardingStep {
 data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.WELCOME,
     val profile: ProfileFormState = ProfileFormState(),
-    val profileErrors: Map<ProfileField, String> = emptyMap(),
+    val profileErrors: Map<ProfileField, UiText> = emptyMap(),
     /** One answer per [PARQ_QUESTIONS]: true = yes, false = no, null = unanswered. */
     val parqAnswers: List<Boolean?> = List(PARQ_QUESTIONS.size) { null },
     val disclaimerAccepted: Boolean = false,
     val working: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 ) {
     val screening: ReadinessScreening get() = screenReadiness(parqAnswers.map { it == true })
     val parqComplete: Boolean get() = parqAnswers.none { it == null }
@@ -77,10 +83,20 @@ sealed interface OnboardingEvent {
 class OnboardingViewModel @Inject constructor(
     private val prefs: UserPreferences,
     private val demo: DemoController,
-    private val clock: StrideClock
+    private val clock: StrideClock,
+    private val savedState: SavedStateHandle
 ) : ViewModel() {
-    private val state = MutableStateFlow(OnboardingUiState())
+    /**
+     * Backed by [SavedStateHandle] (AUD-033): users who leave mid health check come
+     * back to the same step with their profile and PAR-Q answers intact, even after
+     * the process was killed. Validation errors and in-flight work are not restored.
+     */
+    private val state = MutableStateFlow(savedState.restoreOnboarding())
     val uiState: StateFlow<OnboardingUiState> = state.asStateFlow()
+
+    init {
+        viewModelScope.launch { state.collect { savedState.saveOnboarding(it) } }
+    }
 
     /**
      * Rendezvous: the destination is handed to the screen (which tells the shell
@@ -159,7 +175,7 @@ class OnboardingViewModel @Inject constructor(
                 throw cancelled
             } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
                 StrideLog.w(TAG, "onboarding could not finish", e)
-                state.update { s -> s.copy(working = false, error = "Couldn't finish setting up. Please try again.") }
+                state.update { s -> s.copy(working = false, error = UiText(R.string.onboarding_error_finish)) }
             }
         }
     }
@@ -177,4 +193,68 @@ class OnboardingViewModel @Inject constructor(
     private companion object {
         const val TAG = "Onboarding"
     }
+}
+
+private const val KEY_STEP = "onboarding.step"
+private const val KEY_NAME = "onboarding.name"
+private const val KEY_BIRTH_YEAR = "onboarding.birthYear"
+private const val KEY_SEX = "onboarding.sex"
+private const val KEY_UNITS = "onboarding.units"
+private const val KEY_MAX_HR = "onboarding.maxHr"
+private const val KEY_RESTING_HR = "onboarding.restingHr"
+private const val KEY_THRESHOLD_HR = "onboarding.thresholdHr"
+private const val KEY_RACE_DISTANCE = "onboarding.raceDistance"
+private const val KEY_RACE_DATE = "onboarding.raceDate"
+private const val KEY_PARQ = "onboarding.parq"
+private const val KEY_DISCLAIMER = "onboarding.disclaimer"
+
+/** Bundle-safe values only (strings, booleans, an int array) so the state survives process death. */
+internal fun SavedStateHandle.saveOnboarding(state: OnboardingUiState) {
+    val p = state.profile
+    this[KEY_STEP] = state.step.name
+    this[KEY_NAME] = p.name
+    this[KEY_BIRTH_YEAR] = p.birthYear
+    this[KEY_SEX] = p.sex.name
+    this[KEY_UNITS] = p.units.name
+    this[KEY_MAX_HR] = p.maxHr
+    this[KEY_RESTING_HR] = p.restingHr
+    this[KEY_THRESHOLD_HR] = p.thresholdHr
+    this[KEY_RACE_DISTANCE] = p.raceDistance?.name
+    this[KEY_RACE_DATE] = p.raceDate?.toString()
+    // -1 unanswered, 0 no, 1 yes.
+    this[KEY_PARQ] = state.parqAnswers.map { answer ->
+        if (answer == null) {
+            -1
+        } else if (answer) {
+            1
+        } else {
+            0
+        }
+    }.toIntArray()
+    this[KEY_DISCLAIMER] = state.disclaimerAccepted
+}
+
+internal fun SavedStateHandle.restoreOnboarding(): OnboardingUiState {
+    val defaults = OnboardingUiState()
+    fun <E : Enum<E>> enum(key: String, values: Array<E>, fallback: E): E =
+        get<String>(key)?.let { n -> values.firstOrNull { it.name == n } } ?: fallback
+    val profile = ProfileFormState(
+        name = get<String>(KEY_NAME).orEmpty(),
+        birthYear = get<String>(KEY_BIRTH_YEAR).orEmpty(),
+        sex = enum(KEY_SEX, Sex.entries.toTypedArray(), defaults.profile.sex),
+        units = enum(KEY_UNITS, UnitSystem.entries.toTypedArray(), defaults.profile.units),
+        maxHr = get<String>(KEY_MAX_HR).orEmpty(),
+        restingHr = get<String>(KEY_RESTING_HR).orEmpty(),
+        thresholdHr = get<String>(KEY_THRESHOLD_HR).orEmpty(),
+        raceDistance = get<String>(KEY_RACE_DISTANCE)?.let { n -> RaceDistance.entries.firstOrNull { it.name == n } },
+        raceDate = get<String>(KEY_RACE_DATE)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    )
+    val parq = get<IntArray>(KEY_PARQ)?.takeIf { it.size == PARQ_QUESTIONS.size }
+        ?.map { if (it < 0) null else it == 1 } ?: defaults.parqAnswers
+    return defaults.copy(
+        step = enum(KEY_STEP, OnboardingStep.entries.toTypedArray(), defaults.step),
+        profile = profile,
+        parqAnswers = parq,
+        disclaimerAccepted = get<Boolean>(KEY_DISCLAIMER) ?: false
+    )
 }

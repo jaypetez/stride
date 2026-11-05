@@ -6,4 +6,5 @@ plugins {
 dependencies {
     implementation(project(":core:data"))
     implementation(libs.androidx.activity.compose)
+    testImplementation(project(":core:data-testing"))
 }

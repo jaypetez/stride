@@ -13,17 +13,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.stride.core.common.Retryable
 import org.stride.core.common.StrideLog
 import org.stride.core.datastore.SecretStore
 import org.stride.core.datastore.UserPreferences
-
-/** The Garmin-terms caveat shown before the coach can be enabled (ADR 0010, docs/garmin/personal-api.md). */
-const val COACH_CAVEAT =
-    "Garmin's developer terms reportedly bar using Garmin data to \"create or maintain any AI model, AI system or AI generated " +
-        "knowledge base\". The coach is optional and off by default. If you turn it on, Stride sends only numbers it has already " +
-        "computed (training load, fitness, fatigue and form, heart-rate zone minutes, VDOT, efficiency and weekly volume) to " +
-        "Anthropic, using your own API key. It never sends GPS, streams, laps, FIT files or raw Garmin data, and nothing is used " +
-        "to train a model. Decide for yourself whether this fits Garmin's terms."
+import org.stride.core.ui.UiText
 
 enum class CoachSubject { ACTIVITY, TREND }
 
@@ -39,7 +33,9 @@ data class CoachUiState(
     val noData: Boolean = false,
     val asking: Boolean = false,
     val answer: CheckedReply? = null,
-    val error: String? = null
+    val error: UiText? = null,
+    /** Settings could not be read; the screen shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 )
 
 sealed interface CoachEvent {
@@ -56,6 +52,8 @@ sealed interface CoachEvent {
     data class SubjectChosen(val subject: CoachSubject) : CoachEvent
 
     data object Ask : CoachEvent
+
+    data object Retry : CoachEvent
 }
 
 @HiltViewModel
@@ -69,10 +67,23 @@ class CoachViewModel @Inject constructor(
     val uiState: StateFlow<CoachUiState> = state.asStateFlow()
     private var factsJob: Job? = null
 
+    private val retryable = Retryable()
+
     init {
         viewModelScope.launch {
-            combine(prefs.settings, secrets.hasAnthropicKey) { settings, hasKey -> settings.coachEnabled && hasKey }
-                .collect { enabled -> state.update { it.copy(loading = false, enabled = enabled) } }
+            retryable.flow(onError = { null }) {
+                combine(prefs.settings, secrets.hasAnthropicKey) { settings, hasKey -> settings.coachEnabled && hasKey }
+            }.collect { enabled ->
+                state.update {
+                    if (enabled ==
+                        null
+                    ) {
+                        it.copy(loading = false, loadFailed = true)
+                    } else {
+                        it.copy(loading = false, loadFailed = false, enabled = enabled)
+                    }
+                }
+            }
         }
     }
 
@@ -96,8 +107,9 @@ class CoachViewModel @Inject constructor(
             CoachEvent.Enable -> enable()
 
             CoachEvent.Disable -> viewModelScope.launch {
-                secrets.clearAnthropicKey()
+                // Turn the coach off first, so it stays off even if deleting the key fails.
                 prefs.setCoachEnabled(false)
+                secrets.clearAnthropicKey()
                 state.update { it.copy(answer = null, caveatAccepted = false) }
             }
 
@@ -107,6 +119,11 @@ class CoachViewModel @Inject constructor(
             }
 
             CoachEvent.Ask -> ask()
+
+            CoachEvent.Retry -> {
+                state.update { it.copy(loading = true, loadFailed = false) }
+                retryable.retry()
+            }
         }
     }
 
@@ -114,9 +131,9 @@ class CoachViewModel @Inject constructor(
         val current = state.value
         val key = current.keyInput.trim()
         when {
-            !current.caveatAccepted -> state.update { it.copy(error = "Read and accept the note above first.") }
+            !current.caveatAccepted -> state.update { it.copy(error = UiText(R.string.coach_error_caveat)) }
 
-            key.isEmpty() -> state.update { it.copy(error = "Paste your Anthropic API key.") }
+            key.isEmpty() -> state.update { it.copy(error = UiText(R.string.coach_error_key_empty)) }
 
             else -> viewModelScope.launch {
                 // Stored encrypted; never logged.
@@ -155,7 +172,7 @@ class CoachViewModel @Inject constructor(
         viewModelScope.launch {
             val key = secrets.anthropicKey()
             if (key == null) {
-                state.update { it.copy(asking = false, error = "Add your Anthropic API key again.") }
+                state.update { it.copy(asking = false, error = UiText(R.string.coach_error_key_missing)) }
                 return@launch
             }
             when (val result = llm.complete(key, COACH_SYSTEM_PROMPT, coachUserPrompt(facts))) {
@@ -163,10 +180,7 @@ class CoachViewModel @Inject constructor(
                     val checked = checkReplyNumbers(result.text, Json.parseToJsonElement(facts.toJson()))
                     state.update {
                         if (checked.rejected) {
-                            it.copy(
-                                asking = false,
-                                error = "The coach's answer quoted numbers Stride didn't compute, so it was hidden. Try asking again."
-                            )
+                            it.copy(asking = false, error = UiText(R.string.coach_error_numbers))
                         } else {
                             it.copy(asking = false, answer = checked)
                         }

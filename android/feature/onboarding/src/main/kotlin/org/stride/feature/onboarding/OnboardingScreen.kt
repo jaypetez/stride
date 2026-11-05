@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,7 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
@@ -44,14 +48,10 @@ import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.navigation.LocalNavigator
 import org.stride.core.science.coach.DISCLAIMER
 import org.stride.core.science.coach.PARQ_QUESTIONS
-import org.stride.core.ui.PRIVACY_NOTE
+import org.stride.core.ui.R as CoreUiR
 import org.stride.core.ui.formInsets
 import org.stride.core.ui.fullScreenInsets
 import org.stride.core.ui.profile.ProfileForm
-
-const val PARQ_GUIDANCE =
-    "You answered yes to at least one question. Please talk to a doctor or another qualified health professional " +
-        "before you start training or make it harder. You can still use Stride to look at your data."
 
 /** Stateful entry: wires [OnboardingViewModel] to [OnboardingScreen] and hands off to the shell when done. */
 @Composable
@@ -94,17 +94,27 @@ fun OnboardingScreen(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Uni
                     OnboardingStep.DISCLAIMER -> DisclaimerStep(state, onEvent)
                     OnboardingStep.FINISH -> FinishStep(state, onEvent)
                 }
-                state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                state.error?.let { Text(it.resolve(), color = MaterialTheme.colorScheme.error) }
             }
             if (state.step != OnboardingStep.FINISH) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (state.step != OnboardingStep.WELCOME) StrideTextButton("Back", onClick = { onEvent(OnboardingEvent.Back) })
+                    if (state.step != OnboardingStep.WELCOME) {
+                        StrideTextButton(stringResource(R.string.onboarding_back), onClick = { onEvent(OnboardingEvent.Back) })
+                    }
                     Spacer(Modifier.weight(1f))
                     StrideButton(
-                        text = if (state.step == OnboardingStep.WELCOME) "Get started" else "Continue",
+                        text = stringResource(
+                            if (state.step ==
+                                OnboardingStep.WELCOME
+                            ) {
+                                R.string.onboarding_get_started
+                            } else {
+                                R.string.onboarding_continue
+                            }
+                        ),
                         onClick = { onEvent(OnboardingEvent.Next) },
                         enabled = state.canContinue
                     )
@@ -125,17 +135,13 @@ private fun StepTitle(title: String, subtitle: String? = null) {
 @Composable
 private fun WelcomeStep() {
     Icon(Icons.AutoMirrored.Outlined.DirectionsRun, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-    StepTitle(
-        "Welcome to Stride",
-        "Your running data, understood. Stride computes your training load, fitness, form and zones on this phone " +
-            "from your own Garmin data."
-    )
-    StrideCard(title = "Private by design") {
-        Text(PRIVACY_NOTE, style = MaterialTheme.typography.bodyMedium)
-        Text("There is no Stride account and no server.", style = MaterialTheme.typography.bodyMedium)
+    StepTitle(stringResource(R.string.onboarding_welcome_title), stringResource(R.string.onboarding_welcome_subtitle))
+    StrideCard(title = stringResource(R.string.onboarding_private_title)) {
+        Text(stringResource(CoreUiR.string.privacy_note), style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.onboarding_no_account), style = MaterialTheme.typography.bodyMedium)
     }
     Text(
-        "Setup takes about two minutes: a short profile, a health check and a disclaimer.",
+        stringResource(R.string.onboarding_setup_time),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -143,7 +149,7 @@ private fun WelcomeStep() {
 
 @Composable
 private fun ProfileStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Unit) {
-    StepTitle("About you", "Stride uses this to set your heart-rate zones and training load. It stays on this phone.")
+    StepTitle(stringResource(R.string.onboarding_about_title), stringResource(R.string.onboarding_about_subtitle))
     ProfileForm(
         state = state.profile,
         onChange = { onEvent(OnboardingEvent.ProfileChanged(it)) },
@@ -153,32 +159,30 @@ private fun ProfileStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> 
 
 @Composable
 private fun ParqStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Unit) {
-    StepTitle("Health check", "Answer each question honestly (PAR-Q). Your answers stay on this phone.")
+    StepTitle(stringResource(R.string.onboarding_parq_title), stringResource(R.string.onboarding_parq_subtitle))
+    val yes = stringResource(R.string.onboarding_yes)
+    val no = stringResource(R.string.onboarding_no)
     PARQ_QUESTIONS.forEachIndexed { index, question ->
         StrideCard {
             Text(question, style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = state.parqAnswers[index] == true,
-                    onClick = { onEvent(OnboardingEvent.ParqAnswered(index, yes = true)) },
-                    label = { Text("Yes") },
-                    modifier = Modifier.testTag("parq_yes_$index")
-                )
-                FilterChip(
-                    selected = state.parqAnswers[index] == false,
-                    onClick = { onEvent(OnboardingEvent.ParqAnswered(index, yes = false)) },
-                    label = { Text("No") },
-                    modifier = Modifier.testTag("parq_no_$index")
-                )
+            // AUD-035: a radio group whose options carry the question, so TalkBack reads
+            // "Yes, <question>, selected" rather than a bare "Yes".
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.selectableGroup()) {
+                ParqOption(yes, question, state.parqAnswers[index] == true, "parq_yes_$index") {
+                    onEvent(OnboardingEvent.ParqAnswered(index, yes = true))
+                }
+                ParqOption(no, question, state.parqAnswers[index] == false, "parq_no_$index") {
+                    onEvent(OnboardingEvent.ParqAnswered(index, yes = false))
+                }
             }
         }
     }
     val screening = state.screening
     if (!screening.cleared) {
-        StrideCard(title = "See a professional first") {
-            Text(PARQ_GUIDANCE, style = MaterialTheme.typography.bodyMedium)
+        StrideCard(title = stringResource(R.string.onboarding_parq_flag_title)) {
+            Text(stringResource(R.string.onboarding_parq_guidance), style = MaterialTheme.typography.bodyMedium)
             Text(
-                "You flagged: ${screening.healthFlags.joinToString(", ")}.",
+                stringResource(R.string.onboarding_parq_flagged, screening.healthFlags.joinToString(", ")),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error
             )
@@ -187,8 +191,24 @@ private fun ParqStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Uni
 }
 
 @Composable
+private fun ParqOption(answer: String, question: String, selected: Boolean, tag: String, onClick: () -> Unit) {
+    val description = stringResource(R.string.onboarding_parq_answer, answer, question)
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(answer) },
+        modifier = Modifier
+            .testTag(tag)
+            .semantics {
+                contentDescription = description
+                role = Role.RadioButton
+            }
+    )
+}
+
+@Composable
 private fun DisclaimerStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Unit) {
-    StepTitle("Before you start")
+    StepTitle(stringResource(R.string.onboarding_disclaimer_title))
     StrideCard {
         Text(DISCLAIMER, style = MaterialTheme.typography.bodyLarge)
     }
@@ -204,21 +224,23 @@ private fun DisclaimerStep(state: OnboardingUiState, onEvent: (OnboardingEvent) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(checked = state.disclaimerAccepted, onCheckedChange = null)
-        Text("I have read and accept this", modifier = Modifier.padding(start = 12.dp))
+        Text(stringResource(R.string.onboarding_disclaimer_accept), modifier = Modifier.padding(start = 12.dp))
     }
 }
 
 @Composable
 private fun FinishStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Unit) {
+    val name = state.profile.name.trim()
     StepTitle(
-        "You're all set${state.profile.name.trim().takeIf {
-            it.isNotEmpty()
-        }?.let { ", $it" }.orEmpty()}",
-        "Where should your runs come from?"
+        if (name.isEmpty()) stringResource(R.string.onboarding_all_set) else stringResource(R.string.onboarding_all_set_name, name),
+        stringResource(R.string.onboarding_source_question)
     )
-    StrideCard(title = "Connect Garmin", subtitle = "Use your own Garmin Personal API key. Runs and health data sync to this phone.") {
+    StrideCard(
+        title = stringResource(R.string.onboarding_connect_garmin),
+        subtitle = stringResource(R.string.onboarding_connect_subtitle)
+    ) {
         StrideButton(
-            text = "Connect Garmin",
+            text = stringResource(R.string.onboarding_connect_garmin),
             onClick = { onEvent(OnboardingEvent.ConnectGarmin) },
             enabled = !state.working,
             loading = state.working,
@@ -226,16 +248,16 @@ private fun FinishStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> U
             modifier = Modifier.fillMaxWidth()
         )
     }
-    StrideCard(title = "Try the demo", subtitle = "Explore Stride with synthetic runs. You can connect Garmin later in You → Garmin.") {
+    StrideCard(title = stringResource(R.string.onboarding_demo_title), subtitle = stringResource(R.string.onboarding_demo_subtitle)) {
         StrideOutlinedButton(
-            text = "Try demo",
+            text = stringResource(R.string.onboarding_try_demo),
             onClick = { onEvent(OnboardingEvent.TryDemo) },
             enabled = !state.working,
             leadingIcon = Icons.Outlined.Science,
             modifier = Modifier.fillMaxWidth()
         )
     }
-    StrideTextButton("Back", onClick = { onEvent(OnboardingEvent.Back) }, enabled = !state.working)
+    StrideTextButton(stringResource(R.string.onboarding_back), onClick = { onEvent(OnboardingEvent.Back) }, enabled = !state.working)
 }
 
 @ThemePreviews

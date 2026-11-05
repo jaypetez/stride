@@ -37,7 +37,8 @@ class DemoDataFixture(scope: TestScope, dir: File) {
     val holder = DatabaseHolder(
         factory = { Room.inMemoryDatabaseBuilder(context, StrideDatabase::class.java).allowMainThreadQueries().build() }
     )
-    val prefs = UserPreferences(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(dir, "prefs.preferences_pb") })
+    val prefsStore = PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(dir, "prefs.preferences_pb") }
+    val prefs = UserPreferences(prefsStore)
     val clock = FakeStrideClock()
     val recomputer = ScienceMetricsRecomputer(holder, prefs, clock, dispatcher)
     val activities = ActivityRepository(holder)
@@ -53,6 +54,9 @@ class DemoDataFixture(scope: TestScope, dir: File) {
         dispatcher
     )
     val sync = FakeSyncController()
+
+    /** Preferences over the same file whose first [failures] reads throw (AUD-032 error states). */
+    fun flakyPrefs(failures: Int = 1): Pair<UserPreferences, FlakyDataStore> = flakyPreferences(prefsStore, failures)
 
     suspend fun loadDemo() {
         DemoMode(context, holder, prefs, clock, recomputer, dispatcher).load(holder.db)

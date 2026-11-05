@@ -32,11 +32,25 @@ class TodayScreenshotTest {
 }
 ```
 
+### Font-scale, RTL and accessibility checks (AUD-035)
+`captureScreenshot(path, variant = ScreenshotVariant.FONT_150 | FONT_200 | RTL)` renders
+the same content at 150 % / 200 % text or right-to-left; name the file with
+`variantPath(base, variant, theme)` (`today_demo_font150_light.png`). Key screens
+(Today, Runs, run detail, Fitness, Plan, Connect, onboarding, You) have these variants.
+
+`captureScreenshot(path, accessibilityChecks = true)` also runs Google's Accessibility
+Test Framework (touch targets, contrast, unlabelled nodes, …) over every window and
+fails on any error. Compose's own `enableAccessibilityChecks()` is a no-op under
+Robolectric, so screenshot tests use Roborazzi's ATF integration; `createComposeRule()`
+tests still call `compose.enableAccessibilityChecks()` so the same checks run on a device.
+
 ## Pinned rendering inputs
 Screenshots must be identical on every machine, so the inputs are pinned:
 - **Robolectric SDK:** `ScreenshotDefaults.SDK` (36), applied with `@Config(sdk = [...])`.
-- **Qualifiers:** `ScreenshotDefaults.PHONE` = `w411dp-h891dp-xxhdpi`
-  (plus `MEDIUM` and `EXPANDED` for adaptive layouts) from `core:testing`.
+- **Qualifiers:** `ScreenshotDefaults.PHONE` = `en-rGB-w411dp-h891dp-xxhdpi`
+  (plus `MEDIUM` and `EXPANDED` for adaptive layouts) from `core:testing`. The locale is
+  pinned because dates follow the device locale (AUD-034); a test that overrides the
+  qualifiers must keep the `en-rGB-` prefix.
 - **Graphics:** `robolectric.graphicsMode=NATIVE` and `pixelCopyRenderMode=hardware`,
   set for every test task by the convention plugin.
 - **Fonts:** the platform default font bundled with Robolectric's android-all jar — no

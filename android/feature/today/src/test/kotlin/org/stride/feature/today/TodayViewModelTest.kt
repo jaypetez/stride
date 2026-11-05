@@ -16,6 +16,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.stride.core.data.insights.deltaFrom
+import org.stride.core.data.sync.SyncFailure
+import org.stride.core.data.sync.SyncPhase
 import org.stride.core.data.sync.SyncProgress
 import org.stride.core.data.testing.DemoDataFixture
 import org.stride.core.testing.MainDispatcherRule
@@ -69,6 +71,37 @@ class TodayViewModelTest {
         }
     }
 
+    /** AUD-032: a repository error becomes the error state instead of crashing; "Try again" reloads. */
+    @Test
+    fun loadErrorShowsErrorStateAndRetryRecovers() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val (flaky, store) = fx.flakyPrefs(failures = 1)
+        val vm = TodayViewModel(fx.insights, fx.activities, fx.wellness, flaky, fx.sync)
+        vm.uiState.test {
+            var state = awaitItem()
+            while (!state.loadFailed) state = awaitItem()
+            assertNull(state.content)
+            vm.retry()
+            state = awaitItem()
+            while (state.loadFailed || state.content == null) state = awaitItem()
+            assertTrue(state.demoMode)
+            assertEquals(0, store.failures)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** AUD-032: after process death the in-memory status is Idle; the persisted failure still shows. */
+    @Test
+    fun persistedSyncFailureShowsAfterProcessDeath() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.prefs.setLastSyncFailure(SyncFailure.OFFLINE.name)
+        fx.viewModel().uiState.test {
+            assertEquals(SyncProgress.Failed(SyncFailure.OFFLINE), awaitLoaded().sync)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun pullToRefreshRequestsASyncAndShowsProgress() = runTest {
         val fx = DemoDataFixture(this, tmp.root)
@@ -78,7 +111,7 @@ class TodayViewModelTest {
             assertFalse(awaitLoaded().isRefreshing)
             vm.refresh()
             assertEquals(1, fx.sync.syncRequests)
-            fx.sync.state.value = SyncProgress.Running("activities", 3, 10)
+            fx.sync.state.value = SyncProgress.Running(SyncPhase.IMPORTING, 3, 10)
             assertTrue(awaitItem().isRefreshing)
             fx.sync.state.value = SyncProgress.Succeeded(atEpochSec = 1L, newActivities = 2)
             assertFalse(awaitItem().isRefreshing)

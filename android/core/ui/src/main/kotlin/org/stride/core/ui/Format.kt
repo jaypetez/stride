@@ -1,12 +1,16 @@
 package org.stride.core.ui
 
+import android.text.format.DateFormat
 import androidx.compose.runtime.staticCompositionLocalOf
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
+import java.time.temporal.TemporalAccessor
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -14,6 +18,12 @@ import org.stride.core.model.UnitSystem
 
 /** The user's display units; screens read it instead of threading it through every call. */
 val LocalUnitSystem = staticCompositionLocalOf { UnitSystem.METRIC }
+
+/**
+ * Whether times use the 24-hour clock. The app provides the device setting
+ * (`DateFormat.is24HourFormat`); previews and screenshots default to 24-hour.
+ */
+val LocalIs24HourClock = staticCompositionLocalOf { true }
 
 /**
  * Display formatting only — never arithmetic that produces a training number
@@ -98,17 +108,46 @@ object Format {
 
     fun percent(fraction: Double, decimals: Int = 0): String = "%.${decimals}f%%".format(Locale.ROOT, fraction * 100)
 
-    private val DAY = DateTimeFormatter.ofPattern("EEE d MMM", Locale.UK)
-    private val DAY_TIME = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm", Locale.UK)
+    // Dates follow the device locale (AUD-034): each pattern is the locale's best match for a
+    // skeleton, so en-GB reads "Sun 1 Nov" and en-US "Sun, Nov 1". Formatters are cached per locale.
+    private val patterns = ConcurrentHashMap<Pair<Locale, String>, DateTimeFormatter>()
 
-    fun day(date: LocalDate): String = DAY.format(date)
+    private fun formatter(skeleton: String, locale: Locale): DateTimeFormatter = patterns.getOrPut(locale to skeleton) {
+        DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
+    }
 
-    fun day(isoDate: String): String = day(LocalDate.parse(isoDate))
+    /** "Sun 1 Nov" (en-GB) / "Sun, Nov 1" (en-US). */
+    fun day(date: LocalDate, locale: Locale = Locale.getDefault()): String = formatter("EEEdMMM", locale).format(date)
 
-    fun dayTime(epochSec: Long, zone: String?): String =
-        DAY_TIME.format(
-            Instant.ofEpochSecond(epochSec).atZone(zone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault())
-        )
+    fun day(isoDate: String, locale: Locale = Locale.getDefault()): String = day(LocalDate.parse(isoDate), locale)
 
-    fun weekday(date: LocalDate): String = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.UK)
+    /** "Sun, 1 Nov 2026" (en-GB) / "Sun, Nov 1, 2026" (en-US). */
+    fun dayWithYear(date: LocalDate, locale: Locale = Locale.getDefault()): String = formatter("EEEdMMMyyyy", locale).format(date)
+
+    /** "1 Nov" (en-GB) / "Nov 1" (en-US): chart axes and plan rows. */
+    fun shortDate(date: LocalDate, locale: Locale = Locale.getDefault()): String = formatter("dMMM", locale).format(date)
+
+    fun shortDate(isoDate: String, locale: Locale = Locale.getDefault()): String = shortDate(LocalDate.parse(isoDate), locale)
+
+    /** "November 2026": month headers. */
+    fun monthYear(month: YearMonth, locale: Locale = Locale.getDefault()): String =
+        formatter("MMMMyyyy", locale).format(month.atDay(1))
+
+    /** "07:05" or "7:05 AM", following the device's 24-hour setting ([LocalIs24HourClock]). */
+    fun time(time: TemporalAccessor, is24Hour: Boolean, locale: Locale = Locale.getDefault()): String =
+        formatter(if (is24Hour) "Hmm" else "hmma", locale).format(time)
+
+    /** "Sun 1 Nov · 07:05" in the activity's own zone (device zone when unknown). */
+    fun dayTime(epochSec: Long, zone: String?, is24Hour: Boolean, locale: Locale = Locale.getDefault()): String {
+        val at = Instant.ofEpochSecond(epochSec).atZone(zone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault())
+        return "${day(at.toLocalDate(), locale)} · ${time(at, is24Hour, locale)}"
+    }
+
+    /** "Sun, 1 Nov 2026, 07:05": an instant in [zone], e.g. the last sync. */
+    fun dateTime(instant: Instant, zone: ZoneId, is24Hour: Boolean, locale: Locale = Locale.getDefault()): String {
+        val at = instant.atZone(zone)
+        return "${dayWithYear(at.toLocalDate(), locale)}, ${time(at, is24Hour, locale)}"
+    }
+
+    fun weekday(date: LocalDate, locale: Locale = Locale.getDefault()): String = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
 }

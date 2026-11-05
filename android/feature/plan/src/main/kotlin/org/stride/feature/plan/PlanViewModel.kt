@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.stride.core.common.Retryable
 import org.stride.core.common.StrideClock
 import org.stride.core.data.insights.dates
 import org.stride.core.data.plan.PlanRepository
@@ -26,6 +27,7 @@ import org.stride.core.model.UnitSystem
 import org.stride.core.science.model.GuardrailViolation
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.ui.UiText
 
 /** The "create a plan" form. */
 @Immutable
@@ -47,15 +49,17 @@ data class PlanUiState(
     val violations: List<GuardrailViolation> = emptyList(),
     /** Fixes repairPlan applied to the saved plan. */
     val repairs: List<GuardrailViolation> = emptyList(),
-    val error: String? = null,
-    val units: UnitSystem = UnitSystem.METRIC
+    val error: UiText? = null,
+    val units: UnitSystem = UnitSystem.METRIC,
+    /** The plan or settings could not be read; the screen shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 )
 
 private data class Transient(
     val creating: Boolean = false,
     val violations: List<GuardrailViolation> = emptyList(),
     val repairs: List<GuardrailViolation> = emptyList(),
-    val error: String? = null
+    val error: UiText? = null
 )
 
 @HiltViewModel
@@ -71,7 +75,9 @@ class PlanViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            prefs.settings.first().profile.raceGoal?.let { goal ->
+            // A settings read error is shown by uiState (loadFailed); prefilling is best effort.
+            val goal = runCatching { prefs.settings.first().profile.raceGoal }.getOrNull()
+            goal?.let { goal ->
                 val date = runCatching { LocalDate.parse(goal.date) }.getOrNull()
                 form.update { f ->
                     f.copy(
@@ -84,23 +90,29 @@ class PlanViewModel @Inject constructor(
         }
     }
 
+    private val retryable = Retryable()
+
     // The date ticker moves "today" and the current week on at midnight while the screen is open (AUD-031).
-    val uiState: StateFlow<PlanUiState> = combine(plans.plan, prefs.settings, form, transient, clock.dates()) { plan, settings, f, t, day ->
-        val todayKey = day.toString()
-        initial.copy(
-            isLoading = false,
-            today = todayKey,
-            earliestRaceDate = earliestRaceDate(day),
-            plan = plan,
-            currentWeekIndex = plan?.weeks?.indexOfFirst { w -> w.days.any { it.date == todayKey } }?.takeIf { it >= 0 },
-            form = f,
-            creating = t.creating,
-            violations = t.violations,
-            repairs = t.repairs,
-            error = t.error,
-            units = settings.unitSystem
-        )
+    val uiState: StateFlow<PlanUiState> = retryable.flow(onError = { initial.copy(isLoading = false, loadFailed = true) }) {
+        combine(plans.plan, prefs.settings, form, transient, clock.dates()) { plan, settings, f, t, day ->
+            val todayKey = day.toString()
+            initial.copy(
+                isLoading = false,
+                today = todayKey,
+                earliestRaceDate = earliestRaceDate(day),
+                plan = plan,
+                currentWeekIndex = plan?.weeks?.indexOfFirst { w -> w.days.any { it.date == todayKey } }?.takeIf { it >= 0 },
+                form = f,
+                creating = t.creating,
+                violations = t.violations,
+                repairs = t.repairs,
+                error = t.error,
+                units = settings.unitSystem
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
+
+    fun retry() = retryable.retry()
 
     fun setDistance(distance: RaceDistance) = form.update { it.copy(distance = distance) }
 
@@ -112,7 +124,7 @@ class PlanViewModel @Inject constructor(
         val f = form.value
         val goal = if (f.goalTime.isBlank()) null else parseGoalTime(f.goalTime)
         if (f.goalTime.isNotBlank() && goal == null) {
-            transient.value = Transient(error = "Enter the goal time as h:mm:ss or mm:ss.")
+            transient.value = Transient(error = UiText(R.string.plan_error_goal_time))
             return
         }
         viewModelScope.launch {
@@ -120,7 +132,7 @@ class PlanViewModel @Inject constructor(
             transient.value = when (val result = plans.create(PlanRequest(f.distance, f.raceDate, goal))) {
                 is PlanResult.Created -> Transient(repairs = result.repairs)
                 is PlanResult.Rejected -> Transient(violations = result.violations)
-                is PlanResult.Invalid -> Transient(error = result.message)
+                is PlanResult.Invalid -> Transient(error = UiText(R.string.plan_error_invalid, result.message))
             }
         }
     }

@@ -73,6 +73,8 @@ class GarminSyncer @Inject constructor(
             } catch (e: Exception) {
                 // Zip, Room, date-parse… failures: report them instead of spinning forever.
                 StrideLog.w(TAG, "sync failed unexpectedly", e)
+                // Persist the reason (AUD-032) so it survives process death; a broken store must not mask the failure.
+                runCatching { prefs.setLastSyncFailure(SyncFailure.UNEXPECTED.name) }
                 status.update(SyncProgress.Failed(SyncFailure.UNEXPECTED))
                 SyncOutcome.Retry(SyncFailure.UNEXPECTED)
             } finally {
@@ -116,7 +118,7 @@ class GarminSyncer @Inject constructor(
         }
 
         // 1. Incremental: the recent week (cheap; catches edits and late uploads).
-        status.update(SyncProgress.Running("Checking for new runs", 0, 1))
+        status.update(SyncProgress.Running(SyncPhase.CHECKING, 0, 1))
         val recentStart = maxOf(target, today.minusDays(INCREMENTAL_DAYS - 1L))
         fetchWindow(recentStart, today, newIds, ::noteChanged)
 
@@ -125,7 +127,7 @@ class GarminSyncer @Inject constructor(
             val cursor = state.backfillCursorDate?.let(LocalDate::parse) ?: recentStart
             val windows = dateWindows(target, cursor.minusDays(1), WINDOW_DAYS)
             windows.forEachIndexed { i, w ->
-                status.update(SyncProgress.Running("Importing history", i, windows.size))
+                status.update(SyncProgress.Running(SyncPhase.IMPORTING, i, windows.size))
                 fetchWindow(w.start, w.end, newIds, ::noteChanged)
                 db.syncStateDao().upsert(state.copy(backfillCursorDate = w.start.toString(), backfillComplete = w.start <= target))
             }
@@ -137,7 +139,7 @@ class GarminSyncer @Inject constructor(
         // 3. FIT files for runs without streams (newest first).
         val missing = db.activityDao().idsMissingStreams(RUN_SPORTS)
         missing.forEachIndexed { i, id ->
-            status.update(SyncProgress.Running("Downloading run details", i, missing.size))
+            status.update(SyncProgress.Running(SyncPhase.DETAILS, i, missing.size))
             when (val fit = client.fitFile(id)) {
                 is StrideResult.Err -> if (fit.error.isFatal()) throw Abort(fit.error)
 
@@ -161,12 +163,13 @@ class GarminSyncer @Inject constructor(
             }
         }
 
-        status.update(SyncProgress.Running("Computing your fitness", 0, 1))
+        status.update(SyncProgress.Running(SyncPhase.COMPUTING, 0, 1))
         recomputer.recompute(changedActivityIds = newIds, fromDate = earliestChanged?.toString())
         val now = clock.now().epochSecond
         db.syncStateDao().upsert((db.syncStateDao().get() ?: state).copy(lastSuccessEpochSec = now))
         prefs.setLastSync(now)
         prefs.setGarminKeyRejected(false)
+        prefs.setLastSyncFailure(null)
         status.update(SyncProgress.Succeeded(now, newIds.size))
         return SyncOutcome.Success(newIds.size)
     }
@@ -211,6 +214,7 @@ class GarminSyncer @Inject constructor(
 
             is GarminError.Http, is GarminError.Parse -> SyncOutcome.Retry(SyncFailure.UNEXPECTED) to SyncFailure.UNEXPECTED
         }
+        prefs.setLastSyncFailure(reason.name)
         status.update(SyncProgress.Failed(reason))
         return outcome
     }

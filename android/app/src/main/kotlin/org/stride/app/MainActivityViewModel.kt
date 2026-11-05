@@ -26,6 +26,9 @@ class MainActivityViewModel @Inject constructor(prefs: UserPreferences, private 
         .map<UserSettings, MainUiState> { MainUiState.Ready(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), MainUiState.Loading)
 
+    /** The system splash screen stays up while this is true (AUD-037). */
+    val keepSplashOnScreen: Boolean get() = uiState.value == MainUiState.Loading
+
     fun exitDemo() {
         viewModelScope.launch { demo.exit() }
     }
