@@ -195,3 +195,27 @@ export const DEFAULT_RATE_LIMITS = {
   sync: { limit: 5, windowMs: 60_000 },
   llm: { limit: 30, windowMs: 60_000 },
 } satisfies Record<string, RateLimitOptions>;
+
+/**
+ * Per-minute overrides from the environment: `STRIDE_API_LLM_RATE_LIMIT` for the
+ * coach routes and `STRIDE_API_SYNC_RATE_LIMIT` for `/sync`. Blank or invalid
+ * values (anything but a positive integer) keep the default. The web e2e suite
+ * raises the coach limit because it makes many demo calls within a minute.
+ */
+export function rateLimitsFromEnv(env: Record<string, string | undefined>): {
+  sync?: RateLimitOptions;
+  llm?: RateLimitOptions;
+} {
+  const perMinute = (raw: string | undefined): RateLimitOptions | undefined => {
+    const value = raw?.trim();
+    if (!value || !/^\d+$/.test(value)) return undefined;
+    const limit = Number(value);
+    return limit > 0 ? { limit, windowMs: 60_000 } : undefined;
+  };
+  const out: { sync?: RateLimitOptions; llm?: RateLimitOptions } = {};
+  const llm = perMinute(env.STRIDE_API_LLM_RATE_LIMIT);
+  const sync = perMinute(env.STRIDE_API_SYNC_RATE_LIMIT);
+  if (llm) out.llm = llm;
+  if (sync) out.sync = sync;
+  return out;
+}

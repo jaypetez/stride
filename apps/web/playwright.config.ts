@@ -43,6 +43,9 @@ export default defineConfig({
         // Never call a live LLM from e2e, even if the machine has a key set
         // (dotenv does not override a variable that is already defined).
         ANTHROPIC_API_KEY: '',
+        // The suite makes far more than the default 30 coach calls a minute
+        // against one shared bucket; demo calls never reach an LLM here.
+        STRIDE_API_LLM_RATE_LIMIT: '1000',
       },
     },
     {
