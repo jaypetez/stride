@@ -13,3 +13,28 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+
+  # Android (GOV-002): AndroidX/Compose/Kotlin bumps arrive grouped.
+  - package-ecosystem: gradle
+    directory: "/android"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "build(deps)"
+    groups:
+      androidx-compose:
+        patterns: ["androidx.compose*"]
+      androidx:
+        patterns: ["androidx.*"]
+        exclude-patterns: ["androidx.compose*"]
+      kotlin:
+        patterns: ["org.jetbrains.kotlin*", "com.google.devtools.ksp*"]
+      test-libraries:
+        patterns:
+          - "junit:*"
+          - "org.robolectric*"
+          - "io.github.takahirom.roborazzi*"
+          - "app.cash.turbine*"
+          - "com.squareup.okhttp3:mockwebserver*"
+          - "androidx.test*"

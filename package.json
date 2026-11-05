@@ -26,6 +26,8 @@
     "format": "biome check --write .",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm build && pnpm verify",
     "verify": "node scripts/smoke.mjs",
+    "check:android": "node scripts/check-android.mjs",
+    "check:all": "pnpm check && pnpm check:android",
     "factory": "tsx tools/factory/src/cli.ts",
     "dev": "turbo run dev",
     "changeset": "changeset",

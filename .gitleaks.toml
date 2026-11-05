@@ -1,0 +1,14 @@
+# gitleaks config (SEC-005). Extends the default rules; allowlists only test
+# fixtures that contain obviously fake tokens.
+title = "stride gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Synthetic test fixtures with fake tokens"
+paths = [
+  '''android/core/garmin/src/test/resources/fixtures/.*''',
+  '''scripts/garmin/probe\.test\.mjs''',
+  '''contracts/science-golden/.*''',
+]

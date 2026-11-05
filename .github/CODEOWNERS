@@ -12,3 +12,18 @@
 
 # CI / release / security tooling.
 /.github/               @jaypetez
+
+# Android app: signing config, network security and secret storage are security-sensitive.
+/android/               @jaypetez
+/android/app/build.gradle.kts                          @jaypetez
+/android/app/src/main/res/xml/                         @jaypetez
+/android/core/datastore/                               @jaypetez
+
+# Group-mode cloud Worker and its authorization policy (ADR 0009).
+/apps/cloud/            @jaypetez
+/apps/cloud/src/policy/ @jaypetez
+
+# Release workflows and the software factory.
+/.github/workflows/release.yml          @jaypetez
+/.github/workflows/release-android.yml  @jaypetez
+/tools/factory/         @jaypetez

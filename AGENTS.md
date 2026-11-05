@@ -31,6 +31,8 @@ run/verify → observe — locally with **no secrets and no network**.
 | `pnpm test:affected` | Only packages changed vs `origin/main`. |
 | `pnpm coverage` | Vitest v8 coverage per package. |
 | `pnpm build` | tsup (cli/api/mcp) + vite (web) → runnable `dist/`. |
+| `pnpm check:android` | **The Android gate:** `./gradlew -p android check` (unit + Robolectric tests, Lint, Detekt, ktlint, Kover). Skips with a notice if `android/` is absent. Needs JDK 21 + Android SDK. See [`android/README.md`](android/README.md). |
+| `pnpm check:all` | `pnpm check && pnpm check:android`. |
 | Per package | `pnpm --filter @stride/<name> <script>` (e.g. `... @stride/core exec vitest run`). |
 
 Prefer `pnpm check` + `pnpm verify` as the two commands that gate a change.
@@ -72,6 +74,7 @@ packages/core     domain logic: sports-science engine, Strava client, local stor
 packages/config   shared tsconfig
 apps/cli          commander CLI (@stride/cli)   apps/api  Hono HTTP API (@stride/api)
 apps/web          Vite + React dashboard        apps/mcp  MCP stdio server (@stride/mcp)
+android/          native Android app (standalone Gradle build, NOT in the pnpm workspace) — ADR 0007/0010
 scripts/smoke.mjs the pnpm verify harness
 ```
 

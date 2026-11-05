@@ -1,0 +1,105 @@
+# Detekt config for the Stride Android app (ANDF-007). Builds upon the default config.
+config:
+  validation: true
+  warningsAsErrors: false
+
+complexity:
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true
+    ignoreAnnotated: ['Composable']
+  LongMethod:
+    threshold: 120
+    ignoreAnnotated: ['Composable']
+  TooManyFunctions:
+    thresholdInFiles: 30
+    thresholdInClasses: 30
+    thresholdInInterfaces: 20
+    thresholdInObjects: 30
+    ignorePrivate: true
+  CyclomaticComplexMethod:
+    threshold: 20
+    ignoreAnnotated: ['Composable']
+  NestedBlockDepth:
+    threshold: 5
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  TopLevelPropertyNaming:
+    constantPattern: '[A-Z][_A-Za-z0-9]*'
+  MatchingDeclarationName:
+    active: false
+
+style:
+  MagicNumber:
+    # Sports-science constants are documented at their declaration; tests and previews use literals freely.
+    active: false
+  MaxLineLength:
+    maxLineLength: 140
+    excludeCommentStatements: true
+  ReturnCount:
+    max: 4
+  WildcardImport:
+    active: true
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview', 'ThemePreviews', 'PhonePreviews']
+  ForbiddenComment:
+    active: false
+  DestructuringDeclarationWithTooManyEntries:
+    maxDestructuringEntries: 4
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
+
+# Compose rules (io.nlopez.compose.rules)
+Compose:
+  ComposableAnnotationNaming:
+    active: true
+  ComposableNaming:
+    active: true
+  # CompositionLocals are deliberate here (LocalNavigator, LocalStrideColors); reviewed in PRs instead.
+  CompositionLocalAllowlist:
+    active: false
+  ContentEmitterReturningValues:
+    active: true
+  DefaultsVisibility:
+    active: true
+  LambdaParameterInRestartableEffect:
+    active: true
+  ModifierClickableOrder:
+    active: true
+  ModifierMissing:
+    active: true
+  ModifierNaming:
+    active: true
+  ModifierNotUsedAtRoot:
+    active: true
+  ModifierReused:
+    active: true
+  ModifierWithoutDefault:
+    active: true
+  MultipleEmitters:
+    active: true
+  MutableParams:
+    active: true
+  MutableStateParam:
+    active: true
+  PreviewAnnotationNaming:
+    active: true
+  PreviewPublic:
+    active: true
+  RememberMissing:
+    active: true
+  RememberContentMissing:
+    active: true
+  UnstableCollections:
+    active: false
+  ViewModelForwarding:
+    active: true
+  ViewModelInjection:
+    active: true

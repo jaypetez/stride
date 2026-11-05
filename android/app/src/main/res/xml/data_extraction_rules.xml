@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stride is local-only (ADR 0010): nothing goes to cloud backup. Device-to-device
+  transfer may carry synced data, but never secrets: the Garmin key / cached token
+  and the Anthropic key are encrypted with a Keystore-bound Tink key that cannot
+  move to another device anyway (MVP-004, SEC-003).
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="datastore/stride_secrets.preferences_pb" />
+        <exclude domain="sharedpref" path="stride_tink_keyset.xml" />
+    </device-transfer>
+</data-extraction-rules>
