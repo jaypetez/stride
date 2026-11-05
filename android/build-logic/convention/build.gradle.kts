@@ -27,6 +27,9 @@ dependencies {
     compileOnly(libs.spotless.gradlePlugin)
     compileOnly(libs.kover.gradlePlugin)
     compileOnly(libs.roborazzi.gradlePlugin)
+
+    // Unit tests for the build's own guards, e.g. checkHardcodedText (AUD-034).
+    testImplementation(libs.junit4)
 }
 
 tasks {

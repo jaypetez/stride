@@ -42,7 +42,8 @@ class TodayViewModel @Inject constructor(
                 isLoading = false,
                 content = todayContent(today, all, latestWellness),
                 // After process death the in-memory status is Idle; the persisted failure keeps the reason on screen.
-                sync = progress.orLastFailure(settings.lastSyncFailure),
+                // Demo mode never syncs with Garmin, so a failure from a real sync does not apply to it.
+                sync = progress.orLastFailure(settings.lastSyncFailure.takeUnless { settings.demoMode }),
                 units = settings.unitSystem,
                 demoMode = settings.demoMode
             )

@@ -171,8 +171,11 @@ class ConnectViewModel @Inject constructor(
     private fun restore(today: LocalDate): ConnectUiState {
         val lifetime = savedState.get<String>(KEY_LIFETIME)?.let { name -> KeyLifetime.entries.firstOrNull { it.name == name } }
             ?: KeyLifetime.DAYS_90
-        val expiry =
-            savedState.get<String>(KEY_EXPIRY)?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: lifetime.expiryFrom(today)
+        // A date restored after process death may have been picked on an earlier day; never let it be in the past (AUD-037).
+        val expiry = maxOf(
+            savedState.get<String>(KEY_EXPIRY)?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: lifetime.expiryFrom(today),
+            today
+        )
         return ConnectUiState(
             today = today,
             lifetime = lifetime,
@@ -230,6 +233,8 @@ class ConnectViewModel @Inject constructor(
                     is StrideResult.Ok -> {
                         secrets.saveGarminKey(key, current.expiry)
                         prefs.setGarminKeyRejected(false)
+                        // A new key starts clean: the last sync failure belonged to the old one (AUD-032).
+                        prefs.setLastSyncFailure(null)
                         sync.syncNow()
                         sync.schedulePeriodic()
                         state.update { it.copy(keyInput = "", keyVisible = false) }
@@ -257,6 +262,8 @@ class ConnectViewModel @Inject constructor(
                 secrets.clearGarminKey()
                 garmin.clearToken()
                 prefs.setGarminKeyRejected(false)
+                // No sync will run to clear it, so a stale "reconnect" message would otherwise linger (AUD-032).
+                prefs.setLastSyncFailure(null)
                 if (deleteData) eraser.clearSyncedData()
                 state.update { it.copy(showDisconnect = false, deleteSyncedData = false) }
             } catch (cancelled: CancellationException) {

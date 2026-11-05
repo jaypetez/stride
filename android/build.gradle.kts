@@ -53,4 +53,6 @@ kover {
 
 tasks.named("check").configure {
     dependsOn("koverVerify")
+    // The convention plugins' own tests (e.g. the hard-coded text guard) live in the included build.
+    dependsOn(gradle.includedBuild("build-logic").task(":convention:test"))
 }

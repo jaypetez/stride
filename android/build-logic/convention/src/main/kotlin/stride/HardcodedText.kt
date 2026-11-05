@@ -20,8 +20,10 @@ import org.gradle.api.tasks.TaskAction
  * It flags string literals containing a letter that are passed straight to
  * text-bearing parameters and composables (`Text("…")`, `title = "…"`,
  * `contentDescription = "…"`, `StrideButton("…")`, `"Label" to value`, …).
- * A deliberate exception (a proper noun, a format token) takes a trailing
- * `// i18n-ignore` comment on the same line.
+ * The ktlint-wrapped form, where the call or parameter ends one line and the
+ * literal opens the next (`Text(` then `"…",`), is flagged too, on the
+ * literal's line. A deliberate exception (a proper noun, a format token) takes
+ * a trailing `// i18n-ignore` comment on the same line (either line, when wrapped).
  */
 @CacheableTask
 abstract class CheckHardcodedTextTask : DefaultTask() {
@@ -35,8 +37,8 @@ abstract class CheckHardcodedTextTask : DefaultTask() {
     @TaskAction
     fun check() {
         val findings = sources.files.filter { it.isFile && it.extension == "kt" }.sortedBy { it.path }.flatMap { file ->
-            file.readLines().mapIndexedNotNull { index, line ->
-                hardcodedTextIn(line)?.let { "${file.path}:${index + 1}: hard-coded UI text $it — move it to strings.xml" }
+            findingsIn(file.readLines()).map { (lineNumber, literal) ->
+                "${file.path}:$lineNumber: hard-coded UI text $literal — move it to strings.xml"
             }
         }
         report.get().asFile.apply {
@@ -63,6 +65,27 @@ abstract class CheckHardcodedTextTask : DefaultTask() {
             Regex("\\bTriple\\(\\s*\""),
             Regex("(?<![\\w)])\"(?=[^\"]*\"\\s+to\\s)")
         )
+
+        /** A line that ends right where a text literal would open: `Text(`, `title =`, `Triple(`. */
+        private val OPENER_AT_END = Regex("(\\b($TEXT_CALLS)\\(|\\b($TEXT_PARAMS)\\s*=|\\bTriple\\()\\s*$")
+
+        /**
+         * Every hard-coded literal in [lines] as (1-based line number, literal). A literal wrapped onto
+         * the line after its call or parameter is joined back to that line before matching.
+         */
+        fun findingsIn(lines: List<String>): List<Pair<Int, String>> = lines.indices.flatMap { index ->
+            val line = lines[index]
+            val own = hardcodedTextIn(line)?.let { index + 1 to it }
+            val next = lines.getOrNull(index + 1)
+            val wrapped = if (next != null && next.trimStart().startsWith("\"") && OPENER_AT_END.containsMatchIn(line) &&
+                !next.contains("i18n-ignore")
+            ) {
+                hardcodedTextIn(line.trimEnd() + next.trimStart())?.let { index + 2 to it }
+            } else {
+                null
+            }
+            listOfNotNull(own, wrapped).distinct()
+        }
 
         /** The offending literal in [line], or null when the line is clean. */
         fun hardcodedTextIn(line: String): String? {

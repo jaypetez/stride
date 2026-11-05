@@ -2,6 +2,7 @@ package org.stride.feature.connect
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -84,6 +85,25 @@ class ConnectViewModelTest {
         assertEquals(today, vm.uiState.value.expiry)
         vm.onEvent(ConnectEvent.ExpiryPicked(today.plusDays(3)))
         assertEquals(today.plusDays(3), vm.uiState.value.expiry)
+    }
+
+    /** AUD-037: a date restored after process death on a later day is clamped to the new today. */
+    @Test
+    fun restoredPastExpiryIsClampedToToday() = runTest(main.testDispatcher) {
+        val env = Env()
+        val saved = SavedStateHandle()
+        env.vm(saved).onEvent(ConnectEvent.ExpiryPicked(today.plusDays(2)))
+        val restoredHandle = SavedStateHandle(saved.keys().associateWith { saved.get<Any>(it) })
+
+        // The process comes back five days later: the picked date is now in the past.
+        clock.instant = clock.instant.plus(Duration.ofDays(5))
+        val later = today.plusDays(5)
+        val vm = env.vm(restoredHandle)
+        assertEquals(later, vm.uiState.value.expiry)
+
+        vm.onEvent(ConnectEvent.KeyChanged("good-key"))
+        vm.onEvent(ConnectEvent.Connect)
+        assertEquals(later, vm.uiState.first { it.connected }.keyExpiry, "a past expiry is never saved")
     }
 
     @Test
@@ -202,6 +222,34 @@ class ConnectViewModelTest {
         assertEquals(1, env.sync.cancelCalls)
         assertEquals(1, env.garmin.tokenCleared)
         assertEquals(1, env.eraser.cleared)
+    }
+
+    /** AUD-032: disconnecting clears the persisted sync failure, since no sync will run to clear it. */
+    @Test
+    fun disconnectClearsThePersistedSyncFailure() = runTest(main.testDispatcher) {
+        val env = Env()
+        env.secrets.saveGarminKey("k", today.plusDays(100))
+        env.prefs.setGarminKeyRejected(true)
+        env.prefs.setLastSyncFailure("KEY_INVALID")
+        val vm = env.vm()
+        vm.uiState.first { it.connected }
+        vm.onEvent(ConnectEvent.DisconnectClicked)
+        vm.onEvent(ConnectEvent.DisconnectConfirmed)
+        vm.uiState.first { !it.connected && !it.disconnecting }
+        assertNull(env.prefs.settings.first().lastSyncFailure)
+        assertFalse(env.prefs.settings.first().garminKeyRejected)
+    }
+
+    /** AUD-032: connecting a new key clears the old key's persisted sync failure. */
+    @Test
+    fun connectClearsThePersistedSyncFailure() = runTest(main.testDispatcher) {
+        val env = Env()
+        env.prefs.setLastSyncFailure("KEY_INVALID")
+        val vm = env.vm()
+        vm.onEvent(ConnectEvent.KeyChanged("good-key"))
+        vm.onEvent(ConnectEvent.Connect)
+        vm.uiState.first { it.connected }
+        assertNull(env.prefs.settings.first().lastSyncFailure)
     }
 
     @Test

@@ -120,7 +120,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             retryable.flow(onError = { null }) {
                 combine(prefs.settings, secrets.garminConnection, sync.progress) { settings, garmin, progress ->
-                    Triple(settings, garmin, progress.orLastFailure(settings.lastSyncFailure))
+                    // Demo mode never syncs with Garmin, so a failure from a real sync does not apply to it.
+                    Triple(settings, garmin, progress.orLastFailure(settings.lastSyncFailure.takeUnless { settings.demoMode }))
                 }
             }.collect { loaded ->
                 if (loaded == null) {

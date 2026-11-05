@@ -3,6 +3,7 @@ package org.stride.feature.settings
 import androidx.lifecycle.SavedStateHandle
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -99,6 +100,16 @@ class SettingsViewModelTest {
         fx.prefs.setLastSyncFailure(SyncFailure.RATE_LIMITED.name)
         val state = fx.viewModel().uiState.first { !it.loading && it.syncStatus != null }
         assertEquals(UiText(SyncFailure.RATE_LIMITED.messageRes), state.syncStatus)
+    }
+
+    /** AUD-032: demo mode never syncs, so a failure persisted by a real sync is not shown there. */
+    @Test
+    fun persistedSyncFailureIsHiddenInDemoMode() = runTest(main.testDispatcher) {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.prefs.setLastSyncFailure(SyncFailure.KEY_INVALID.name)
+        fx.prefs.setDemoMode(true)
+        val state = fx.viewModel().uiState.first { !it.loading && it.demoMode }
+        assertNull(state.syncStatus)
     }
 
     @Test

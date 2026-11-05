@@ -102,6 +102,20 @@ class TodayViewModelTest {
         }
     }
 
+    /** AUD-032: demo mode never syncs, so a failure persisted by a real sync is not shown there. */
+    @Test
+    fun persistedSyncFailureIsHiddenInDemoMode() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.prefs.setLastSyncFailure(SyncFailure.KEY_INVALID.name)
+        fx.prefs.setDemoMode(true)
+        fx.viewModel().uiState.test {
+            var state = awaitLoaded()
+            while (!state.demoMode) state = awaitItem()
+            assertEquals(SyncProgress.Idle, state.sync)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun pullToRefreshRequestsASyncAndShowsProgress() = runTest {
         val fx = DemoDataFixture(this, tmp.root)
