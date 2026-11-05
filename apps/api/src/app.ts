@@ -167,10 +167,18 @@ export function buildApp(state: ApiState, options: ApiOptions = {}) {
       if (err instanceof StravaApiError)
         return c.json({ error: 'Upstream Strava request failed', requestId }, 502);
       if (err instanceof SyncLockError) return c.json({ error: err.message, requestId }, 409);
+      // Framework-raised client errors (e.g. a malformed JSON body → 400) keep
+      // their status instead of being reported as a server fault.
       if (err instanceof HTTPException && err.status < 500)
         return c.json({ error: err.message || 'Bad Request', requestId }, err.status);
       return c.json({ error: 'Internal Server Error', requestId }, 500);
     })
+    .notFound((c) =>
+      c.json(
+        { error: `No route for ${c.req.method} ${c.req.path}`, requestId: c.get('requestId') },
+        404,
+      ),
+    )
     .get('/health', (c) => c.json({ status: 'ok', version: STRIDE_CORE_VERSION }))
     .get('/profile', async (c) => c.json(await loadProfile()))
     .post('/profile/screening', zValidator('json', ScreeningBody, onInvalid), async (c) => {
