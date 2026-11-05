@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.stride.core.common.StrideClock
+import org.stride.core.data.insights.dates
 import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
@@ -83,11 +84,15 @@ class PlanViewModel @Inject constructor(
         }
     }
 
-    val uiState: StateFlow<PlanUiState> = combine(plans.plan, prefs.settings, form, transient) { plan, settings, f, t ->
+    // The date ticker moves "today" and the current week on at midnight while the screen is open (AUD-031).
+    val uiState: StateFlow<PlanUiState> = combine(plans.plan, prefs.settings, form, transient, clock.dates()) { plan, settings, f, t, day ->
+        val todayKey = day.toString()
         initial.copy(
             isLoading = false,
+            today = todayKey,
+            earliestRaceDate = planStartDate(day),
             plan = plan,
-            currentWeekIndex = plan?.weeks?.indexOfFirst { w -> w.days.any { it.date == initial.today } }?.takeIf { it >= 0 },
+            currentWeekIndex = plan?.weeks?.indexOfFirst { w -> w.days.any { it.date == todayKey } }?.takeIf { it >= 0 },
             form = f,
             creating = t.creating,
             violations = t.violations,
