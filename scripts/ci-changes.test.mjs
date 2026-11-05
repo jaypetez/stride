@@ -17,5 +17,9 @@ test('android and contract changes trigger the android job', () => {
 });
 
 test('package changes trigger web and cloud but not android', () => {
-  assert.deepEqual(classify(['packages/core/src/science/load.ts']), { android: false, cloud: true, web: true });
+  assert.deepEqual(classify(['packages/core/src/science/load.ts']), {
+    android: false,
+    cloud: true,
+    web: true,
+  });
 });

@@ -12,6 +12,7 @@
       "**/*.mts",
       "**/*.tsx",
       "**/*.js",
+      "**/*.mjs",
       "**/*.json",
       "!**/dist",
       "!**/.turbo",
@@ -40,6 +41,18 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noUndeclaredEnvVars": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
