@@ -16,6 +16,7 @@ object ActivitiesEntries {
     @IntoSet
     fun activities(): EntryProviderInstaller = {
         entry<ActivitiesRoute> { ActivitiesRoute() }
-        entry<ActivityDetailRoute> { key -> ActivityDetailRoute(activityId = key.activityId) }
+        // Must call the *screen* (ActivityDetailFlow): `ActivityDetailRoute(...)` would build the route key and render nothing.
+        entry<ActivityDetailRoute> { key -> ActivityDetailFlow(activityId = key.activityId) }
     }
 }

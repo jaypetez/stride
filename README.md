@@ -27,6 +27,13 @@ explains, plans, and motivates over those numbers — it never computes them.**
 
 See [`GOAL.md`](GOAL.md) for the full project brief, architecture, and roadmap.
 
+## Android app (solo Garmin MVP)
+
+A native, local-only Android app that syncs your own Garmin data and computes
+load, form and VO2max estimates on the phone. **Install:** see
+[docs/release/install-android.md](docs/release/install-android.md) (signed APKs on
+GitHub Releases, updates via Obtainium). Developer notes: [android/README.md](android/README.md).
+
 ## See it in action
 
 Everything below runs **offline on bundled demo data** — no Strava app and no

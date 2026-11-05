@@ -2,7 +2,11 @@ package org.stride.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -103,11 +107,17 @@ fun StrideApp(
             }
         ) {
             Column(Modifier.fillMaxSize()) {
-                if (demoMode) DemoBanner(onExit = onExitDemo)
+                // Edge-to-edge: the banner owns the status-bar inset while it is shown, and the
+                // screens below must not pad for it a second time.
+                if (demoMode) {
+                    DemoBanner(onExit = onExitDemo, modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
+                }
                 NavDisplay(
                     entries = entriesByTab.getValue(navigationState.selected),
                     onBack = { navigationState.goBack() },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (demoMode) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)
                 )
             }
         }

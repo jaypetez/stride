@@ -1,0 +1,142 @@
+# Demo-mode smoke flow (MVP-022): install → onboard → demo → Today → activity
+# detail → Fitness → Settings, the way a friend would use the app.
+# Run: maestro test android/maestro/demo-smoke.yaml   (debug build installed)
+appId: org.stride.app.debug
+name: Demo smoke
+---
+- clearState
+- launchApp
+# Slow CI emulators sometimes show a system ANR dialog for the launcher.
+- runFlow:
+    when:
+      visible: ".*isn't responding.*"
+    commands:
+      - tapOn: "Wait"
+- extendedWaitUntil:
+    visible: "Welcome to Stride"
+    timeout: 20000
+- runFlow:
+    when:
+      visible: ".*isn't responding.*"
+    commands:
+      - tapOn: "Wait"
+- tapOn: "Get started"
+
+# Profile ("About you"): name and birth year are required
+- extendedWaitUntil:
+    visible: "About you"
+    timeout: 10000
+- tapOn: "Name"
+- inputText: "Maestro"
+- tapOn: "Birth year"
+- inputText: "1990"
+- hideKeyboard
+- tapOn: "Continue"
+
+# PAR-Q ("Health check"): answer "No" to every question
+- extendedWaitUntil:
+    visible: "Health check"
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: "parq_no_0"
+    centerElement: true
+- tapOn:
+    id: "parq_no_0"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_1"
+    centerElement: true
+- tapOn:
+    id: "parq_no_1"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_2"
+    centerElement: true
+- tapOn:
+    id: "parq_no_2"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_3"
+    centerElement: true
+- tapOn:
+    id: "parq_no_3"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_4"
+    centerElement: true
+- tapOn:
+    id: "parq_no_4"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_5"
+    centerElement: true
+- tapOn:
+    id: "parq_no_5"
+    retryTapIfNoChange: true
+- scrollUntilVisible:
+    element:
+      id: "parq_no_6"
+    centerElement: true
+- tapOn:
+    id: "parq_no_6"
+    retryTapIfNoChange: true
+- tapOn: "Continue"
+
+# Disclaimer ("Before you start")
+- extendedWaitUntil:
+    visible: "Before you start"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "I have read and accept this"
+- tapOn: "I have read and accept this"
+- tapOn: "Continue"
+
+# Finish: try the demo
+- extendedWaitUntil:
+    visible: "Try demo"
+    timeout: 10000
+- tapOn: "Try demo"
+
+# Today (demo data goes through the real pipeline)
+- extendedWaitUntil:
+    visible: "Next workout"
+    timeout: 60000
+- assertVisible: "Exit demo"
+- takeScreenshot: today
+
+# Runs → first activity detail
+- tapOn: "Runs tab"
+- extendedWaitUntil:
+    visible: ".*run.*"
+    timeout: 10000
+- tapOn:
+    text: ".*(Easy run|Long run|Tempo run|intervals|Recovery jog).*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Training load"
+    timeout: 15000
+- scrollUntilVisible:
+    element: "Splits"
+- takeScreenshot: activity-detail
+- back
+
+# Fitness
+- tapOn: "Fitness tab"
+- extendedWaitUntil:
+    visible: "Fitness, fatigue & form"
+    timeout: 20000
+- scrollUntilVisible:
+    element: "Race predictions — estimates"
+- takeScreenshot: fitness
+
+# Settings
+- tapOn: "You tab"
+- scrollUntilVisible:
+    element: "Delete all data"
+- takeScreenshot: settings

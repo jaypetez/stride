@@ -28,7 +28,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,7 +68,11 @@ fun OnboardingFlow(modifier: Modifier = Modifier, viewModel: OnboardingViewModel
 /** Stateless onboarding: one step at a time with a progress bar and Back / Continue. */
 @Composable
 fun OnboardingScreen(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Unit, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    // testTagsAsResourceId lets the Maestro smoke flow target controls by id (android/maestro/demo-smoke.yaml).
+    Surface(
+        modifier = modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
+        color = MaterialTheme.colorScheme.background
+    ) {
         Column(Modifier.fillMaxSize().fullScreenInsets().formInsets()) {
             LinearProgressIndicator(
                 progress = { (state.step.ordinal + 1f) / OnboardingStep.entries.size },
@@ -154,12 +161,14 @@ private fun ParqStep(state: OnboardingUiState, onEvent: (OnboardingEvent) -> Uni
                 FilterChip(
                     selected = state.parqAnswers[index] == true,
                     onClick = { onEvent(OnboardingEvent.ParqAnswered(index, yes = true)) },
-                    label = { Text("Yes") }
+                    label = { Text("Yes") },
+                    modifier = Modifier.testTag("parq_yes_$index")
                 )
                 FilterChip(
                     selected = state.parqAnswers[index] == false,
                     onClick = { onEvent(OnboardingEvent.ParqAnswered(index, yes = false)) },
-                    label = { Text("No") }
+                    label = { Text("No") },
+                    modifier = Modifier.testTag("parq_no_$index")
                 )
             }
         }
