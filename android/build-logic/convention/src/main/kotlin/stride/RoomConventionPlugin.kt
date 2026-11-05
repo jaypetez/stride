@@ -15,8 +15,8 @@ class RoomConventionPlugin : Plugin<Project> {
             schemaDirectory("$projectDir/schemas")
         }
         dependencies {
-            add("implementation", libs.lib("androidx-room-runtime"))
-            add("implementation", libs.lib("androidx-room-ktx"))
+            add("api", libs.lib("androidx-room-runtime"))
+            add("api", libs.lib("androidx-room-ktx"))
             add("ksp", libs.lib("androidx-room-compiler"))
             add("testImplementation", libs.lib("androidx-room-testing"))
         }
