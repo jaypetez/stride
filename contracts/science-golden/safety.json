@@ -1,0 +1,880 @@
+{
+  "cases": [
+    {
+      "fn": "PARQ_QUESTIONS",
+      "input": {},
+      "name": "constant",
+      "output": ["Has a doctor ever said you have a heart condition and should only do physical activity recommended by a doctor?", "Do you feel pain in your chest when you do physical activity?", "In the past month, have you had chest pain when you were not doing physical activity?", "Do you lose your balance because of dizziness, or do you ever lose consciousness?", "Do you have a bone or joint problem that could be made worse by a change in your physical activity?", "Is your doctor currently prescribing drugs for your blood pressure or a heart condition?", "Do you know of any other reason you should not do physical activity?"]
+    },
+    {
+      "fn": "DISCLAIMER",
+      "input": {},
+      "name": "constant",
+      "output": "Stride is for informational and educational purposes only and is not a substitute for professional medical advice. Consult a qualified healthcare provider before beginning any fitness program, especially if you have any pre-existing conditions."
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "Felt some chest pain on the last hill"}
+      },
+      "name": "chest pain -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "chest pain -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "CHEST TIGHTNESS after intervals"}
+      },
+      "name": "case-insensitive -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "case-insensitive -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "I was short of breath at an easy pace"}
+      },
+      "name": "shortness of breath -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "shortness of breath -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "got dizzy near the end"}
+      },
+      "name": "dizziness -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "dizziness -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "I nearly fainted at the finish"}
+      },
+      "name": "fainted -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "fainted -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "passed out briefly after the race"}
+      },
+      "name": "passed out -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "passed out -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "blacked out for a second"}
+      },
+      "name": "blacked out -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "blacked out -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "heart palpitations during the tempo"}
+      },
+      "name": "palpitations -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "palpitations -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "severe pain in my knee"}
+      },
+      "name": "severe pain -> stop (no extra warning)",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "severe pain -> stop (no extra warning)",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "some pain in my left shin"}
+      },
+      "name": "pain -> warning",
+      "output": [
+        {
+          "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+          "severity": "warning",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+            "severity": "warning",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "pain -> warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "I am injured, calf strain"}
+      },
+      "name": "injured -> warning",
+      "output": [
+        {
+          "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+          "severity": "warning",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+            "severity": "warning",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "injured -> warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "general soreness today"}
+      },
+      "name": "soreness -> warning",
+      "output": [
+        {
+          "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+          "severity": "warning",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+            "severity": "warning",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "soreness -> warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "feeling sick"}
+      },
+      "name": "sick -> warning",
+      "output": [
+        {
+          "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+          "severity": "warning",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+            "severity": "warning",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "sick -> warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "had a fever yesterday"}
+      },
+      "name": "fever -> warning",
+      "output": [
+        {
+          "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+          "severity": "warning",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "You mentioned pain, injury, or illness — prioritize recovery and do not push through it.",
+            "severity": "warning",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "fever -> warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "Felt great, smooth and relaxed!"}
+      },
+      "name": "negative: happy note",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "negative: happy note",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "painting the fence"}
+      },
+      "name": "negative: word boundary (\"painting\" is not \"pain\")",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "negative: word boundary (\"painting\" is not \"pain\")",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "Wore my new chest strap"}
+      },
+      "name": "negative: \"chest\" alone",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "negative: \"chest\" alone",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": ""}
+      },
+      "name": "empty text",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "empty text",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {}
+      },
+      "name": "no text field",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "no text field",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {
+          "profile": {
+            "experienceLevel": "intermediate",
+            "healthFlags": ["heart condition", "bone or joint problem"],
+            "id": "flagged",
+            "injuryHistory": [],
+            "medicalClearance": false,
+            "sex": "unspecified",
+            "units": "metric"
+          },
+          "text": "all good"
+        }
+      },
+      "name": "profile health flags + no clearance",
+      "output": [
+        {
+          "message": "Health screening flags on file: heart condition, bone or joint problem. Get medical clearance before hard training.",
+          "severity": "warning",
+          "source": "health"
+        },
+        {
+          "message": "No medical clearance recorded. Complete the readiness screening before starting a plan.",
+          "severity": "info",
+          "source": "health"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Health screening flags on file: heart condition, bone or joint problem. Get medical clearance before hard training.",
+            "severity": "warning",
+            "source": "health"
+          },
+          {
+            "message": "No medical clearance recorded. Complete the readiness screening before starting a plan.",
+            "severity": "info",
+            "source": "health"
+          }
+        ]
+      },
+      "name": "profile health flags + no clearance",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {
+          "profile": {
+            "age": 35,
+            "experienceLevel": "intermediate",
+            "goals": "Run a strong 10k",
+            "healthFlags": [],
+            "id": "demo",
+            "injuryHistory": [],
+            "lthr": 165,
+            "maxHr": 188,
+            "medicalClearance": true,
+            "name": "Demo Runner",
+            "restingHr": 50,
+            "sex": "unspecified",
+            "thresholdSpeedMps": 3.33,
+            "units": "metric",
+            "vdot": 50,
+            "weightKg": 70
+          },
+          "text": "all good"
+        }
+      },
+      "name": "cleared profile adds nothing",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "cleared profile adds nothing",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"acwrFlag": "very_high"}
+      },
+      "name": "very high ACWR -> load warning",
+      "output": [
+        {
+          "message": "Your acute:chronic workload ratio is very high (>1.5) — a spike associated with elevated injury risk. Ease off.",
+          "severity": "warning",
+          "source": "load"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Your acute:chronic workload ratio is very high (>1.5) — a spike associated with elevated injury risk. Ease off.",
+            "severity": "warning",
+            "source": "load"
+          }
+        ]
+      },
+      "name": "very high ACWR -> load warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"acwrFlag": "high"}
+      },
+      "name": "high ACWR -> nothing",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "high ACWR -> nothing",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"tsb": -31}
+      },
+      "name": "TSB -31 -> load warning",
+      "output": [
+        {
+          "message": "Your form (TSB) is deeply negative — a sign of accumulated fatigue. Consider a recovery week.",
+          "severity": "warning",
+          "source": "load"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Your form (TSB) is deeply negative — a sign of accumulated fatigue. Consider a recovery week.",
+            "severity": "warning",
+            "source": "load"
+          }
+        ]
+      },
+      "name": "TSB -31 -> load warning",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"tsb": -30}
+      },
+      "name": "TSB -30 -> nothing (strict <)",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "TSB -30 -> nothing (strict <)",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {
+          "acwrFlag": "very_high",
+          "profile": {
+            "experienceLevel": "intermediate",
+            "healthFlags": ["heart condition", "bone or joint problem"],
+            "id": "flagged",
+            "injuryHistory": [],
+            "medicalClearance": false,
+            "sex": "unspecified",
+            "units": "metric"
+          },
+          "text": "chest pain and sore legs",
+          "tsb": -40
+        }
+      },
+      "name": "everything at once",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        },
+        {
+          "message": "Health screening flags on file: heart condition, bone or joint problem. Get medical clearance before hard training.",
+          "severity": "warning",
+          "source": "health"
+        },
+        {
+          "message": "No medical clearance recorded. Complete the readiness screening before starting a plan.",
+          "severity": "info",
+          "source": "health"
+        },
+        {
+          "message": "Your acute:chronic workload ratio is very high (>1.5) — a spike associated with elevated injury risk. Ease off.",
+          "severity": "warning",
+          "source": "load"
+        },
+        {
+          "message": "Your form (TSB) is deeply negative — a sign of accumulated fatigue. Consider a recovery week.",
+          "severity": "warning",
+          "source": "load"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          },
+          {
+            "message": "Health screening flags on file: heart condition, bone or joint problem. Get medical clearance before hard training.",
+            "severity": "warning",
+            "source": "health"
+          },
+          {
+            "message": "No medical clearance recorded. Complete the readiness screening before starting a plan.",
+            "severity": "info",
+            "source": "health"
+          },
+          {
+            "message": "Your acute:chronic workload ratio is very high (>1.5) — a spike associated with elevated injury risk. Ease off.",
+            "severity": "warning",
+            "source": "load"
+          },
+          {
+            "message": "Your form (TSB) is deeply negative — a sign of accumulated fatigue. Consider a recovery week.",
+            "severity": "warning",
+            "source": "load"
+          }
+        ]
+      },
+      "name": "everything at once",
+      "output": true
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": [false, false, false, false, false, false, false]
+      },
+      "name": "all no -> cleared",
+      "output": {
+        "cleared": true,
+        "flaggedQuestions": [],
+        "healthFlags": []
+      }
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": [false, true, false, false, false, false, false]
+      },
+      "name": "chest pain yes",
+      "output": {
+        "cleared": false,
+        "flaggedQuestions": ["Do you feel pain in your chest when you do physical activity?"],
+        "healthFlags": ["chest pain on exertion"]
+      }
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": [true, false, true, true, false, true, false]
+      },
+      "name": "several yes",
+      "output": {
+        "cleared": false,
+        "flaggedQuestions": ["Has a doctor ever said you have a heart condition and should only do physical activity recommended by a doctor?", "In the past month, have you had chest pain when you were not doing physical activity?", "Do you lose your balance because of dizziness, or do you ever lose consciousness?", "Is your doctor currently prescribing drugs for your blood pressure or a heart condition?"],
+        "healthFlags": ["heart condition", "chest pain at rest", "dizziness or fainting", "blood-pressure/heart medication"]
+      }
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": [false, true]
+      },
+      "name": "short answers array",
+      "output": {
+        "cleared": false,
+        "flaggedQuestions": ["Do you feel pain in your chest when you do physical activity?"],
+        "healthFlags": ["chest pain on exertion"]
+      }
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": []
+      },
+      "name": "empty answers -> cleared",
+      "output": {
+        "cleared": true,
+        "flaggedQuestions": [],
+        "healthFlags": []
+      }
+    },
+    {
+      "fn": "classifierWarnings",
+      "input": {
+        "labels": ["injury", "sleep"]
+      },
+      "name": "known labels",
+      "output": [
+        {
+          "message": "Your note suggests a possible injury — prioritize recovery and consider a professional assessment before hard training.",
+          "severity": "warning",
+          "source": "classifier"
+        },
+        {
+          "message": "Your note suggests poor sleep — recovery is compromised, so keep intensity conservative.",
+          "severity": "warning",
+          "source": "classifier"
+        }
+      ]
+    },
+    {
+      "fn": "classifierWarnings",
+      "input": {
+        "labels": [" Injury ", "INJURY", "stress"]
+      },
+      "name": "case/whitespace normalized + dedup",
+      "output": [
+        {
+          "message": "Your note suggests a possible injury — prioritize recovery and consider a professional assessment before hard training.",
+          "severity": "warning",
+          "source": "classifier"
+        },
+        {
+          "message": "Your note suggests elevated life stress — treat it as training load and keep sessions easy.",
+          "severity": "warning",
+          "source": "classifier"
+        }
+      ]
+    },
+    {
+      "fn": "classifierWarnings",
+      "input": {
+        "labels": ["banana", "fatigue"]
+      },
+      "name": "unknown ignored",
+      "output": [
+        {
+          "message": "Your note suggests unusual fatigue — extra easy volume or a rest day may be warranted.",
+          "severity": "warning",
+          "source": "classifier"
+        }
+      ]
+    },
+    {
+      "fn": "classifierWarnings",
+      "input": {
+        "labels": []
+      },
+      "name": "empty",
+      "output": []
+    }
+  ],
+  "meta": {
+    "caseCount": 63,
+    "description": "Safety layer: PAR-Q questions, disclaimer, red-flag detection, readiness screening.",
+    "formatVersion": 1,
+    "functions": {
+      "DISCLAIMER": "packages/core/src/coach/safety.ts (constant; input is {})",
+      "PARQ_QUESTIONS": "packages/core/src/coach/safety.ts (constant; input is {})",
+      "classifierWarnings": "packages/core/src/coach/safety.ts",
+      "detectRedFlags": "packages/core/src/coach/safety.ts",
+      "screenReadiness": "packages/core/src/coach/safety.ts",
+      "shouldHalt": "packages/core/src/coach/safety.ts"
+    },
+    "generator": "scripts/science-golden.mts",
+    "notes": ["detectRedFlags keyword regexes are case-insensitive with \\b word boundaries; at most one stop keyword flag, and keyword warnings are only checked when there is no stop flag.", "Flag order: keyword, health (healthFlags), health (medicalClearance === false), load (ACWR very_high), load (tsb < -30)."],
+    "now": "2026-07-09T00:00:00Z",
+    "regenerate": "pnpm science:golden",
+    "tolerance": {"relative": 0.000001}
+  }
+}

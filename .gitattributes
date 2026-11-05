@@ -1,0 +1,2 @@
+# Science goldens are a byte-exact contract (scripts/science-golden.mts --check).
+contracts/science-golden/*.json text eol=lf
