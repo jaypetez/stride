@@ -13,8 +13,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Qualifier
 import java.io.File
+import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -63,9 +63,9 @@ object DataStoreModule {
     fun prefsDataStore(@ApplicationContext context: Context, @ApplicationScope scope: CoroutineScope): DataStore<Preferences> =
         resilientPreferencesDataStore(scope, UserPreferences.FILE_NAME) { context.preferencesDataStoreFile(UserPreferences.FILE_NAME) }
 
+    // Lazy and self-healing: a broken Keystore keyset must not crash injection in Application.onCreate (AUD-027).
     @Provides
     @Singleton
-    // Lazy and self-healing: a broken Keystore keyset must not crash injection in Application.onCreate (AUD-027).
     fun secretCipher(@ApplicationContext context: Context): SecretCipher = KeystoreAead.recoveringCipher(context)
 
     @Provides

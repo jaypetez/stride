@@ -16,7 +16,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import okhttp3.Call
@@ -131,7 +130,6 @@ class OkHttpGarminClient(
             ?: return StrideResult.Err(GarminError.KeyMissing)
         return when (val r = executeAuthorized(request)) {
             is StrideResult.Err -> r
-
             is StrideResult.Ok -> unzipFit(r.value)
         }
     }
