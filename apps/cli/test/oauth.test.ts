@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { waitForOAuthCode } from '../src/commands/connect';
+import { scopeWarning, waitForOAuthCode } from '../src/commands/connect';
 
 /**
  * Start `waitForOAuthCode` on an OS-assigned loopback port and resolve once it
@@ -8,7 +8,7 @@ import { waitForOAuthCode } from '../src/commands/connect';
  */
 function start(opts: { state: string; timeoutMs?: number }): {
   port: Promise<number>;
-  result: Promise<{ code: string }>;
+  result: Promise<{ code: string; scope?: string }>;
 } {
   let resolvePort!: (p: number) => void;
   const port = new Promise<number>((r) => {
@@ -49,5 +49,36 @@ describe('waitForOAuthCode', () => {
   it('rejects with a timeout error when no callback arrives', async () => {
     const { result } = start({ state: 'state-abc', timeoutMs: 50 });
     await expect(result).rejects.toThrow(/timed out/i);
+  });
+});
+
+describe('waitForOAuthCode granted scope', () => {
+  it('returns the scope Strava echoes on the callback', async () => {
+    const state = 'state-scope';
+    const { port, result } = start({ state });
+    const settled = expect(result).resolves.toEqual({ code: 'abc', scope: 'read,activity:read' });
+    const bound = await port;
+    await (
+      await fetch(
+        `http://127.0.0.1:${bound}/callback?code=abc&state=${state}&scope=read,activity:read`,
+      )
+    ).text();
+    await settled;
+  });
+});
+
+describe('scopeWarning', () => {
+  it('is null when activity:read_all was granted', () => {
+    expect(scopeWarning('read,activity:read_all,profile:read_all')).toBeNull();
+  });
+
+  it('names the missing scope when the user unticked private activities', () => {
+    const msg = scopeWarning('read,activity:read');
+    expect(msg).toMatch(/activity:read_all/);
+    expect(msg).toMatch(/stride connect/);
+  });
+
+  it('warns when Strava returned no scope at all', () => {
+    expect(scopeWarning(undefined)).toMatch(/activity:read_all/);
   });
 });

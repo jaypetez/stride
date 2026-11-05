@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { zValidator } from '@hono/zod-validator';
 import {
   analyzeWorkout,
@@ -15,6 +14,7 @@ import {
   generatePlan,
   latestAcwr,
   latestPmc,
+  MAX_NOTE_LENGTH,
   rampRatePerWeek,
   resolveNowIso,
   ScreeningAnswers,
@@ -30,7 +30,19 @@ import {
 import { type Activity, AthleteProfile, type DailyLoad, IsoDate, RaceGoal } from '@stride/schemas';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
+import {
+  apiSecureHeaders,
+  bearerToken,
+  DEFAULT_RATE_LIMITS,
+  hostGuard,
+  limitBody,
+  type RateLimitOptions,
+  rateLimit,
+  requestId,
+  requireJson,
+} from './security';
 import type { ApiState } from './state';
 
 const log = createLogger('api');
@@ -46,6 +58,9 @@ declare module 'hono' {
   }
 }
 
+/** Free-text note: forwarded to the LLM and the red-flag screen, so bounded. */
+const Note = z.string().max(MAX_NOTE_LENGTH);
+
 const PlanBody = z.object({
   race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
   weeks: z.number().int().positive().max(52).optional(),
@@ -53,7 +68,7 @@ const PlanBody = z.object({
   start: IsoDate.optional(),
   /** Goal race date, YYYY-MM-DD (validated before planning). */
   date: IsoDate.optional(),
-  note: z.string().optional(),
+  note: Note.optional(),
   demo: z.boolean().optional(),
 });
 
@@ -67,8 +82,8 @@ const ScreeningBody = z.object({
 
 const DemoQuery = z.object({ demo: z.string().optional() });
 const ActivitiesQuery = z.object({ demo: z.string().optional(), limit: z.string().optional() });
-const AnalyzeQuery = z.object({ note: z.string().optional() });
-const NextQuery = z.object({ demo: z.string().optional(), note: z.string().optional() });
+const AnalyzeQuery = z.object({ note: Note.optional() });
+const NextQuery = z.object({ demo: z.string().optional(), note: Note.optional() });
 
 /**
  * zValidator failure hook. By default a validation failure returns a bare `400`
@@ -89,7 +104,13 @@ const onInvalid = (
   );
 };
 
-export function buildApp(state: ApiState) {
+/** Tunables for the hardening middleware (tests shrink them). */
+export interface ApiOptions {
+  rateLimits?: { sync?: RateLimitOptions; llm?: RateLimitOptions };
+  bodyLimitBytes?: number;
+}
+
+export function buildApp(state: ApiState, options: ApiOptions = {}) {
   const { store, llm, config } = state;
   const nowIso = () => resolveNowIso(config);
   /** Demo "today": STRIDE_NOW when pinned, else anchored to the bundled demo history. */
@@ -107,16 +128,30 @@ export function buildApp(state: ApiState) {
   // Routes are CHAINED so the resulting type carries the full route schema —
   // that is what makes the exported `AppType` usable by the web's typed `hc`
   // client (Hono RPC). Do not split this into separate `app.get(...)` statements.
+  // Rate limiters are created per app so each instance has its own buckets.
+  const llmLimit = rateLimit({
+    ...DEFAULT_RATE_LIMITS.llm,
+    ...options.rateLimits?.llm,
+  });
+
   const app = new Hono()
+    // --- Hardening middleware (see ./security.ts). Order matters: the request
+    // id and secure headers first so every rejection carries them; Host + CORS before auth so the
+    // browser's (credential-less) preflight is answered.
+    .use('*', requestId())
+    .use('*', apiSecureHeaders())
+    .use('*', hostGuard(config))
     // The API serves the owner's own Strava data, so CORS is locked to the web
     // UI origin (STRIDE_WEB_ORIGIN) — never `*` (GOAL §4 owner-only visibility).
     .use('*', cors({ origin: config.webOrigin }))
-    .use('*', async (c, next) => {
-      const id = c.req.header('x-request-id') ?? randomUUID();
-      c.set('requestId', id);
-      c.header('x-request-id', id);
-      await next();
-    })
+    .use('*', bearerToken(config.apiToken))
+    .use('*', requireJson())
+    .use('*', limitBody(options.bodyLimitBytes))
+    .use('/sync', rateLimit({ ...DEFAULT_RATE_LIMITS.sync, ...options.rateLimits?.sync }))
+    .use('/analyze/*', llmLimit)
+    .use('/next', llmLimit)
+    .use('/plan', async (c, next) => (c.req.method === 'POST' ? llmLimit(c, next) : next()))
+    // --- end hardening middleware
     .onError((err, c) => {
       const requestId = c.get('requestId');
       log.error('request failed', {
@@ -125,11 +160,16 @@ export function buildApp(state: ApiState) {
         requestId,
         err: String(err),
       });
+      // Only fixed, user-safe messages leave the process; details stay in the
+      // log line above, correlated by requestId.
       if (err instanceof StravaRateLimitError)
         return c.json({ error: err.message, requestId }, 429);
-      if (err instanceof StravaApiError) return c.json({ error: err.message, requestId }, 502);
+      if (err instanceof StravaApiError)
+        return c.json({ error: 'Upstream Strava request failed', requestId }, 502);
       if (err instanceof SyncLockError) return c.json({ error: err.message, requestId }, 409);
-      return c.json({ error: err.message || 'Internal Server Error', requestId }, 500);
+      if (err instanceof HTTPException && err.status < 500)
+        return c.json({ error: err.message || 'Bad Request', requestId }, err.status);
+      return c.json({ error: 'Internal Server Error', requestId }, 500);
     })
     .get('/health', (c) => c.json({ status: 'ok', version: STRIDE_CORE_VERSION }))
     .get('/profile', async (c) => c.json(await loadProfile()))

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StravaConfig } from '../src/config';
-import { StravaClient, StravaRateLimitError } from '../src/strava/index';
+import { StravaApiError, StravaClient, StravaRateLimitError } from '../src/strava/index';
 
 function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {
@@ -149,5 +149,22 @@ describe('StravaClient proactive throttle', () => {
     await client.getAthlete();
     await expect(client.getAthlete()).rejects.toBeInstanceOf(StravaRateLimitError);
     expect(sleeps).toEqual([]);
+  });
+});
+
+describe('StravaClient non-2xx errors', () => {
+  it('throws StravaApiError without echoing the upstream body', async () => {
+    const client = new StravaClient({
+      config,
+      tokens,
+      now: () => 1000,
+      fetchImpl: async () =>
+        jsonResponse({ message: 'Bad', errors: [{ secret: 'tok-leak-123' }] }, 500, LOW_HEADERS),
+    });
+    const err = await client.getAthlete().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(StravaApiError);
+    expect((err as StravaApiError).statusCode).toBe(500);
+    expect((err as Error).message).toBe('Strava API /athlete failed (500)');
+    expect((err as Error).message).not.toContain('tok-leak-123');
   });
 });

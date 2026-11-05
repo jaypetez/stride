@@ -1,10 +1,13 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { findCoachTool } from '@stride/core';
+import { findCoachTool, MAX_NOTE_LENGTH } from '@stride/core';
 import { IsoDate } from '@stride/schemas';
 import { z } from 'zod';
 import pkg from '../package.json' with { type: 'json' };
 import type { McpState } from './state';
 import { factTool, type ToolResult, toolAnalyze, toolNext, toolPlan } from './tools';
+
+/** Free-text note, bounded: it is forwarded to the LLM and the red-flag screen. */
+const noteSchema = () => z.string().max(MAX_NOTE_LENGTH).optional();
 
 function toContent(r: ToolResult) {
   return {
@@ -69,7 +72,7 @@ export function buildServer(state: McpState): McpServer {
       inputSchema: {
         demo: z.boolean().optional(),
         id: z.string().optional(),
-        note: z.string().optional(),
+        note: noteSchema(),
       },
     },
     async ({ demo, id, note }) => toContent(await toolAnalyze(state, demo ?? false, id, note)),
@@ -80,7 +83,7 @@ export function buildServer(state: McpState): McpServer {
     {
       title: 'Suggest next workout',
       description: 'Recommend the next workout based on current form, workload, and phase.',
-      inputSchema: { demo: z.boolean().optional(), note: z.string().optional() },
+      inputSchema: { demo: z.boolean().optional(), note: noteSchema() },
     },
     async ({ demo, note }) => toContent(await toolNext(state, demo ?? false, note)),
   );
@@ -96,7 +99,7 @@ export function buildServer(state: McpState): McpServer {
         weeks: z.number().int().min(1).max(52).optional(),
         start: IsoDate.optional().describe('Plan start date (YYYY-MM-DD)'),
         date: IsoDate.optional().describe('Goal race date (YYYY-MM-DD)'),
-        note: z.string().optional(),
+        note: noteSchema(),
       },
     },
     async ({ demo, race, weeks, start, date, note }) =>

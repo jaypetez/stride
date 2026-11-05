@@ -33,6 +33,23 @@ export interface StrideConfig {
   dataDir: string;
   apiPort: number;
   /**
+   * Interface the local HTTP API binds to. Defaults to loopback (`127.0.0.1`) so
+   * owner data and state-changing routes are not reachable from the LAN.
+   * Sourced from STRIDE_API_HOST.
+   */
+  apiHost: string;
+  /**
+   * Optional shared secret for the local HTTP API. When set, every request must
+   * carry `Authorization: Bearer <token>`. Sourced from STRIDE_API_TOKEN.
+   */
+  apiToken?: string;
+  /**
+   * Extra `Host` header names the API accepts besides the loopback names and
+   * `apiHost` (DNS-rebinding guard). Sourced from STRIDE_API_ALLOWED_HOSTS
+   * (comma-separated), e.g. a LAN IP when deliberately binding `0.0.0.0`.
+   */
+  apiAllowedHosts: string[];
+  /**
    * Allowed browser origin for the HTTP API's CORS policy. The API serves the
    * user's own Strava data, so it must NOT be world-readable (`*`); it is locked
    * to the web UI's origin. Sourced from STRIDE_WEB_ORIGIN.
@@ -56,6 +73,26 @@ export const DEFAULT_STRAVA_API_BASE = 'https://www.strava.com/api/v3';
 export const DEFAULT_REDIRECT_URI = 'http://localhost:8721/callback';
 export const DEFAULT_SCOPES = 'read,activity:read_all,profile:read_all';
 export const DEFAULT_WEB_ORIGIN = 'http://localhost:5173';
+export const DEFAULT_API_HOST = '127.0.0.1';
+/**
+ * Upper bound on free-text `note` inputs (API + MCP). Notes are forwarded to the
+ * LLM and the red-flag screen, so an unbounded note is an unbounded cost.
+ */
+export const MAX_NOTE_LENGTH = 1000;
+
+/** Host names that always resolve to this machine (no brackets for IPv6). */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/**
+ * True when `host` (a bind address or a `Host` header hostname, without port)
+ * names the loopback interface: `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`.
+ */
+export function isLoopbackHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  if (LOOPBACK_HOSTS.has(h)) return true;
+  if (h.endsWith('.localhost')) return true;
+  return /^127(?:\.\d{1,3}){3}$/.test(h);
+}
 
 type Env = Record<string, string | undefined>;
 
@@ -148,6 +185,12 @@ export function loadConfig(env: Env = {}): StrideConfig {
     },
     dataDir: expandHome(env.STRIDE_DATA_DIR ?? '.stride'),
     apiPort: valid.STRIDE_API_PORT ?? 8720,
+    apiHost: env.STRIDE_API_HOST?.trim() || DEFAULT_API_HOST,
+    apiToken: env.STRIDE_API_TOKEN?.trim() || undefined,
+    apiAllowedHosts: (env.STRIDE_API_ALLOWED_HOSTS ?? '')
+      .split(',')
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
     webOrigin: env.STRIDE_WEB_ORIGIN ?? DEFAULT_WEB_ORIGIN,
     now: valid.STRIDE_NOW,
   };

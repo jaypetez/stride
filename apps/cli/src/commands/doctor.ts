@@ -1,5 +1,6 @@
+import { isLoopbackHost } from '@stride/core';
 import { loadApp } from '../app';
-import { dim, heading, info, success } from '../ui';
+import { dim, heading, info, success, warn } from '../ui';
 
 /** Preflight: report tooling, configured credentials, and what runs offline. */
 export async function doctorCommand(): Promise<void> {
@@ -22,6 +23,22 @@ export async function doctorCommand(): Promise<void> {
   info(
     `  Anthropic key:   ${app.config.anthropicApiKey ? 'set (LLM prose enabled)' : 'not set (deterministic fallback)'}`,
   );
+
+  heading('Local API');
+  const { apiHost, apiPort, apiToken } = app.config;
+  const loopback = isLoopbackHost(apiHost);
+  info(
+    `  Bind address:    ${apiHost}:${apiPort} (${loopback ? 'loopback only' : 'reachable from the network'}; STRIDE_API_HOST)`,
+  );
+  info(
+    `  Bearer token:    ${apiToken ? 'set (requests need Authorization: Bearer)' : 'not set (STRIDE_API_TOKEN)'}`,
+  );
+  if (!loopback && !apiToken) {
+    warn(
+      `  The API binds to non-loopback ${apiHost} WITHOUT a token: anyone on the network can read ` +
+        'your data and trigger sync/plan. Set STRIDE_API_TOKEN or STRIDE_API_HOST=127.0.0.1.',
+    );
+  }
 
   heading('Runs offline — no credentials needed');
   info('  stride analyze --demo   ·   stride next --demo   ·   stride plan --demo');

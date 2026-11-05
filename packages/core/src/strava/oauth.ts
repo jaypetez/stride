@@ -13,6 +13,28 @@ interface RawTokenResponse {
   athlete?: { id?: number };
 }
 
+/** Scopes Stride cannot work without: activity history (incl. private runs). */
+export const REQUIRED_STRAVA_SCOPES = ['activity:read_all'] as const;
+
+/**
+ * Required scopes missing from the `scope` Strava echoes on the OAuth callback
+ * (comma-separated). Users can untick scopes on the consent screen, so the
+ * granted set can be narrower than what was requested. An absent `granted`
+ * value is treated as nothing granted.
+ */
+export function missingStravaScopes(
+  granted: string | null | undefined,
+  required: readonly string[] = REQUIRED_STRAVA_SCOPES,
+): string[] {
+  const have = new Set(
+    (granted ?? '')
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  return required.filter((s) => !have.has(s));
+}
+
 /** Build the Strava OAuth authorize URL the user visits to grant access. */
 export function buildAuthorizeUrl(config: StravaConfig, state?: string): string {
   const params = new URLSearchParams({
