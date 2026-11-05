@@ -85,4 +85,22 @@ class TodayViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    /** AUD-031: Today left open past midnight moves to the new day without user action. */
+    @Test
+    fun crossingMidnightUpdatesToday() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        fx.clock.instant = java.time.Instant.parse("2026-11-01T23:59:00Z")
+        val scheduler = testScheduler
+        fx.viewModel().uiState.test {
+            var state = awaitLoaded()
+            while (state.content?.today != "2026-11-01") state = awaitItem()
+            fx.clock.instant = java.time.Instant.parse("2026-11-02T00:00:05Z")
+            scheduler.advanceTimeBy(61_000)
+            while (state.content?.today != "2026-11-02") state = awaitItem()
+            assertEquals("2026-11-02", state.content?.today)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

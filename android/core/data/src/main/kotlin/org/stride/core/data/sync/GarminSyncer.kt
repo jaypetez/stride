@@ -4,11 +4,13 @@ import androidx.room.withTransaction
 import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import org.stride.core.common.Dispatcher
 import org.stride.core.common.StrideClock
 import org.stride.core.common.StrideDispatchers
+import org.stride.core.common.StrideLog
 import org.stride.core.common.StrideResult
 import org.stride.core.data.metrics.MetricsRecomputer
 import org.stride.core.database.DatabaseHolder
@@ -41,6 +43,9 @@ sealed interface SyncOutcome {
  *    (default 180 days), resuming from a cursor stored in Room after each window.
  * 3. **FIT:** laps and streams for runs that don't have them yet.
  * Every write is an idempotent upsert, so re-running a window never duplicates.
+ *
+ * Runs are serialised by [SyncLock], and every run settles the status
+ * (`Succeeded`, `Failed`, or `Idle` when cancelled), never a stuck `Running` (AUD-026).
  */
 @Singleton
 class GarminSyncer @Inject constructor(
@@ -50,14 +55,37 @@ class GarminSyncer @Inject constructor(
     private val clock: StrideClock,
     private val status: SyncStatus,
     private val recomputer: MetricsRecomputer,
+    private val lock: SyncLock,
     @Dispatcher(StrideDispatchers.IO) private val io: CoroutineDispatcher
 ) {
     private class Abort(val error: GarminError) : Exception()
 
-    @Suppress("CyclomaticComplexMethod") // one linear sync sequence; splitting hides the order of steps
-    suspend fun sync(): SyncOutcome = withContext(io) {
+    /** Runs one sync. Concurrent calls queue on [SyncLock] and run one after another. */
+    @Suppress("TooGenericExceptionCaught") // any failure must settle the status; cancellation is rethrown
+    suspend fun sync(): SyncOutcome = lock.withLock {
+        withContext(io) {
+            try {
+                runSync()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (abort: Abort) {
+                failure(abort.error)
+            } catch (e: Exception) {
+                // Zip, Room, date-parse… failures: report them instead of spinning forever.
+                StrideLog.w(TAG, "sync failed unexpectedly", e)
+                status.update(SyncProgress.Failed(SyncFailure.UNEXPECTED))
+                SyncOutcome.Retry(SyncFailure.UNEXPECTED)
+            } finally {
+                // Cancelled (or anything that skipped the branches above): never leave the spinner on.
+                if (status.progress.value is SyncProgress.Running) status.update(SyncProgress.Idle)
+            }
+        }
+    }
+
+    @Suppress("CyclomaticComplexMethod", "LongMethod") // one linear sync sequence; splitting hides the order of steps
+    private suspend fun runSync(): SyncOutcome {
         val settings = prefs.current()
-        if (settings.demoMode || holder.isDemo) return@withContext SyncOutcome.Success(0)
+        if (settings.demoMode || holder.isDemo) return SyncOutcome.Success(0)
         val db = holder.db
         val today = clock.today()
         val target = today.minusDays(settings.syncWindowDays - 1L)
@@ -87,36 +115,36 @@ class GarminSyncer @Inject constructor(
             }
         }
 
-        try {
-            // 1. Incremental: the recent week (cheap; catches edits and late uploads).
-            status.update(SyncProgress.Running("Checking for new runs", 0, 1))
-            val recentStart = maxOf(target, today.minusDays(INCREMENTAL_DAYS - 1L))
-            fetchWindow(recentStart, today, newIds, ::noteChanged)
+        // 1. Incremental: the recent week (cheap; catches edits and late uploads).
+        status.update(SyncProgress.Running("Checking for new runs", 0, 1))
+        val recentStart = maxOf(target, today.minusDays(INCREMENTAL_DAYS - 1L))
+        fetchWindow(recentStart, today, newIds, ::noteChanged)
 
-            // 2. Backfill, resumable.
-            if (!state.backfillComplete) {
-                val cursor = state.backfillCursorDate?.let(LocalDate::parse) ?: recentStart
-                val windows = dateWindows(target, cursor.minusDays(1), WINDOW_DAYS)
-                windows.forEachIndexed { i, w ->
-                    status.update(SyncProgress.Running("Importing history", i, windows.size))
-                    fetchWindow(w.start, w.end, newIds, ::noteChanged)
-                    db.syncStateDao().upsert(state.copy(backfillCursorDate = w.start.toString(), backfillComplete = w.start <= target))
-                }
-                db.syncStateDao().upsert(
-                    (db.syncStateDao().get() ?: state).copy(backfillCursorDate = target.toString(), backfillComplete = true)
-                )
+        // 2. Backfill, resumable.
+        if (!state.backfillComplete) {
+            val cursor = state.backfillCursorDate?.let(LocalDate::parse) ?: recentStart
+            val windows = dateWindows(target, cursor.minusDays(1), WINDOW_DAYS)
+            windows.forEachIndexed { i, w ->
+                status.update(SyncProgress.Running("Importing history", i, windows.size))
+                fetchWindow(w.start, w.end, newIds, ::noteChanged)
+                db.syncStateDao().upsert(state.copy(backfillCursorDate = w.start.toString(), backfillComplete = w.start <= target))
             }
+            db.syncStateDao().upsert(
+                (db.syncStateDao().get() ?: state).copy(backfillCursorDate = target.toString(), backfillComplete = true)
+            )
+        }
 
-            // 3. FIT files for runs without streams (newest first).
-            val missing = db.activityDao().idsMissingStreams(RUN_SPORTS)
-            missing.forEachIndexed { i, id ->
-                status.update(SyncProgress.Running("Downloading run details", i, missing.size))
-                when (val fit = client.fitFile(id)) {
-                    is StrideResult.Err -> if (fit.error.isFatal()) throw Abort(fit.error)
+        // 3. FIT files for runs without streams (newest first).
+        val missing = db.activityDao().idsMissingStreams(RUN_SPORTS)
+        missing.forEachIndexed { i, id ->
+            status.update(SyncProgress.Running("Downloading run details", i, missing.size))
+            when (val fit = client.fitFile(id)) {
+                is StrideResult.Err -> if (fit.error.isFatal()) throw Abort(fit.error)
 
-                    is StrideResult.Ok -> {
-                        val parsed = FitParser.parse(fit.value, id)
-                        if (parsed is StrideResult.Ok) {
+                is StrideResult.Ok -> {
+                    // Only runs are fetched, so a FIT file without a session message still gets run cadence.
+                    when (val parsed = FitParser.parse(fit.value, id, fallbackIsRun = true)) {
+                        is StrideResult.Ok -> {
                             db.withTransaction {
                                 db.lapDao().replace(id, parsed.value.laps.map { it.toEntity() })
                                 db.streamDao().upsert(parsed.value.streams.toEntity())
@@ -125,12 +153,12 @@ class GarminSyncer @Inject constructor(
                             newIds += id
                             db.activityDao().get(id)?.let { e -> noteChanged(listOf(e.toModel())) }
                         }
+
                         // An unparseable FIT is skipped: summary-level metrics still work.
+                        is StrideResult.Err -> StrideLog.w(TAG, "skipped an unreadable FIT file: ${parsed.error}")
                     }
                 }
             }
-        } catch (abort: Abort) {
-            return@withContext failure(abort.error)
         }
 
         status.update(SyncProgress.Running("Computing your fitness", 0, 1))
@@ -140,7 +168,7 @@ class GarminSyncer @Inject constructor(
         prefs.setLastSync(now)
         prefs.setGarminKeyRejected(false)
         status.update(SyncProgress.Succeeded(now, newIds.size))
-        SyncOutcome.Success(newIds.size)
+        return SyncOutcome.Success(newIds.size)
     }
 
     private suspend fun fetchWindow(start: LocalDate, end: LocalDate, newIds: MutableSet<Long>, noteChanged: (List<Activity>) -> Unit) {
@@ -190,6 +218,7 @@ class GarminSyncer @Inject constructor(
     private fun GarminError.isFatal() = this == GarminError.KeyInvalid || this == GarminError.KeyMissing || this is GarminError.RateLimited
 
     companion object {
+        private const val TAG = "GarminSyncer"
         const val WINDOW_DAYS = 28
         const val INCREMENTAL_DAYS = 7
         val RUN_SPORTS = listOf("RUN", "TRAIL_RUN", "TREADMILL_RUN")

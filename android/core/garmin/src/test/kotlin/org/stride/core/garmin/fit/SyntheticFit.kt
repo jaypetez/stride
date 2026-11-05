@@ -105,4 +105,48 @@ internal object SyntheticFit {
             file.delete()
         }
     }
+
+    /**
+     * Bare records in file order, one per entry of [offsetsSec] (seconds after [START];
+     * null writes a record without a timestamp), each with HR 100 + its index and
+     * cadence 86. No laps; a running session message only when [withSession].
+     */
+    fun records(offsetsSec: List<Int?>, withSession: Boolean): ByteArray {
+        val file = kotlin.io.path.createTempFile("synthetic", ".fit").toFile()
+        try {
+            val encoder = FileEncoder(file, Fit.ProtocolVersion.V2_0)
+            val t0 = DateTime(START)
+            encoder.write(
+                FileIdMesg().apply {
+                    type = File.ACTIVITY
+                    manufacturer = Manufacturer.DEVELOPMENT
+                    product = 1
+                    serialNumber = 1L
+                    timeCreated = t0
+                }
+            )
+            offsetsSec.forEachIndexed { i, offset ->
+                encoder.write(
+                    RecordMesg().apply {
+                        if (offset != null) timestamp = DateTime(t0.timestamp + offset)
+                        heartRate = (100 + i).toShort()
+                        cadence = 86
+                    }
+                )
+            }
+            if (withSession) {
+                encoder.write(
+                    SessionMesg().apply {
+                        startTime = t0
+                        timestamp = DateTime(t0.timestamp + offsetsSec.filterNotNull().max())
+                        sport = Sport.RUNNING
+                    }
+                )
+            }
+            encoder.close()
+            return file.readBytes()
+        } finally {
+            file.delete()
+        }
+    }
 }

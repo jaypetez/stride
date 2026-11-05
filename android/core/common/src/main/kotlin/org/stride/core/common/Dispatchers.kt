@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,5 +47,17 @@ object CoroutineScopesModule {
     @ApplicationScope
     fun providesApplicationScope(
         @Dispatcher(StrideDispatchers.Default) dispatcher: CoroutineDispatcher
-    ): CoroutineScope = CoroutineScope(SupervisorJob() + dispatcher)
+    ): CoroutineScope = applicationScope(dispatcher)
 }
+
+/**
+ * Logs (instead of crashing the process) any failure that escapes a coroutine in the
+ * application scope, e.g. a recompute started from Settings or startup work (AUD-030).
+ */
+val AppScopeExceptionHandler: CoroutineExceptionHandler = CoroutineExceptionHandler { _, error ->
+    StrideLog.w("AppScope", "background work failed", error)
+}
+
+/** The application-wide scope: a supervisor (one failure doesn't cancel siblings) plus [AppScopeExceptionHandler]. */
+fun applicationScope(dispatcher: CoroutineDispatcher): CoroutineScope =
+    CoroutineScope(SupervisorJob() + dispatcher + AppScopeExceptionHandler)

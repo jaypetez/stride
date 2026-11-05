@@ -1,0 +1,45 @@
+[
+  {
+    "activityId": 910000001,
+    "activityName": "Good run abroad",
+    "startTimeLocal": "2026-11-04 07:05:00",
+    "startTimeGMT": "2026-11-03 22:05:00",
+    "activityType": { "typeId": 1, "typeKey": "running", "parentTypeId": 17 },
+    "distance": 8000.0,
+    "duration": 2880.0
+  },
+  {
+    "activityId": 910000002,
+    "activityName": "Non-standard start time",
+    "startTimeLocal": "04/11/2026 07:05",
+    "startTimeGMT": "04/11/2026 06:05",
+    "activityType": { "typeId": 1, "typeKey": "running", "parentTypeId": 17 },
+    "distance": 5000.0,
+    "duration": 1800.0
+  },
+  {
+    "activityId": 910000003,
+    "activityName": "No start time at all",
+    "activityType": { "typeId": 1, "typeKey": "running", "parentTypeId": 17 },
+    "distance": 5000.0,
+    "duration": 1800.0
+  },
+  {
+    "activityName": "No activity id",
+    "startTimeGMT": "2026-11-02 06:05:00",
+    "distance": 5000.0
+  },
+  {
+    "activityId": "not-a-number",
+    "startTimeGMT": "2026-11-02 06:05:00"
+  },
+  {
+    "activityId": 910000006,
+    "activityName": "Detail-style ISO timestamps",
+    "startTimeLocal": "2026-11-02T09:05:00.0",
+    "startTimeGMT": "2026-11-02T08:05:00.0",
+    "activityType": { "typeId": 1, "typeKey": "running", "parentTypeId": 17 },
+    "distance": 6000.0,
+    "duration": 2100.0
+  }
+]

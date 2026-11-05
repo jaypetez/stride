@@ -1,15 +1,28 @@
 package org.stride.feature.onboarding
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -34,12 +47,50 @@ class OnboardingViewModelTest {
 
     private class FakeDemo : DemoController {
         var entered = 0
+        var exited = 0
+        val active get() = entered > exited
 
         override suspend fun enter() {
             entered++
         }
 
-        override suspend fun exit() = Unit
+        override suspend fun exit() {
+            exited++
+        }
+    }
+
+    /**
+     * Mirrors DemoMode.enter(): a slow load that ends by writing demoMode=true inside withContext(io),
+     * whose prompt-cancellation guarantee then throws if the caller was cancelled meanwhile.
+     */
+    private class SlowDemo : DemoController {
+        val loading = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var demoMode = false
+
+        override suspend fun enter() {
+            withContext(NonCancellable) {
+                loading.complete(Unit)
+                release.await()
+                demoMode = true
+            }
+            currentCoroutineContext().ensureActive()
+        }
+
+        override suspend fun exit() {
+            demoMode = false
+        }
+    }
+
+    /** A DataStore whose writes fail on demand (disk full, I/O error). */
+    private class FlakyStore(private val inner: DataStore<Preferences>) : DataStore<Preferences> {
+        var failWrites = false
+        override val data: Flow<Preferences> = inner.data
+
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+            if (failWrites) throw java.io.IOException("disk full")
+            return inner.updateData(transform)
+        }
     }
 
     private fun TestScope.prefs() = UserPreferences(
@@ -119,5 +170,58 @@ class OnboardingViewModelTest {
         }
         assertEquals(1, demo.entered)
         assertFalse(prefs.settings.first { it.onboardingComplete }.parqFlagged)
+    }
+
+    /** AUD-030: onboarding is persisted before the hand-off, so the shell never opens half set up. */
+    @Test
+    fun handOffHappensAfterOnboardingIsPersisted() = runTest(main.testDispatcher) {
+        val prefs = prefs()
+        val vm = OnboardingViewModel(prefs, FakeDemo(), FakeStrideClock())
+        vm.walkToFinish()
+        vm.destinations.test {
+            vm.onEvent(OnboardingEvent.TryDemo)
+            assertEquals(TodayRoute, awaitItem())
+            assertTrue(prefs.current().onboardingComplete, "persisted before the hand-off")
+        }
+    }
+
+    /** AUD-030: if saving fails after the demo loaded, the demo is left again: never demo-on but onboarding-incomplete. */
+    @Test
+    fun failedSaveAfterDemoRollsBackAndShowsError() = runTest(main.testDispatcher) {
+        val store = FlakyStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "f.preferences_pb") })
+        val prefs = UserPreferences(store)
+        val demo = FakeDemo()
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        vm.walkToFinish()
+        store.failWrites = true
+        vm.onEvent(OnboardingEvent.TryDemo)
+        val state = vm.uiState.first { it.error != null }
+        assertFalse(state.working)
+        assertEquals(1, demo.entered)
+        assertFalse(demo.active, "demo mode is rolled back")
+        assertFalse(prefs.current().onboardingComplete)
+    }
+
+    /**
+     * AUD-030: backing out of onboarding while the demo loads cancels viewModelScope. The demo load and
+     * the save finish together anyway, so the app never ends with demo on but onboarding incomplete.
+     */
+    @Test
+    fun cancellationDuringDemoLoadStillCompletesOnboarding() = runTest(main.testDispatcher) {
+        val prefs = prefs()
+        val demo = SlowDemo()
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        vm.walkToFinish()
+        vm.onEvent(OnboardingEvent.TryDemo)
+        runCurrent()
+        assertTrue(demo.loading.isCompleted, "demo load started")
+        vm.viewModelScope.cancel()
+        demo.release.complete(Unit)
+        runCurrent()
+        assertTrue(demo.demoMode)
+        val settings = withContext(Dispatchers.Default) {
+            withTimeout(5_000) { prefs.settings.first { it.onboardingComplete } }
+        }
+        assertTrue(settings.onboardingComplete, "demo on implies onboarding complete")
     }
 }

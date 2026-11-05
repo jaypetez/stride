@@ -7,6 +7,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import org.stride.core.common.ApplicationScope
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -17,5 +19,7 @@ object DatabaseModule {
      */
     @Provides
     @Singleton
-    fun databaseHolder(@ApplicationContext context: Context): DatabaseHolder = DatabaseHolder.forContext(context, initialDemo = false)
+    fun databaseHolder(@ApplicationContext context: Context, @ApplicationScope scope: CoroutineScope): DatabaseHolder =
+        // The app scope closes a replaced database after a grace period (AUD-030).
+        DatabaseHolder.forContext(context, initialDemo = false, closeScope = scope)
 }

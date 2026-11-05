@@ -20,10 +20,34 @@ class FakeGarminClient(
     var failWith: GarminError = GarminError.Network("IOException")
     var fitRequests = mutableListOf<Long>()
 
+    /** Thrown from `activities` (an unexpected failure, not a typed error). */
+    var throwOnActivities: Throwable? = null
+
+    /** When set, every `activities` call suspends until it completes. */
+    var gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** Completes when the first `activities` call reaches [gate]. */
+    val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+    /** `activities` calls currently suspended on [gate]. */
+    var inFlight = 0
+    var maxInFlight = 0
+
     override suspend fun exchangeToken(apiKey: String?): GarminResult<AccessToken> = StrideResult.Ok(AccessToken("t", Long.MAX_VALUE))
 
     override suspend fun activities(start: LocalDate, end: LocalDate): GarminResult<List<Activity>> {
         activityCalls += start to end
+        throwOnActivities?.let { throw it }
+        gate?.let {
+            inFlight++
+            maxInFlight = maxOf(maxInFlight, inFlight)
+            entered.complete(Unit)
+            try {
+                it.await()
+            } finally {
+                inFlight--
+            }
+        }
         if (failActivitiesOnCall == activityCalls.size) return StrideResult.Err(failWith)
         return StrideResult.Ok(
             activities.filter {

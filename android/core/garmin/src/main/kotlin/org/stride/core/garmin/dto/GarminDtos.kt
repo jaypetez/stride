@@ -16,6 +16,8 @@ data class ActivityDto(
     val activityId: Long,
     val activityName: String? = null,
     val startTimeGMT: String? = null,
+    /** Wall-clock start where the run happened; with the UTC start it gives the recorded offset (AUD-029). */
+    val startTimeLocal: String? = null,
     val beginTimestamp: Long? = null,
     val activityType: ActivityTypeDto? = null,
     val distance: Double? = null,
@@ -34,11 +36,15 @@ data class ActivityDto(
 data class TimeZoneUnitDto(val timeZone: String? = null, val unitKey: String? = null)
 
 @Serializable
+data class ActivitySummaryDto(val startTimeGMT: String? = null, val startTimeLocal: String? = null)
+
+@Serializable
 data class ActivityDetailDto(
     val activityId: Long,
     val activityName: String? = null,
     val activityTypeDTO: ActivityTypeDto? = null,
-    val timeZoneUnitDTO: TimeZoneUnitDto? = null
+    val timeZoneUnitDTO: TimeZoneUnitDto? = null,
+    val summaryDTO: ActivitySummaryDto? = null
 )
 
 @Serializable

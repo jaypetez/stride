@@ -33,7 +33,11 @@ data class Activity(
     val name: String,
     val sport: SportType,
     val startEpochSec: Long,
-    /** IANA zone the activity was recorded in, used for "local day" bucketing. */
+    /**
+     * Zone the activity was recorded in, used for "local day" bucketing: an IANA id
+     * (`Europe/Berlin`) or, from Garmin's activity list, the fixed offset implied by
+     * `startTimeLocal` (`+09:00`). Null falls back to the phone's zone.
+     */
     val timeZone: String?,
     val durationSec: Double,
     val movingTimeSec: Double?,

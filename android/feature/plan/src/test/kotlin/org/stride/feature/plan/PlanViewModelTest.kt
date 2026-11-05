@@ -119,4 +119,24 @@ class PlanViewModelTest {
         assertEquals(RaceDistance.HALF, raceDistanceFor(21_097.0))
         assertNull(raceDistanceFor(15_000.0))
     }
+
+    /** AUD-031: the plan screen left open over Sunday night moves to the next week by itself. */
+    @Test
+    fun crossingMidnightMovesTodayAndTheCurrentWeek() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        fx.plans.create(PlanRequest(RaceDistance.TEN_K, LocalDate.parse("2027-01-31")))
+        fx.clock.instant = java.time.Instant.parse("2026-11-22T23:59:00Z") // Sunday of week 3
+        val scheduler = testScheduler
+        fx.viewModel().uiState.test {
+            val before = awaitWhere { it.plan != null && it.today == "2026-11-22" }
+            assertEquals(2, before.currentWeekIndex)
+            fx.clock.instant = java.time.Instant.parse("2026-11-23T00:00:05Z")
+            scheduler.advanceTimeBy(61_000)
+            val after = awaitWhere { it.today == "2026-11-23" }
+            assertEquals(3, after.currentWeekIndex)
+            assertEquals(LocalDate.parse("2026-12-06"), after.earliestRaceDate)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

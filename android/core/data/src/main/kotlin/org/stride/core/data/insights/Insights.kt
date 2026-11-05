@@ -105,8 +105,9 @@ class InsightsRepository @Inject constructor(
     private val recomputer: ScienceMetricsRecomputer,
     @Dispatcher(StrideDispatchers.Default) private val dispatcher: CoroutineDispatcher
 ) {
+    /** Re-evaluated on data changes and when the local date changes (a screen left open past midnight, AUD-031). */
     fun observeToday(): Flow<TodayInsights> = holder.current.flatMapLatest { db ->
-        combine(db.metricsDao().observeLatestDailyLoad(), db.activityDao().observeAll(), prefs.settings) { _, _, _ -> db }
+        combine(db.metricsDao().observeLatestDailyLoad(), db.activityDao().observeAll(), prefs.settings, clock.dates()) { _, _, _, _ -> db }
             .mapLatest { today(it) }
     }.flowOn(dispatcher)
 

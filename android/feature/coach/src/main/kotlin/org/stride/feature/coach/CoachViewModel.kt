@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.stride.core.common.StrideLog
 import org.stride.core.datastore.SecretStore
 import org.stride.core.datastore.UserPreferences
 
@@ -64,6 +67,7 @@ class CoachViewModel @Inject constructor(
 ) : ViewModel() {
     private val state = MutableStateFlow(CoachUiState())
     val uiState: StateFlow<CoachUiState> = state.asStateFlow()
+    private var factsJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -123,15 +127,22 @@ class CoachViewModel @Inject constructor(
         }
     }
 
+    /** Facts for the latest subject only: a newer request cancels the one in flight (AUD-030). */
     private fun loadFacts() {
         val current = state.value
-        viewModelScope.launch {
-            val facts = runCatching {
+        factsJob?.cancel()
+        factsJob = viewModelScope.launch {
+            val facts = try {
                 when (current.subject) {
                     CoachSubject.ACTIVITY -> current.activityId?.let { factsSource.activity(it) }
                     CoachSubject.TREND -> factsSource.trend()
                 }
-            }.getOrNull()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                StrideLog.w(TAG, "coach facts unavailable", e)
+                null
+            }
             state.update { it.copy(facts = facts, noData = facts == null) }
         }
     }
@@ -165,5 +176,9 @@ class CoachViewModel @Inject constructor(
                 is CoachLlmResult.Err -> state.update { it.copy(asking = false, error = result.error.message) }
             }
         }
+    }
+
+    private companion object {
+        const val TAG = "Coach"
     }
 }

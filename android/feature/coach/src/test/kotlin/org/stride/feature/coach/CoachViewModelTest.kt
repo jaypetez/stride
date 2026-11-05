@@ -146,6 +146,31 @@ class CoachViewModelTest {
         vm.onEvent(CoachEvent.Disable)
         vm.uiState.first { !it.enabled }
         assertNull(env.secrets.anthropicKey())
-        assertFalse(env.prefs.current().coachEnabled)
+        // The key is cleared before the flag, so wait for the flag rather than reading it once.
+        assertFalse(env.prefs.settings.first { !it.coachEnabled }.coachEnabled)
+    }
+
+    /** AUD-030: a slow load for an old subject never overwrites the facts for the newer one. */
+    @Test
+    fun rapidSubjectChangesNeverShowStaleFacts() = runTest(main.testDispatcher) {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slowActivity = object : CoachFactsSource {
+            override suspend fun activity(activityId: Long): CoachFacts? {
+                gate.await()
+                return Facts.activity(activityId)
+            }
+
+            override suspend fun trend() = Facts.trend()
+        }
+        val env = Env(this)
+        val vm = CoachViewModel(env.prefs, env.secrets, slowActivity, env.llm)
+        vm.setActivity(42) // starts the slow activity load
+        vm.onEvent(CoachEvent.SubjectChosen(CoachSubject.TREND))
+        val trend = vm.uiState.first { it.facts != null }
+        assertEquals(CoachFacts.SUBJECT_TREND, trend.facts!!.subject)
+        gate.complete(Unit)
+        testScheduler.advanceUntilIdle()
+        assertEquals(CoachFacts.SUBJECT_TREND, vm.uiState.value.facts!!.subject, "the cancelled activity load must not land")
+        assertEquals(CoachSubject.TREND, vm.uiState.value.subject)
     }
 }

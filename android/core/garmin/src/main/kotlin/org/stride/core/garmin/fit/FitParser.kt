@@ -1,7 +1,6 @@
 package org.stride.core.garmin.fit
 
 import com.garmin.fit.Decode
-import com.garmin.fit.FitRuntimeException
 import com.garmin.fit.LapMesg
 import com.garmin.fit.MesgBroadcaster
 import com.garmin.fit.RecordMesg
@@ -45,8 +44,19 @@ object FitParser {
     /** Running cadence in FIT is "strides" (one foot) per minute; Stride reports steps per minute. */
     private const val STEPS_PER_STRIDE = 2.0
 
-    @Suppress("CyclomaticComplexMethod", "ReturnCount") // one pass over optional FIT fields; early returns are typed errors
-    fun parse(bytes: ByteArray, activityId: Long): StrideResult<FitActivity, FitError> {
+    /**
+     * Never throws (AUD-028): any decoder failure is [FitError.Corrupt].
+     * [fallbackIsRun] is the Garmin summary's sport, used for cadence when the file has no session message.
+     */
+    @Suppress("TooGenericExceptionCaught") // the SDK throws assorted RuntimeExceptions on hostile input
+    fun parse(bytes: ByteArray, activityId: Long, fallbackIsRun: Boolean = false): StrideResult<FitActivity, FitError> = try {
+        decode(bytes, activityId, fallbackIsRun)
+    } catch (e: RuntimeException) {
+        StrideResult.Err(FitError.Corrupt(e::class.java.simpleName))
+    }
+
+    @Suppress("CyclomaticComplexMethod", "ReturnCount", "LongMethod") // one pass over optional FIT fields; early returns are typed errors
+    private fun decode(bytes: ByteArray, activityId: Long, fallbackIsRun: Boolean): StrideResult<FitActivity, FitError> {
         if (bytes.isEmpty()) return StrideResult.Err(FitError.Empty)
         if (!Decode().isFileFit(ByteArrayInputStream(bytes))) return StrideResult.Err(FitError.NotFit)
         if (!Decode().checkFileIntegrity(ByteArrayInputStream(bytes))) {
@@ -54,22 +64,23 @@ object FitParser {
         }
         // A fresh decoder: isFileFit/checkFileIntegrity leave a Decode mid-stream.
         val decode = Decode()
-        val records = ArrayList<RecordMesg>(4096)
+        val decoded = ArrayList<RecordMesg>(4096)
         val laps = mutableListOf<LapMesg>()
         var session: SessionMesg? = null
         val broadcaster = MesgBroadcaster(decode)
-        broadcaster.addListener { mesg: RecordMesg -> records += mesg }
+        broadcaster.addListener { mesg: RecordMesg -> decoded += mesg }
         broadcaster.addListener { mesg: LapMesg -> laps += mesg }
         broadcaster.addListener { mesg: SessionMesg -> if (session == null) session = mesg }
-        try {
-            decode.read(ByteArrayInputStream(bytes), broadcaster, broadcaster)
-        } catch (e: FitRuntimeException) {
-            return StrideResult.Err(FitError.Corrupt(e.message?.take(120) ?: "decode failed"))
-        }
+        decode.read(ByteArrayInputStream(bytes), broadcaster, broadcaster)
+
+        // Records without a timestamp can't be placed on the time axis: drop them, and order
+        // the rest by time (stable, so equal timestamps keep file order).
+        val records = decoded.filter { it.timestamp?.timestamp != null }.sortedBy { it.timestamp.timestamp }
         if (records.isEmpty()) return StrideResult.Err(FitError.NoRecords)
 
-        val isRun = session?.sport?.name?.contains("RUNNING") == true || session?.sport?.name == "RUNNING"
-        val t0 = records.first().timestamp?.timestamp ?: 0L
+        val sessionSport = session?.sport?.name
+        val isRun = if (sessionSport != null) sessionSport.contains("RUNNING") else fallbackIsRun
+        val t0 = records.first().timestamp.timestamp
         val n = records.size
         val time = DoubleArray(n)
         val hr = DoubleArray(n) { Double.NaN }
@@ -83,7 +94,7 @@ object FitParser {
         var hasAlt = false
         var hasCad = false
         records.forEachIndexed { i, r ->
-            time[i] = ((r.timestamp?.timestamp ?: t0) - t0).toDouble()
+            time[i] = (r.timestamp.timestamp - t0).toDouble()
             r.heartRate?.let {
                 hr[i] = it.toDouble()
                 hasHr = true
