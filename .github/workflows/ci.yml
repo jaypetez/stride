@@ -111,9 +111,16 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Coverage
+      # Fails the job when any package drops below its `coverage.thresholds`
+      # (per-package vitest configs; policy in docs/testing/coverage.md).
+      - name: Coverage (enforces thresholds)
         run: pnpm coverage
+      - name: Coverage summary
+        if: always()
+        shell: bash
+        run: node scripts/coverage-summary.mjs >> "$GITHUB_STEP_SUMMARY"
       - name: Upload coverage artifacts
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage

@@ -29,7 +29,7 @@ run/verify → observe — locally with **no secrets and no network**.
 | `pnpm science:golden` | Regenerate `contracts/science-golden/*.json` (the Kotlin-port parity contract) from `packages/core`; `--check` fails if they are stale. **Run after any core science/planner/guardrail/safety change.** |
 | `pnpm test:watch` | `turbo watch test` — re-runs on change. |
 | `pnpm test:affected` | Only packages changed vs `origin/main`. |
-| `pnpm coverage` | Vitest v8 coverage per package. |
+| `pnpm coverage` | Vitest v8 coverage per package + root scripts; **fails below each package's `coverage.thresholds`**. `pnpm coverage:ratchet` raises them (floored) after coverage improves. Policy: [`docs/testing/coverage.md`](docs/testing/coverage.md). |
 | `pnpm build` | tsup (cli/api/mcp) + vite (web) → runnable `dist/`. |
 | `pnpm check:android` | **The Android gate:** `./gradlew -p android check` (unit + Robolectric tests, Lint, Detekt, ktlint, Kover). Skips with a notice if `android/` is absent. Needs JDK 21 + Android SDK. See [`android/README.md`](android/README.md). |
 | `pnpm check:all` | `pnpm check && pnpm check:android`. |
