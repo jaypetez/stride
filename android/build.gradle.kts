@@ -16,7 +16,8 @@ plugins {
 
 // Aggregated coverage (ANDF-007): `./gradlew -p android koverVerify` / `koverHtmlReport`.
 dependencies {
-    subprojects.forEach { kover(it) }
+    // Only real modules (not the `:core` / `:feature` folder projects).
+    subprojects.filter { it.childProjects.isEmpty() }.forEach { kover(it) }
 }
 
 kover {
