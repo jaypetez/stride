@@ -105,6 +105,14 @@ internal fun Project.configureUnitTests() {
         systemProperty("robolectric.pixelCopyRenderMode", "hardware")
         systemProperty("robolectric.enabledSdks", StrideSdk.ROBOLECTRIC_SDK.toString())
         maxHeapSize = "1536m"
+        // Robolectric on JDK 17+ reaches into JDK internals (e.g. FileDescriptor.fd for SDK 36).
+        jvmArgs(
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang=ALL-UNNAMED",
+            "--add-opens=java.base/java.util=ALL-UNNAMED",
+            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+            "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+        )
     }
 }
 
