@@ -3,8 +3,8 @@ package org.stride.feature.onboarding
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import java.io.File
 import java.time.LocalDate

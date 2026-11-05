@@ -304,7 +304,8 @@ class ConnectViewModelTest {
 
             override fun decrypt(ciphertext: String, associatedData: String): String = throw java.security.GeneralSecurityException("tag")
         }
-        val vm = ConnectViewModel(env.garmin, SecretStore(env.secretsStore, broken), env.prefs, env.sync, env.eraser, clock, SavedStateHandle())
+        val vm =
+            ConnectViewModel(env.garmin, SecretStore(env.secretsStore, broken), env.prefs, env.sync, env.eraser, clock, SavedStateHandle())
         val state = vm.uiState.first { !it.loading }
         assertFalse(state.connected)
         assertTrue(state.keyLost)

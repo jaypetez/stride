@@ -176,7 +176,7 @@ class CoachViewModelTest {
 
             override suspend fun trend() = Facts.trend()
         }
-        val env = Env(this)
+        val env = Env()
         val vm = CoachViewModel(env.prefs, env.secrets, slowActivity, env.llm)
         vm.setActivity(42) // starts the slow activity load
         vm.onEvent(CoachEvent.SubjectChosen(CoachSubject.TREND))

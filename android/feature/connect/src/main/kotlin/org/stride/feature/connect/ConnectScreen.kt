@@ -132,7 +132,7 @@ fun ConnectScreen(
             // The key form shows its own errors; otherwise (e.g. a failed disconnect) show it here.
             val error = state.error
             if (error != null && !state.needsNewKey) {
-                Text(error.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Text(error.message.resolve(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
             }
             if (state.needsNewKey) {
                 SetupSteps(onOpenGarmin)
