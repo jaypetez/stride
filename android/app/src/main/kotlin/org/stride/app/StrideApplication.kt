@@ -31,8 +31,11 @@ class StrideApplication :
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
 
     override fun onCreate() {
-        super.onCreate()
+        // StrictMode first (AUD-036), so anything Hilt does on the main thread while injecting
+        // this class in super.onCreate() is reported. Crypto is lazy (LazySecretCipher) and the
+        // stores below are only read inside appScope, off the main thread.
         DebugTools.install(this)
+        super.onCreate()
         appScope.launch {
             // Re-attach the demo database if the app was left in demo mode, and keep
             // the daily Garmin sync scheduled while a key is stored (MVP-008).

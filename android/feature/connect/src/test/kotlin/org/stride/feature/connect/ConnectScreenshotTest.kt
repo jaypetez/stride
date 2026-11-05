@@ -8,6 +8,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.ScreenshotVariant
 import org.stride.core.testing.captureScreenshot
 
 /** Connect Garmin: empty, error, connected, expiring and rejected (MVP-005). */
@@ -32,8 +33,20 @@ class ConnectScreenshotTest {
 
     @Test fun disconnectDialog() = snap("disconnect", base.copy(connected = true, keyExpiry = today.plusDays(120), showDisconnect = true))
 
-    private fun snap(name: String, state: ConnectUiState, dark: Boolean = false) =
-        captureScreenshot("src/test/screenshots/connect_$name.png") {
+    /** AUD-032: the connection state could not be read. */
+    @Test fun loadError() = snap("load_error", base.copy(loadFailed = true))
+
+    /** AUD-035: large text and right-to-left. */
+    @Test fun emptyFont200() = snap("empty_font200", base, variant = ScreenshotVariant.FONT_200)
+
+    @Test fun expiringRtl() = snap(
+        "expiring_rtl",
+        base.copy(connected = true, keyExpiry = today.plusDays(9)),
+        variant = ScreenshotVariant.RTL
+    )
+
+    private fun snap(name: String, state: ConnectUiState, dark: Boolean = false, variant: ScreenshotVariant = ScreenshotVariant.DEFAULT) =
+        captureScreenshot("src/test/screenshots/connect_$name.png", variant = variant, accessibilityChecks = !dark) {
             StrideTheme(darkTheme = dark) { ConnectScreen(state = state, onEvent = {}, onOpenGarmin = {}, onBack = {}) }
         }
 }

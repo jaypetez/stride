@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">You</string>
+    <string name="settings_your_profile">Your profile</string>
+    <string name="settings_edit_profile">Edit profile</string>
+    <string name="settings_born">Born %1$d</string>
+    <string name="settings_max_hr">Max HR %1$d</string>
+    <string name="settings_race">Race %1$s</string>
+    <string name="settings_display">Display</string>
+    <string name="settings_units">Units</string>
+    <string name="settings_dynamic_colour">Dynamic colour</string>
+    <string name="settings_dynamic_colour_subtitle">Use colours from your wallpaper (Android 12+)</string>
+    <string name="settings_garmin_sync">Garmin and sync</string>
+    <string name="settings_garmin_connect">Garmin Connect</string>
+    <string name="settings_garmin_rejected">Garmin rejected your key. Tap to reconnect.</string>
+    <string name="settings_garmin_connected">Connected</string>
+    <string name="settings_garmin_not_connected">Not connected</string>
+    <string name="settings_on">On</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_sync_history">Sync history</string>
+    <string name="settings_one_year">1 year</string>
+    <plurals name="settings_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="settings_last_sync">Last sync: %1$s</string>
+    <string name="settings_never">never</string>
+    <string name="settings_sync_now">Sync now</string>
+    <string name="settings_syncing">Syncing: %1$s</string>
+    <plurals name="settings_synced">
+        <item quantity="one">Synced %1$d new activity</item>
+        <item quantity="other">Synced %1$d new activities</item>
+    </plurals>
+    <string name="settings_demo_mode">Demo mode</string>
+    <string name="settings_demo_on">You\'re looking at synthetic runs. Exiting deletes them; your own data is untouched.</string>
+    <string name="settings_demo_off">Explore Stride with synthetic runs. Your own data is kept separately.</string>
+    <string name="settings_exit_demo">Exit demo</string>
+    <string name="settings_try_demo">Try demo</string>
+    <string name="settings_demo_loaded">Demo data loaded.</string>
+    <string name="settings_demo_removed">Demo data removed.</string>
+    <string name="settings_ai_coach">AI coach</string>
+    <string name="settings_coach_on">On. Uses your own Anthropic key and sends only computed facts.</string>
+    <string name="settings_coach_off">Off. Optional: explains your runs and fitness with your own Anthropic key.</string>
+    <string name="settings_ask_coach">Ask the coach</string>
+    <string name="settings_turn_off_coach">Turn off coach</string>
+    <string name="settings_your_data">Your data</string>
+    <string name="settings_export">Export all data</string>
+    <string name="settings_export_subtitle">Save your runs, health data and metrics as JSON</string>
+    <string name="settings_export_saved">Export saved.</string>
+    <string name="settings_delete">Delete all data</string>
+    <string name="settings_delete_subtitle">Remove everything Stride stores on this phone</string>
+    <string name="settings_delete_title">Delete all data?</string>
+    <string name="settings_delete_text">This deletes your runs, health data, metrics, profile, settings, Garmin key and Anthropic key from this phone. It can\'t be undone. Your data in Garmin Connect is not affected.</string>
+    <string name="settings_delete_confirm">Delete everything</string>
+    <string name="settings_failed">Something went wrong. Please try again.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Stride %1$s</string>
+    <string name="settings_licences">Open-source licences</string>
+    <string name="settings_profile_save_note">Saving recalculates your zones, training load and fitness from all your runs.</string>
+    <string name="settings_save">Save</string>
+</resources>

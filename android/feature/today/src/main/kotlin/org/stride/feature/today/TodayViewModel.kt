@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import org.stride.core.common.Retryable
 import org.stride.core.data.insights.InsightsRepository
 import org.stride.core.data.insights.TodayInsights
 import org.stride.core.data.insights.deltaFrom
 import org.stride.core.data.repository.ActivityRepository
 import org.stride.core.data.repository.WellnessRepository
 import org.stride.core.data.sync.SyncController
+import org.stride.core.data.sync.orLastFailure
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.model.ActivityWithMetrics
 import org.stride.core.model.DailyWellness
@@ -26,24 +28,33 @@ class TodayViewModel @Inject constructor(
     prefs: UserPreferences,
     private val sync: SyncController
 ) : ViewModel() {
-    val uiState: StateFlow<TodayUiState> = combine(
-        insights.observeToday(),
-        activities.observeActivities(),
-        wellness.observeLatest(),
-        prefs.settings,
-        sync.progress
-    ) { today, all, latestWellness, settings, progress ->
-        TodayUiState(
-            isLoading = false,
-            content = todayContent(today, all, latestWellness),
-            sync = progress,
-            units = settings.unitSystem,
-            demoMode = settings.demoMode
-        )
+    private val retryable = Retryable()
+
+    val uiState: StateFlow<TodayUiState> = retryable.flow(onError = { TodayUiState(isLoading = false, loadFailed = true) }) {
+        combine(
+            insights.observeToday(),
+            activities.observeActivities(),
+            wellness.observeLatest(),
+            prefs.settings,
+            sync.progress
+        ) { today, all, latestWellness, settings, progress ->
+            TodayUiState(
+                isLoading = false,
+                content = todayContent(today, all, latestWellness),
+                // After process death the in-memory status is Idle; the persisted failure keeps the reason on screen.
+                // Demo mode never syncs with Garmin, so a failure from a real sync does not apply to it.
+                sync = progress.orLastFailure(settings.lastSyncFailure.takeUnless { settings.demoMode }),
+                units = settings.unitSystem,
+                demoMode = settings.demoMode
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), TodayUiState())
 
     /** Pull-to-refresh. */
     fun refresh() = sync.syncNow()
+
+    /** The error state's "Try again": subscribe to the data again. */
+    fun retry() = retryable.retry()
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L

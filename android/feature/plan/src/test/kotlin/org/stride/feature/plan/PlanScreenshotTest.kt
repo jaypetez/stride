@@ -19,7 +19,9 @@ import org.stride.core.science.model.GuardrailViolation
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.plan.validatePlan
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.ScreenshotVariant
 import org.stride.core.testing.captureScreenshot
+import org.stride.core.testing.variantPath
 
 /** Plan tab with a plan generated for the demo athlete (MVP-018). */
 @RunWith(AndroidJUnit4::class)
@@ -53,10 +55,14 @@ class PlanScreenshotTest {
         return state
     }
 
-    private fun snap(name: String, state: PlanUiState) {
+    private fun snap(name: String, state: PlanUiState, variant: ScreenshotVariant = ScreenshotVariant.DEFAULT) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureScreenshot("src/test/screenshots/plan_${name}_$theme.png") {
+            captureScreenshot(
+                variantPath("src/test/screenshots/plan_$name", variant, theme),
+                variant = variant,
+                accessibilityChecks = !dark
+            ) {
                 StrideTheme(darkTheme = dark) { PlanScreen(state = state, actions = PlanActions()) }
             }
         }
@@ -70,6 +76,33 @@ class PlanScreenshotTest {
         "form",
         PlanUiState(isLoading = false, today = "2026-11-01", form = form, earliestRaceDate = LocalDate.parse("2026-11-08"))
     )
+
+    /** AUD-032: the plan could not be read. */
+    @Test
+    fun error() = snap(
+        "error",
+        PlanUiState(
+            isLoading = false,
+            today = "2026-11-01",
+            form = form,
+            earliestRaceDate = LocalDate.parse("2026-11-02"),
+            loadFailed = true
+        )
+    )
+
+    /** AUD-035: large text and right-to-left. */
+    @Test
+    fun generatedFont150() = snap("generated", generatedState(), ScreenshotVariant.FONT_150)
+
+    @Test
+    fun formFont200() = snap(
+        "form",
+        PlanUiState(isLoading = false, today = "2026-11-01", form = form, earliestRaceDate = LocalDate.parse("2026-11-02")),
+        ScreenshotVariant.FONT_200
+    )
+
+    @Test
+    fun generatedRtl() = snap("generated", generatedState(), ScreenshotVariant.RTL)
 
     @Test
     fun rejected() = snap(

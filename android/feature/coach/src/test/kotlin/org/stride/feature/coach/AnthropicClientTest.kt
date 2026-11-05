@@ -1,16 +1,24 @@
 package org.stride.feature.coach
 
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
@@ -76,6 +84,40 @@ class AnthropicClientTest {
         assertEquals(CoachLlmResult.Err(CoachLlmError.Overloaded), client.complete("k", "s", "u"))
         reply(200, """{"content":[],"stop_reason":"refusal"}""")
         assertEquals(CoachLlmResult.Err(CoachLlmError.Refused), client.complete("k", "s", "u"))
+    }
+
+    /** AUD-037: a retired model id answers 404 (or a 400 naming the model); show a clear message, not "HTTP 404". */
+    @Test
+    fun retiredModelIsReportedAsUnavailable() = runTest {
+        reply(404, """{"type":"error","error":{"type":"not_found_error","message":"model: claude-haiku-5-5"}}""")
+        assertEquals(CoachLlmResult.Err(CoachLlmError.ModelUnavailable), client.complete("k", "s", "u"))
+        reply(400, """{"type":"error","error":{"type":"invalid_request_error","message":"model: unknown model"}}""")
+        assertEquals(CoachLlmResult.Err(CoachLlmError.ModelUnavailable), client.complete("k", "s", "u"))
+        reply(400, """{"type":"error","error":{"type":"invalid_request_error","message":"max_tokens too large"}}""")
+        assertEquals(CoachLlmResult.Err(CoachLlmError.Failed("HTTP 400")), client.complete("k", "s", "u"))
+        assertEquals(R.string.coach_error_model_unavailable, CoachLlmError.ModelUnavailable.message.res)
+    }
+
+    /** AUD-036: cancelling the coach request (leaving the screen) cancels the HTTP call instead of blocking a thread. */
+    @Test
+    fun cancellingTheRequestCancelsTheCall() = runBlocking {
+        val canceled = CompletableDeferred<Unit>()
+        val http = OkHttpClient.Builder()
+            .eventListener(
+                object : EventListener() {
+                    override fun canceled(call: Call) {
+                        canceled.complete(Unit)
+                    }
+                }
+            )
+            .build()
+        val slow = OkHttpAnthropicClient(http, Dispatchers.IO, baseUrl = server.url("/").toString().trimEnd('/'))
+        server.enqueue(MockResponse.Builder().code(200).body("{}").headersDelay(30, TimeUnit.SECONDS).build())
+        val job = launch(Dispatchers.IO) { slow.complete("k", "s", "u") }
+        server.takeRequest() // the request reached the server
+        job.cancelAndJoin()
+        withTimeout(5_000) { canceled.await() }
+        assertTrue(job.isCancelled)
     }
 
     @Test

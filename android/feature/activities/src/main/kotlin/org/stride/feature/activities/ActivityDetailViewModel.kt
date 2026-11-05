@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import org.stride.core.common.Retryable
 import org.stride.core.data.insights.paceSecPerKm
 import org.stride.core.data.insights.zoneShares
 import org.stride.core.data.repository.ActivityRepository
@@ -28,7 +29,9 @@ data class ActivityDetailUiState(
     val charts: StreamCharts? = null,
     /** Share of HR-zone time (0..1) per zone 1..5; empty without heart rate. */
     val zoneShares: List<Double> = emptyList(),
-    val units: UnitSystem = UnitSystem.METRIC
+    val units: UnitSystem = UnitSystem.METRIC,
+    /** The run could not be read; the screen shows an error with "Try again" (AUD-032). */
+    val loadFailed: Boolean = false
 )
 
 /** Streams reduced to at most [MAX_CHART_POINTS] points for drawing; NaN = gap. */
@@ -49,15 +52,23 @@ class ActivityDetailViewModel @AssistedInject constructor(
     activities: ActivityRepository,
     prefs: UserPreferences
 ) : ViewModel() {
-    val uiState: StateFlow<ActivityDetailUiState> = combine(activities.observeDetail(activityId), prefs.settings) { detail, settings ->
-        ActivityDetailUiState(
-            isLoading = false,
-            detail = detail,
-            charts = detail?.streams?.let(::streamCharts),
-            zoneShares = detail?.metrics?.hrZoneSeconds?.let(::zoneShares).orEmpty(),
-            units = settings.unitSystem
-        )
+    private val retryable = Retryable()
+
+    val uiState: StateFlow<ActivityDetailUiState> = retryable.flow(onError = {
+        ActivityDetailUiState(isLoading = false, loadFailed = true)
+    }) {
+        combine(activities.observeDetail(activityId), prefs.settings) { detail, settings ->
+            ActivityDetailUiState(
+                isLoading = false,
+                detail = detail,
+                charts = detail?.streams?.let(::streamCharts),
+                zoneShares = detail?.metrics?.hrZoneSeconds?.let(::zoneShares).orEmpty(),
+                units = settings.unitSystem
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ActivityDetailUiState())
+
+    fun retry() = retryable.retry()
 
     @AssistedFactory
     interface Factory {

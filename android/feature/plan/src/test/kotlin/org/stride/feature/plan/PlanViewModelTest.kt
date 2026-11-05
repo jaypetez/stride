@@ -81,6 +81,21 @@ class PlanViewModelTest {
         }
     }
 
+    /** AUD-032: a read error is the error state, and "Try again" reloads. */
+    @Test
+    fun loadErrorShowsErrorStateAndRetryRecovers() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        val (flaky, _) = fx.flakyPrefs(failures = 2)
+        val vm = PlanViewModel(fx.plans, flaky, fx.clock)
+        vm.uiState.test {
+            awaitWhere { it.loadFailed }
+            vm.retry()
+            val state = awaitWhere { !it.loadFailed && !it.isLoading }
+            assertNull(state.plan)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun badGoalTimeIsAnErrorAndSavesNothing() = runTest {
         val fx = DemoDataFixture(this, tmp.root)

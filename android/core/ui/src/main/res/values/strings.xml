@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Shared actions and labels -->
+    <string name="common_ok">OK</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_change">Change</string>
+    <string name="common_show_key">Show key</string>
+    <string name="common_hide_key">Hide key</string>
+    <string name="common_dash">–</string>
+    <string name="common_list_separator">" · "</string>
+    <string name="units_kilometres">Kilometres</string>
+    <string name="units_miles">Miles</string>
+
+    <!-- Screen load failures (AUD-032) -->
+    <string name="load_error_title">Couldn\'t load this screen</string>
+    <string name="load_error_message">Stride couldn\'t read your data. It is still on this phone; try again.</string>
+
+    <!-- Contract text (MVP-013/021) -->
+    <string name="privacy_note">Your data never leaves this device except to Garmin, and to Anthropic only if you enable the coach.</string>
+    <string name="garmin_attribution">Activity and health data provided by Garmin Connect. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.</string>
+
+    <!-- Model labels -->
+    <string name="form_band_fresh">Fresh</string>
+    <string name="form_band_fresh_description">Well rested — a good day for a key session or a race.</string>
+    <string name="form_band_neutral">Neutral</string>
+    <string name="form_band_neutral_description">Balanced load and recovery.</string>
+    <string name="form_band_productive">Productive</string>
+    <string name="form_band_productive_description">Absorbing training — fitness is building.</string>
+    <string name="form_band_overreaching">Overreaching</string>
+    <string name="form_band_overreaching_description">Fatigue is high — prioritise recovery.</string>
+    <string name="sport_run">Run</string>
+    <string name="sport_trail_run">Trail run</string>
+    <string name="sport_treadmill_run">Treadmill run</string>
+    <string name="sport_walk">Walk</string>
+    <string name="sport_hike">Hike</string>
+    <string name="sport_cycle">Ride</string>
+    <string name="sport_swim">Swim</string>
+    <string name="sport_strength">Strength</string>
+    <string name="sport_other">Other</string>
+    <string name="load_method_rtss">rTSS (pace)</string>
+    <string name="load_method_trimp">TRIMP (heart rate)</string>
+    <string name="load_method_duration">Duration estimate</string>
+
+    <!-- Profile form (onboarding and Settings) -->
+    <string name="profile_name">Name</string>
+    <string name="profile_birth_year">Birth year</string>
+    <string name="profile_sex">Sex</string>
+    <string name="profile_sex_female">Female</string>
+    <string name="profile_sex_male">Male</string>
+    <string name="profile_sex_unspecified">Prefer not to say</string>
+    <string name="profile_units">Units</string>
+    <string name="profile_heart_rate">Heart rate (optional)</string>
+    <string name="profile_heart_rate_hint">Leave blank and Stride estimates these from your runs.</string>
+    <string name="profile_max_hr">Max HR (bpm)</string>
+    <string name="profile_resting_hr">Resting HR (bpm)</string>
+    <string name="profile_threshold_hr">Threshold HR (bpm)</string>
+    <string name="profile_race_goal">Race goal (optional)</string>
+    <string name="profile_race_none">None</string>
+    <string name="profile_race_day">Race day: %1$s</string>
+    <string name="profile_pick_race_date">Pick race date</string>
+    <string name="race_5k">5K</string>
+    <string name="race_10k">10K</string>
+    <string name="race_half">Half marathon</string>
+    <string name="race_marathon">Marathon</string>
+
+    <!-- Profile validation -->
+    <string name="profile_error_name_empty">Enter your name</string>
+    <plurals name="profile_error_name_long">
+        <item quantity="one">Use at most %1$d character</item>
+        <item quantity="other">Use at most %1$d characters</item>
+    </plurals>
+    <string name="profile_error_birth_year_empty">Enter your birth year</string>
+    <string name="profile_error_birth_year_range" tools:ignore="PluralsCandidate">Enter a year between %1$d and %2$d</string>
+    <string name="profile_error_threshold_above_max">Threshold HR must be below max HR</string>
+    <string name="profile_error_resting_above_max">Resting HR must be below max HR</string>
+    <string name="profile_error_race_date_missing">Pick the race date</string>
+    <string name="profile_error_race_date_past">The race date must be today or later</string>
+    <string name="profile_error_bpm_range">Enter %1$d–%2$d bpm, or leave blank</string>
+</resources>

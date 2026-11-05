@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="coach_title">Coach</string>
+    <string name="coach_setup_title">Turn on the AI coach</string>
+    <string name="coach_setup_subtitle">Optional. Off by default. Uses your own Anthropic API key.</string>
+    <!-- The Garmin-terms caveat shown before the coach can be enabled (ADR 0010, docs/garmin/personal-api.md). -->
+    <string name="coach_caveat">Garmin\'s developer terms reportedly bar using Garmin data to \"create or maintain any AI model, AI system or AI generated knowledge base\". The coach is optional and off by default. If you turn it on, Stride sends only numbers it has already computed (training load, fitness, fatigue and form, heart-rate zone minutes, VDOT, efficiency and weekly volume) to Anthropic, using your own API key. It never sends GPS, streams, laps, FIT files or raw Garmin data, and nothing is used to train a model. Decide for yourself whether this fits Garmin\'s terms.</string>
+    <string name="coach_caveat_accept">I have read this and want to use the coach</string>
+    <string name="coach_key_label">Anthropic API key</string>
+    <string name="coach_key_hint">Create one at console.anthropic.com. It is stored encrypted on this phone.</string>
+    <string name="coach_turn_on">Turn on coach</string>
+    <string name="coach_turn_off">Turn off coach and delete key</string>
+    <string name="coach_subject_activity">This activity</string>
+    <string name="coach_subject_trend">My fitness trend</string>
+    <string name="coach_no_data_title">Nothing to explain yet</string>
+    <string name="coach_no_data_message">Sync some runs (or try the demo) and ask again.</string>
+    <string name="coach_sends_title">What Stride sends</string>
+    <string name="coach_sends_subtitle">Only these computed numbers go to Anthropic.</string>
+    <string name="coach_explain_activity">Explain this activity</string>
+    <string name="coach_explain_trend">Explain my fitness trend</string>
+    <plurals name="coach_removed">
+        <item quantity="one">%1$d sentence removed because it quoted numbers Stride didn\'t compute.</item>
+        <item quantity="other">%1$d sentences removed because they quoted numbers Stride didn\'t compute.</item>
+    </plurals>
+
+    <string name="coach_error_caveat">Read and accept the note above first.</string>
+    <string name="coach_error_key_empty">Paste your Anthropic API key.</string>
+    <string name="coach_error_key_missing">Add your Anthropic API key again.</string>
+    <string name="coach_error_numbers">The coach\'s answer quoted numbers Stride didn\'t compute, so it was hidden. Try asking again.</string>
+    <string name="coach_error_invalid_key">Anthropic rejected your API key. Check it in the coach settings.</string>
+    <string name="coach_error_rate_limited">Anthropic is rate-limiting your key. Try again in a minute.</string>
+    <string name="coach_error_overloaded">Anthropic is busy right now. Try again shortly.</string>
+    <string name="coach_error_network">Couldn\'t reach Anthropic. Check your internet connection.</string>
+    <string name="coach_error_refused">The coach declined to answer this one.</string>
+    <string name="coach_error_model_unavailable">The coach\'s AI model is no longer available. Update Stride to get a supported model.</string>
+    <string name="coach_error_failed">The coach couldn\'t answer (%1$s).</string>
+
+    <string name="coach_fact_date">Date</string>
+    <string name="coach_fact_sport">Sport</string>
+    <string name="coach_fact_distance">Distance</string>
+    <string name="coach_fact_duration">Duration</string>
+    <string name="coach_fact_minutes">%1$s min</string>
+    <string name="coach_fact_avg_pace">Average pace</string>
+    <string name="coach_fact_avg_hr">Average HR</string>
+    <string name="coach_fact_bpm">%1$s bpm</string>
+    <string name="coach_fact_load">Training load</string>
+    <string name="coach_fact_intensity">Intensity factor</string>
+    <string name="coach_fact_zone_minutes">HR zone minutes</string>
+    <string name="coach_fact_vdot">VDOT</string>
+    <string name="coach_fact_efficiency">Efficiency factor</string>
+    <string name="coach_fact_decoupling">Aerobic decoupling</string>
+    <string name="coach_fact_ctl">Fitness (CTL)</string>
+    <string name="coach_fact_atl">Fatigue (ATL)</string>
+    <string name="coach_fact_tsb">Form (TSB)</string>
+    <string name="coach_fact_acwr">Acute:chronic ratio</string>
+    <string name="coach_fact_this_week">This week</string>
+    <string name="coach_fact_last_week">Last week</string>
+    <plurals name="coach_fact_week">
+        <item quantity="one">%1$s · %2$d run · load %3$s</item>
+        <item quantity="other">%1$s · %2$d runs · load %3$s</item>
+    </plurals>
+</resources>

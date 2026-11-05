@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_get_started">Get started</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_welcome_title">Welcome to Stride</string>
+    <string name="onboarding_welcome_subtitle">Your running data, understood. Stride computes your training load, fitness, form and zones on this phone from your own Garmin data.</string>
+    <string name="onboarding_private_title">Private by design</string>
+    <string name="onboarding_no_account">There is no Stride account and no server.</string>
+    <string name="onboarding_setup_time">Setup takes about two minutes: a short profile, a health check and a disclaimer.</string>
+    <string name="onboarding_about_title">About you</string>
+    <string name="onboarding_about_subtitle">Stride uses this to set your heart-rate zones and training load. It stays on this phone.</string>
+    <string name="onboarding_parq_title">Health check</string>
+    <string name="onboarding_parq_subtitle">Answer each question honestly (PAR-Q). Your answers stay on this phone.</string>
+    <string name="onboarding_yes">Yes</string>
+    <string name="onboarding_no">No</string>
+    <!-- TalkBack label of a PAR-Q answer: the answer, then its question (AUD-035). -->
+    <string name="onboarding_parq_answer">%1$s: %2$s</string>
+    <string name="onboarding_parq_flag_title">See a professional first</string>
+    <string name="onboarding_parq_guidance">You answered yes to at least one question. Please talk to a doctor or another qualified health professional before you start training or make it harder. You can still use Stride to look at your data.</string>
+    <string name="onboarding_parq_flagged">You flagged: %1$s.</string>
+    <string name="onboarding_disclaimer_title">Before you start</string>
+    <string name="onboarding_disclaimer_accept">I have read and accept this</string>
+    <string name="onboarding_all_set">You\'re all set</string>
+    <string name="onboarding_all_set_name">You\'re all set, %1$s</string>
+    <string name="onboarding_source_question">Where should your runs come from?</string>
+    <string name="onboarding_connect_garmin">Connect Garmin</string>
+    <string name="onboarding_connect_subtitle">Use your own Garmin Personal API key. Runs and health data sync to this phone.</string>
+    <string name="onboarding_demo_title">Try the demo</string>
+    <string name="onboarding_demo_subtitle">Explore Stride with synthetic runs. You can connect Garmin later in You → Garmin.</string>
+    <string name="onboarding_try_demo">Try demo</string>
+    <string name="onboarding_error_finish">Couldn\'t finish setting up. Please try again.</string>
+</resources>

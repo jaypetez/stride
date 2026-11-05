@@ -36,6 +36,14 @@ interface ActivityDao {
     @Query("SELECT * FROM activity ORDER BY start_epoch_sec ASC")
     suspend fun allChronological(): List<ActivityEntity>
 
+    /** Activities whose local date is in [from]..[to] (ISO dates), oldest first. */
+    @Query("SELECT * FROM activity WHERE local_date BETWEEN :from AND :to ORDER BY start_epoch_sec ASC")
+    suspend fun between(from: String, to: String): List<ActivityEntity>
+
+    /** Activities that started at or after [fromEpochSec], oldest first. */
+    @Query("SELECT * FROM activity WHERE start_epoch_sec >= :fromEpochSec ORDER BY start_epoch_sec ASC")
+    suspend fun startedSince(fromEpochSec: Long): List<ActivityEntity>
+
     @Query("SELECT id FROM activity WHERE id IN (:ids)")
     suspend fun existingIds(ids: List<Long>): List<Long>
 
@@ -110,6 +118,9 @@ interface MetricsDao {
 
     @Query("SELECT * FROM activity_metrics")
     suspend fun allActivityMetrics(): List<ActivityMetricsEntity>
+
+    @Query("SELECT * FROM activity_metrics WHERE activity_id IN (:activityIds)")
+    suspend fun activityMetricsFor(activityIds: List<Long>): List<ActivityMetricsEntity>
 
     @Upsert
     suspend fun upsertDailyLoads(days: List<DailyLoadEntity>)

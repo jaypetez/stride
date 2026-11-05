@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connect_title">Garmin</string>
+    <string name="connect_storage_note">Your key is stored encrypted on this phone and is only ever sent to Garmin. %1$s</string>
+    <string name="connect_rejected_title">Garmin rejected your key</string>
+    <string name="connect_rejected_text">Sync has stopped. The key may have expired or been deleted. Create a new key in Garmin Connect and paste it below.</string>
+    <string name="connect_garmin_connect">Garmin Connect</string>
+    <string name="connect_status_connected">Connected</string>
+    <string name="connect_status_expiring_soon">Expiring soon</string>
+    <string name="connect_status_expired">Expired</string>
+    <string name="connect_expiry_unset">Key expiry not set.</string>
+    <string name="connect_expired_on">Your key expired on %1$s.</string>
+    <string name="connect_expires_today">Your key expires today.</string>
+    <plurals name="connect_expires_on">
+        <item quantity="one">Key expires on %1$s (in %2$d day).</item>
+        <item quantity="other">Key expires on %1$s (in %2$d days).</item>
+    </plurals>
+    <string name="connect_expiring_hint">Create a new key in Garmin Connect before it expires and paste it below to keep syncing.</string>
+    <string name="connect_disconnect">Disconnect</string>
+    <string name="connect_done">Done</string>
+    <string name="connect_steps_title">Get your Garmin Personal API key</string>
+    <string name="connect_step_number">%1$d.</string>
+    <string name="connect_step_1">Open Garmin Connect in your browser and sign in.</string>
+    <string name="connect_step_2">Go to Settings, then Personal API.</string>
+    <string name="connect_step_3">Create a key and choose how long it lasts: 30, 90 or 180 days, or 1 year.</string>
+    <string name="connect_step_4">Copy the key straight away. Garmin shows it only once.</string>
+    <string name="connect_step_5">Paste it below, check the expiry date and tap Connect.</string>
+    <string name="connect_open_garmin">Open Garmin Connect</string>
+    <string name="connect_paste_key">Paste your key</string>
+    <string name="connect_paste_new_key">Paste a new key</string>
+    <string name="connect_key_label">Personal API key</string>
+    <string name="connect_lifetime_title">Key lifetime you chose in Garmin Connect</string>
+    <string name="connect_lifetime_30">30 days</string>
+    <string name="connect_lifetime_90">90 days</string>
+    <string name="connect_lifetime_180">180 days</string>
+    <string name="connect_lifetime_365">1 year</string>
+    <string name="connect_expires">Expires %1$s</string>
+    <string name="connect_connect">Connect</string>
+    <string name="connect_disconnect_title">Disconnect Garmin?</string>
+    <string name="connect_disconnect_text">Stride removes your key from this phone and stops syncing.</string>
+    <string name="connect_disconnect_delete_data">Also delete all synced data</string>
+
+    <string name="connect_key_lost_title">Re-enter your Garmin key</string>
+    <string name="connect_key_lost_body">Stride could not unlock your saved key on this phone, so it was removed. Paste your Garmin key again to resume sync.</string>
+    <string name="connect_error_empty">Paste your Garmin Personal API key first.</string>
+    <string name="connect_error_invalid">Garmin didn\'t accept this key. Check that you copied all of it, or create a new key and try again.</string>
+    <string name="connect_error_network">Couldn\'t reach Garmin. Check your internet connection and try again.</string>
+    <string name="connect_error_rate_limited">Garmin is busy right now. Wait a minute and try again.</string>
+    <string name="connect_error_server">Garmin had a problem (HTTP %1$d). Try again later.</string>
+    <string name="connect_error_http">Garmin returned an unexpected error (HTTP %1$d). Try again later.</string>
+    <string name="connect_error_save_failed">Something went wrong on this phone. Please try again.</string>
+    <string name="connect_error_parse">Garmin sent a reply Stride couldn\'t read. Try again later.</string>
+</resources>

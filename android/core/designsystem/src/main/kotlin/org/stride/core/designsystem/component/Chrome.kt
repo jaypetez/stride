@@ -23,8 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import org.stride.core.designsystem.R
 
 /** Top app bar with an optional back arrow and actions. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +43,7 @@ fun StrideTopAppBar(
         navigationIcon = {
             if (onBack != null) {
                 IconButton(onClick = onBack) {
-                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.ds_back))
                 }
             }
         },
@@ -109,13 +111,13 @@ fun DemoBanner(modifier: Modifier = Modifier, onExit: (() -> Unit)? = null) {
                 modifier = Modifier.size(18.dp)
             )
             Text(
-                text = "Demo mode · synthetic data",
+                text = stringResource(R.string.ds_demo_banner),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.weight(1f)
             )
             if (onExit != null) {
-                StrideTextButton(text = "Exit demo", onClick = onExit)
+                StrideTextButton(text = stringResource(R.string.ds_exit_demo), onClick = onExit)
             }
         }
     }

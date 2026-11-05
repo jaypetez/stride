@@ -21,10 +21,11 @@ This is a standalone Gradle build — not part of the pnpm workspace.
 | `./gradlew -p android verifyRoborazziDebug` | Screenshot tests against the committed baselines. |
 | `./gradlew -p android recordRoborazziDebug` | Re-record baselines (read [screenshots.md](../docs/testing/screenshots.md) first). |
 | `./gradlew -p android detekt spotlessCheck lintDebug` | Static analysis (Detekt + Compose rules, ktlint, Android Lint). |
+| `./gradlew -p android checkHardcodedText` | Fails on user-facing text hard-coded in Kotlin UI code; strings belong in `res/values/strings.xml` (AUD-034). |
 | `./gradlew -p android spotlessApply` | Auto-format Kotlin and `.kts`. |
 | `./gradlew -p android koverHtmlReport` | Aggregated coverage report (threshold: 60% lines, see root `build.gradle.kts`). |
 
-`check` runs unit tests, Android Lint, Detekt, ktlint and `koverVerify`. CI adds
+`check` runs unit tests, Android Lint, Detekt, ktlint, `checkHardcodedText` and `koverVerify`. CI adds
 `-Proborazzi.test.verify=true` so the same test run also verifies screenshots.
 
 ## Modules

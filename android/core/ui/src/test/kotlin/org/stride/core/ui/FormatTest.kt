@@ -1,9 +1,20 @@
 package org.stride.core.ui
 
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneOffset
+import java.util.Locale
 import kotlin.test.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.stride.core.model.UnitSystem
 
+/** Number formatting is locale-independent; dates follow the device locale and clock setting (AUD-034). */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
 class FormatTest {
     @Test
     fun distancesAndPaces() {
@@ -23,7 +34,29 @@ class FormatTest {
         assertEquals("+6", Format.signed(6.2))
         assertEquals("−12", Format.signed(-12.4))
         assertEquals("0", Format.signed(0.2))
-        assertEquals("Sun 1 Nov", Format.day("2026-11-01"))
+        assertEquals("Sun 1 Nov", Format.day("2026-11-01", Locale.UK))
+    }
+
+    @Test
+    fun datesFollowTheLocale() {
+        val date = LocalDate.of(2026, 11, 1)
+        assertEquals("Sun 1 Nov", Format.day(date, Locale.UK))
+        assertEquals("Sun, Nov 1", Format.day(date, Locale.US))
+        assertEquals("1 Nov", Format.shortDate(date, Locale.UK))
+        assertEquals("Nov 1", Format.shortDate(date, Locale.US))
+        assertEquals("November 2026", Format.monthYear(YearMonth.of(2026, 11), Locale.UK))
+        kotlin.test.assertTrue(Format.day(date, Locale.GERMANY).startsWith("So"), "German weekday names")
+    }
+
+    @Test
+    fun timesFollowThe24HourSetting() {
+        val epoch = Instant.parse("2026-11-01T19:05:00Z").epochSecond
+        assertEquals("Sun 1 Nov · 19:05", Format.dayTime(epoch, "UTC", is24Hour = true, locale = Locale.UK))
+        assertEquals("Sun, Nov 1 · 7:05 PM", Format.dayTime(epoch, "UTC", is24Hour = false, locale = Locale.US))
+        assertEquals(
+            "Sun, 1 Nov 2026, 19:05",
+            Format.dateTime(Instant.ofEpochSecond(epoch), ZoneOffset.UTC, is24Hour = true, locale = Locale.UK)
+        )
     }
 
     @Test

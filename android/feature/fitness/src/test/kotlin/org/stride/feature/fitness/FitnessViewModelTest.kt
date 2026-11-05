@@ -54,6 +54,21 @@ class FitnessViewModelTest {
         }
     }
 
+    /** AUD-032: a read error is the error state, and "Try again" reloads. */
+    @Test
+    fun loadErrorShowsErrorStateAndRetryRecovers() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val (flaky, _) = fx.flakyPrefs()
+        val vm = FitnessViewModel(fx.insights, flaky)
+        vm.uiState.test {
+            assertTrue(awaitWhere { it.loadFailed }.insights == null)
+            vm.retry()
+            assertNotNull(awaitWhere { !it.loadFailed && !it.isLoading }.insights)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun noDataIsEmpty() = runTest {
         val fx = DemoDataFixture(this, tmp.root)

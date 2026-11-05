@@ -10,6 +10,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import org.stride.core.designsystem.component.StrideTopAppBar
 import org.stride.core.navigation.LocalNavigator
@@ -45,7 +46,9 @@ fun LicencesFlow(modifier: Modifier = Modifier) {
 
 @Composable
 fun LicencesScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Open-source licences", onBack = onBack) }) { padding ->
+    Scaffold(modifier = modifier, topBar = {
+        StrideTopAppBar(title = stringResource(R.string.settings_licences), onBack = onBack)
+    }) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             items(LICENCES, key = { it.name }) { item ->
                 ListItem(

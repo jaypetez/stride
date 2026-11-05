@@ -110,3 +110,12 @@ object KeystoreAead {
     fun recoveringCipher(context: Context): SecretCipher =
         RecoveringSecretCipher(createAead = { create(context) }, resetKeyset = { reset(context) })
 }
+
+/** Defers building the real cipher (Keystore + Tink) until the first secret is read or written (AUD-036). */
+class LazySecretCipher(factory: () -> SecretCipher) : SecretCipher {
+    private val delegate by lazy(factory)
+
+    override fun encrypt(plaintext: String, associatedData: String): String = delegate.encrypt(plaintext, associatedData)
+
+    override fun decrypt(ciphertext: String, associatedData: String): String = delegate.decrypt(ciphertext, associatedData)
+}

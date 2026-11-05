@@ -2,6 +2,7 @@ package org.stride.feature.activities
 
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
+import java.time.YearMonth
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -45,7 +46,7 @@ class ActivitiesViewModelTest {
             assertEquals(total, flat.size)
             assertEquals(flat.sortedByDescending { it.activity.startEpochSec }, flat)
             assertEquals(state.months.map { it.key }.sortedDescending(), state.months.map { it.key })
-            assertTrue(state.months.first().title in setOf("November 2026", "October 2026"))
+            assertTrue(state.months.first().month in setOf(YearMonth.of(2026, 11), YearMonth.of(2026, 10)))
             assertTrue(flat.all { it.metrics != null })
             cancelAndIgnoreRemainingEvents()
         }
@@ -67,6 +68,36 @@ class ActivitiesViewModelTest {
             assertEquals(charts.timeSec.size, assertNotNull(charts.paceSecPerKm).size)
             assertEquals(5, state.zoneShares.size)
             assertEquals(1.0, state.zoneShares.sum(), 1e-9)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** AUD-032: a read error is the error state, and "Try again" reloads. */
+    @Test
+    fun listErrorShowsErrorStateAndRetryRecovers() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val (flaky, _) = fx.flakyPrefs()
+        val vm = ActivitiesViewModel(fx.activities, flaky)
+        vm.uiState.test {
+            assertTrue(awaitWhere { it.loadFailed }.months.isEmpty())
+            vm.retry()
+            assertTrue(awaitWhere { !it.loadFailed && !it.isLoading }.months.isNotEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun detailErrorShowsErrorStateAndRetryRecovers() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val run = fx.activities.observeActivities().first().first()
+        val (flaky, _) = fx.flakyPrefs()
+        val vm = ActivityDetailViewModel(run.activity.id, fx.activities, flaky)
+        vm.uiState.test {
+            assertNull(awaitWhere { it.loadFailed }.detail)
+            vm.retry()
+            assertNotNull(awaitWhere { !it.loadFailed && !it.isLoading }.detail)
             cancelAndIgnoreRemainingEvents()
         }
     }

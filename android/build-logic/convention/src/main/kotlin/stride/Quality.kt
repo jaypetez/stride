@@ -52,6 +52,7 @@ internal fun Project.configureQuality() {
         }
     }
     tasks.named("check").configure { dependsOn("spotlessCheck") }
+    configureHardcodedTextCheck()
 
     extensions.configure<KoverProjectExtension> {
         currentProject {

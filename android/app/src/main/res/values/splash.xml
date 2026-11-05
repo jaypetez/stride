@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch theme (AUD-037): the system splash stays up until settings load (MainActivity
+         setKeepOnScreenCondition), then switches to Theme.Stride. -->
+    <style name="Theme.Stride.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/stride_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Stride</item>
+    </style>
+</resources>

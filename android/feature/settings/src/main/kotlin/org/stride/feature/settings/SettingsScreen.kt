@@ -1,5 +1,6 @@
 package org.stride.feature.settings
 
+import android.content.res.Resources
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
@@ -36,10 +38,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.SectionHeader
 import org.stride.core.designsystem.component.StatusPill
@@ -59,8 +66,8 @@ import org.stride.core.navigation.ProfileEditRoute
 import org.stride.core.navigation.TodayRoute
 import org.stride.core.science.coach.DISCLAIMER
 import org.stride.core.ui.Format
-import org.stride.core.ui.GARMIN_ATTRIBUTION
-import org.stride.core.ui.PRIVACY_NOTE
+import org.stride.core.ui.LocalIs24HourClock
+import org.stride.core.ui.R as CoreUiR
 
 /** Stateful "You" tab. */
 @Composable
@@ -97,13 +104,27 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(state.message) {
-        state.message?.let {
+    val message = state.message?.resolve()
+    LaunchedEffect(message) {
+        message?.let {
             snackbar.showSnackbar(it)
             onEvent(SettingsEvent.MessageShown)
         }
     }
-    Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "You") }, snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    Scaffold(
+        modifier = modifier,
+        topBar = { StrideTopAppBar(title = stringResource(R.string.settings_title)) },
+        snackbarHost = { SnackbarHost(snackbar) }
+    ) { padding ->
+        if (state.loadFailed) {
+            ErrorState(
+                title = stringResource(CoreUiR.string.load_error_title),
+                message = stringResource(CoreUiR.string.load_error_message),
+                onRetry = { onEvent(SettingsEvent.Retry) },
+                modifier = Modifier.padding(padding)
+            )
+            return@Scaffold
+        }
         if (state.loading) {
             LoadingState(Modifier.padding(padding).fillMaxSize())
             return@Scaffold
@@ -118,142 +139,200 @@ fun SettingsScreen(
         ) {
             StrideCard(onClick = { onNavigate(ProfileEditRoute) }) {
                 ListItem(
-                    headlineContent = { Text(state.profile.name.ifBlank { "Your profile" }) },
-                    supportingContent = { Text(profileSummary(state)) },
+                    headlineContent = { Text(state.profile.name.ifBlank { stringResource(R.string.settings_your_profile) }) },
+                    supportingContent = { Text(profileSummary(LocalResources.current, state)) },
                     leadingContent = { StrideAvatar(name = state.profile.name.ifBlank { "?" }) },
-                    trailingContent = { Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "Edit profile") },
+                    trailingContent = {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                            contentDescription = stringResource(R.string.settings_edit_profile)
+                        )
+                    },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
 
-            SectionHeader("Display")
+            SectionHeader(stringResource(R.string.settings_display))
             StrideCard {
-                Text("Units", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.settings_units), style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     UnitSystem.entries.forEach { units ->
                         FilterChip(
                             selected = state.units == units,
                             onClick = { onEvent(SettingsEvent.UnitsChanged(units)) },
-                            label = { Text(if (units == UnitSystem.METRIC) "Kilometres" else "Miles") }
+                            label = {
+                                Text(
+                                    stringResource(
+                                        if (units ==
+                                            UnitSystem.METRIC
+                                        ) {
+                                            CoreUiR.string.units_kilometres
+                                        } else {
+                                            CoreUiR.string.units_miles
+                                        }
+                                    )
+                                )
+                            }
                         )
                     }
                 }
                 SwitchRow(
-                    title = "Dynamic colour",
-                    subtitle = "Use colours from your wallpaper (Android 12+)",
+                    title = stringResource(R.string.settings_dynamic_colour),
+                    subtitle = stringResource(R.string.settings_dynamic_colour_subtitle),
                     checked = state.dynamicColor,
                     onChange = { onEvent(SettingsEvent.DynamicColorChanged(it)) }
                 )
             }
 
-            SectionHeader("Garmin and sync")
+            SectionHeader(stringResource(R.string.settings_garmin_sync))
             StrideCard(
-                title = "Garmin Connect",
+                title = stringResource(R.string.settings_garmin_connect),
                 subtitle = when {
-                    state.garminKeyRejected -> "Garmin rejected your key. Tap to reconnect."
-                    state.garminConnected -> "Connected"
-                    else -> "Not connected"
+                    state.garminKeyRejected -> stringResource(R.string.settings_garmin_rejected)
+                    state.garminConnected -> stringResource(R.string.settings_garmin_connected)
+                    else -> stringResource(R.string.settings_garmin_not_connected)
                 },
                 onClick = { onNavigate(ConnectGarminRoute) },
                 trailing = {
                     StatusPill(
-                        text = if (state.garminConnected && !state.garminKeyRejected) "On" else "Off",
+                        text = stringResource(
+                            if (state.garminConnected &&
+                                !state.garminKeyRejected
+                            ) {
+                                R.string.settings_on
+                            } else {
+                                R.string.settings_off
+                            }
+                        ),
                         color = if (state.garminKeyRejected) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                 }
             ) {}
             StrideCard {
-                Text("Sync history", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.settings_sync_history), style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SYNC_WINDOWS.forEach { days ->
                         FilterChip(
                             selected = state.syncWindowDays == days,
                             onClick = { onEvent(SettingsEvent.SyncWindowChanged(days)) },
-                            label = { Text(if (days == 365) "1 year" else "$days days") }
+                            label = {
+                                Text(
+                                    if (days ==
+                                        365
+                                    ) {
+                                        stringResource(R.string.settings_one_year)
+                                    } else {
+                                        pluralStringResource(R.plurals.settings_days, days, days)
+                                    }
+                                )
+                            }
                         )
                     }
                 }
+                val lastSync = state.lastSync?.let { Format.dateTime(it, state.zone, LocalIs24HourClock.current) }
                 Text(
-                    "Last sync: ${state.lastSync ?: "never"}",
+                    stringResource(R.string.settings_last_sync, lastSync ?: stringResource(R.string.settings_never)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                state.syncStatus?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                state.syncStatus?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall) }
                 StrideOutlinedButton(
-                    text = "Sync now",
+                    text = stringResource(R.string.settings_sync_now),
                     onClick = { onEvent(SettingsEvent.SyncNow) },
                     enabled = state.garminConnected && !state.syncing && !state.demoMode,
                     leadingIcon = Icons.Outlined.Sync
                 )
             }
 
-            SectionHeader("Demo mode")
+            SectionHeader(stringResource(R.string.settings_demo_mode))
             StrideCard(
-                subtitle = if (state.demoMode) {
-                    "You're looking at synthetic runs. Exiting deletes them; your own data is untouched."
-                } else {
-                    "Explore Stride with synthetic runs. Your own data is kept separately."
-                }
+                subtitle = stringResource(if (state.demoMode) R.string.settings_demo_on else R.string.settings_demo_off)
             ) {
                 if (state.demoMode) {
-                    StrideOutlinedButton(text = "Exit demo", onClick = { onEvent(SettingsEvent.ExitDemo) }, enabled = !state.busy)
+                    StrideOutlinedButton(
+                        text = stringResource(R.string.settings_exit_demo),
+                        onClick = { onEvent(SettingsEvent.ExitDemo) },
+                        enabled = !state.busy
+                    )
                 } else {
-                    StrideOutlinedButton(text = "Try demo", onClick = { onEvent(SettingsEvent.EnterDemo) }, enabled = !state.busy)
+                    StrideOutlinedButton(
+                        text = stringResource(R.string.settings_try_demo),
+                        onClick = { onEvent(SettingsEvent.EnterDemo) },
+                        enabled = !state.busy
+                    )
                 }
             }
 
-            SectionHeader("AI coach")
+            SectionHeader(stringResource(R.string.settings_ai_coach))
             StrideCard(
-                subtitle = if (state.coachEnabled) {
-                    "On. Uses your own Anthropic key and sends only computed facts."
-                } else {
-                    "Off. Optional: explains your runs and fitness with your own Anthropic key."
-                }
+                subtitle = stringResource(if (state.coachEnabled) R.string.settings_coach_on else R.string.settings_coach_off)
             ) {
-                StrideButton(text = "Ask the coach", onClick = { onNavigate(CoachRoute()) })
-                if (state.coachEnabled) StrideOutlinedButton(text = "Turn off coach", onClick = { onEvent(SettingsEvent.TurnOffCoach) })
+                StrideButton(text = stringResource(R.string.settings_ask_coach), onClick = { onNavigate(CoachRoute()) })
+                if (state.coachEnabled) {
+                    StrideOutlinedButton(text = stringResource(R.string.settings_turn_off_coach), onClick = {
+                        onEvent(SettingsEvent.TurnOffCoach)
+                    })
+                }
             }
 
-            SectionHeader("Your data")
+            SectionHeader(stringResource(R.string.settings_your_data))
             StrideCard {
-                ActionRow(Icons.Outlined.FileDownload, "Export all data", "Save your runs, health data and metrics as JSON", onExport)
-                ActionRow(Icons.Outlined.DeleteForever, "Delete all data", "Remove everything Stride stores on this phone") {
+                ActionRow(
+                    Icons.Outlined.FileDownload,
+                    stringResource(R.string.settings_export),
+                    stringResource(R.string.settings_export_subtitle),
+                    onExport
+                )
+                ActionRow(
+                    Icons.Outlined.DeleteForever,
+                    stringResource(R.string.settings_delete),
+                    stringResource(R.string.settings_delete_subtitle)
+                ) {
                     onEvent(SettingsEvent.DeleteClicked)
                 }
             }
 
-            SectionHeader("About")
+            SectionHeader(stringResource(R.string.settings_about))
             StrideCard {
-                Text("Stride ${state.version}", style = MaterialTheme.typography.titleSmall)
-                Text(PRIVACY_NOTE, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.settings_version, state.version), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(CoreUiR.string.privacy_note), style = MaterialTheme.typography.bodyMedium)
                 Text(DISCLAIMER, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(GARMIN_ATTRIBUTION, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                ActionRow(null, "Open-source licences", null) { onNavigate(LicencesRoute) }
+                Text(
+                    stringResource(CoreUiR.string.garmin_attribution),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                ActionRow(null, stringResource(R.string.settings_licences), null) { onNavigate(LicencesRoute) }
             }
         }
         if (state.confirmDelete) DeleteDialog(onEvent)
     }
 }
 
-private fun profileSummary(state: SettingsUiState): String {
+private fun profileSummary(res: Resources, state: SettingsUiState): String {
     val p = state.profile
     val parts = buildList {
-        p.birthYear?.let { add("Born $it") }
-        add(if (p.unitSystem == UnitSystem.IMPERIAL) "Miles" else "Kilometres")
-        p.maxHr?.let { add("Max HR $it") }
-        p.raceGoal?.let { add("Race ${Format.day(it.date)}") }
+        p.birthYear?.let { add(res.getString(R.string.settings_born, it)) }
+        add(res.getString(if (p.unitSystem == UnitSystem.IMPERIAL) CoreUiR.string.units_miles else CoreUiR.string.units_kilometres))
+        p.maxHr?.let { add(res.getString(R.string.settings_max_hr, it)) }
+        p.raceGoal?.let { add(res.getString(R.string.settings_race, Format.day(it.date))) }
     }
     return parts.joinToString(" · ")
 }
 
+/**
+ * One focus target with the switch role (AUD-035): the whole row toggles and
+ * TalkBack reads title, subtitle and state together; the Switch itself is
+ * not separately focusable (onCheckedChange = null).
+ */
 @Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
+        trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) }
+        modifier = modifier.fillMaxWidth().toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
     )
 }
 
@@ -273,19 +352,16 @@ private fun ActionRow(icon: ImageVector?, title: String, subtitle: String?, onCl
 private fun DeleteDialog(onEvent: (SettingsEvent) -> Unit) {
     AlertDialog(
         onDismissRequest = { onEvent(SettingsEvent.DeleteDismissed) },
-        title = { Text("Delete all data?") },
-        text = {
-            Text(
-                "This deletes your runs, health data, metrics, profile, settings, Garmin key and Anthropic key from this phone. " +
-                    "It can't be undone. Your data in Garmin Connect is not affected."
-            )
-        },
+        title = { Text(stringResource(R.string.settings_delete_title)) },
+        text = { Text(stringResource(R.string.settings_delete_text)) },
         confirmButton = {
             TextButton(onClick = {
                 onEvent(SettingsEvent.DeleteConfirmed)
-            }) { Text("Delete everything", color = MaterialTheme.colorScheme.error) }
+            }) { Text(stringResource(R.string.settings_delete_confirm), color = MaterialTheme.colorScheme.error) }
         },
-        dismissButton = { TextButton(onClick = { onEvent(SettingsEvent.DeleteDismissed) }) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(onClick = { onEvent(SettingsEvent.DeleteDismissed) }) { Text(stringResource(CoreUiR.string.common_cancel)) }
+        }
     )
 }
 

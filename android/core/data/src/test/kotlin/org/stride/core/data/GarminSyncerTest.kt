@@ -4,6 +4,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,7 +20,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.stride.core.data.sync.SyncFailure
 import org.stride.core.data.sync.SyncOutcome
+import org.stride.core.data.sync.SyncPhase
 import org.stride.core.data.sync.SyncProgress
+import org.stride.core.data.sync.orLastFailure
 import org.stride.core.garmin.GarminError
 import org.stride.core.model.Activity
 import org.stride.core.model.DailyWellness
@@ -124,6 +127,30 @@ class GarminSyncerTest {
         assertTrue(env.prefs.current().garminKeyRejected)
         assertEquals(1, client.activityCalls.size)
         assertEquals(SyncProgress.Failed(SyncFailure.KEY_INVALID), env.status.progress.value)
+    }
+
+    /** AUD-032: the failure reason is persisted, so a fresh process (Idle status) still shows it; a success clears it. */
+    @Test
+    fun lastFailureSurvivesProcessDeathAndClearsOnSuccess() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val client = FakeGarminClient(history.take(2)).apply {
+            failActivitiesOnCall = 1
+            failWith = GarminError.KeyInvalid
+        }
+        env.syncer(client).sync()
+        val persisted = env.prefs.current().lastSyncFailure
+        assertEquals(SyncFailure.KEY_INVALID.name, persisted)
+        // A new process starts with an in-memory Idle status; the persisted reason fills it in.
+        assertEquals(SyncProgress.Failed(SyncFailure.KEY_INVALID), SyncProgress.Idle.orLastFailure(persisted))
+        assertEquals(
+            SyncProgress.Running(SyncPhase.CHECKING, 0, 1),
+            SyncProgress.Running(SyncPhase.CHECKING, 0, 1).orLastFailure(persisted)
+        )
+
+        client.failActivitiesOnCall = null
+        assertIs<SyncOutcome.Success>(env.syncer(client).sync())
+        assertNull(env.prefs.current().lastSyncFailure)
+        assertEquals(SyncProgress.Idle, SyncProgress.Idle.orLastFailure(env.prefs.current().lastSyncFailure))
     }
 
     @Test

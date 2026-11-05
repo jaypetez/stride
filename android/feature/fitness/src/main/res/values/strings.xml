@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fitness_title">Fitness</string>
+    <string name="fitness_empty_title">No fitness data yet</string>
+    <string name="fitness_empty_message">Fitness, fatigue and form appear once a few runs have synced.</string>
+    <string name="fitness_range_6_weeks">6 weeks</string>
+    <string name="fitness_range_3_months">3 months</string>
+    <string name="fitness_range_6_months">6 months</string>
+    <string name="fitness_range_1_year">1 year</string>
+
+    <string name="fitness_pmc_title">Fitness, fatigue &amp; form</string>
+    <string name="fitness_pmc_ramp">Fitness ramp %1$s CTL/week</string>
+    <string name="fitness_ctl">Fitness (CTL)</string>
+    <string name="fitness_atl">Fatigue (ATL)</string>
+    <string name="fitness_tsb">Form (TSB)</string>
+    <plurals name="fitness_pmc_description">
+        <item quantity="one">Performance management chart over %1$d day. Latest fitness %2$s, fatigue %3$s, form %4$s.</item>
+        <item quantity="other">Performance management chart over %1$d days. Latest fitness %2$s, fatigue %3$s, form %4$s.</item>
+    </plurals>
+    <string name="fitness_pmc_no_data">Performance management chart, no data</string>
+    <string name="fitness_pmc_explanation">Fitness is your 42-day training load, fatigue the 7-day load; form is yesterday\'s fitness minus fatigue.</string>
+
+    <string name="fitness_acwr_title">Acute:chronic workload</string>
+    <string name="fitness_acwr_now">Now %1$s</string>
+    <string name="fitness_acwr">ACWR</string>
+    <plurals name="fitness_acwr_window">
+        <item quantity="one">Acute to chronic workload ratio over %1$d day</item>
+        <item quantity="other">Acute to chronic workload ratio over %1$d days</item>
+    </plurals>
+    <string name="fitness_acwr_now_part">now %1$s</string>
+    <plurals name="fitness_acwr_spikes">
+        <item quantity="one">%1$d day above %2$s</item>
+        <item quantity="other">%1$d days above %2$s</item>
+    </plurals>
+    <string name="fitness_acwr_sweet_spot">sweet spot</string>
+    <string name="fitness_acwr_spike">spike</string>
+    <string name="fitness_acwr_explanation">Last 7 days of load against the last 28. Between %1$s and %2$s is the usual sweet spot; above %3$s (red dots) load rose quickly. One signal among several, not a prediction.</string>
+
+    <string name="fitness_intensity_title">Intensity distribution</string>
+    <string name="fitness_intensity_subtitle">Easy share this week %1$s %% · target ~%2$s %%</string>
+    <string name="fitness_easy">Easy</string>
+    <string name="fitness_moderate">Moderate</string>
+    <string name="fitness_hard">Hard</string>
+    <plurals name="fitness_intensity_description">
+        <item quantity="one">Weekly easy, moderate and hard running time over %1$d week. This week %2$s percent easy, %3$s moderate, %4$s hard; target 80 percent easy.</item>
+        <item quantity="other">Weekly easy, moderate and hard running time over %1$d weeks. This week %2$s percent easy, %3$s moderate, %4$s hard; target 80 percent easy.</item>
+    </plurals>
+
+    <string name="fitness_vdot_title">VDOT &amp; race estimates</string>
+    <string name="fitness_vdot_current">Current VDOT %1$s</string>
+    <string name="fitness_vdot">VDOT</string>
+    <string name="fitness_vdot_description">VDOT by week, from %1$s to %2$s</string>
+    <string name="fitness_predictions">Race predictions — estimates</string>
+    <string name="fitness_predictions_note">Estimates from your VDOT (Daniels). Real results depend on training for the distance, course, weather and pacing.</string>
+
+    <string name="fitness_zones_title">Your zones</string>
+    <string name="fitness_zones_hr">Heart rate (bpm)</string>
+    <string name="fitness_zones_pace">Pace (%1$s)</string>
+    <string name="fitness_zone_short">Z%1$d</string>
+    <string name="fitness_range_between">%1$s–%2$s</string>
+    <string name="fitness_slower_than">slower than %1$s</string>
+</resources>

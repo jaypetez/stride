@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runs_title">Runs</string>
+    <string name="runs_empty_title">No runs yet</string>
+    <string name="runs_empty_message">Your Garmin activities appear here after the first sync.</string>
+    <string name="runs_open_run">Open run</string>
+    <string name="runs_load">Load %1$s</string>
+
+    <string name="run_title">Run</string>
+    <string name="run_not_found_title">Run not found</string>
+    <string name="run_not_found_message">This activity is no longer on your device.</string>
+    <string name="run_ask_coach">Ask the coach about this run</string>
+    <string name="run_distance">Distance</string>
+    <string name="run_time">Time</string>
+    <string name="run_pace">Pace</string>
+    <string name="run_avg_hr">Avg HR</string>
+    <string name="run_bpm">bpm</string>
+    <string name="run_elevation">Elevation</string>
+    <string name="run_cadence">Cadence</string>
+    <string name="run_spm">spm</string>
+    <string name="run_training_load">Training load</string>
+    <string name="run_load">Load</string>
+    <string name="run_intensity">Intensity</string>
+    <string name="run_intensity_caption">IF vs threshold</string>
+    <string name="run_load_rtss">rTSS</string>
+    <string name="run_load_trimp">TRIMP</string>
+    <string name="run_load_duration">Duration estimate</string>
+    <string name="run_load_rtss_explanation">Pace-based: grade-adjusted pace relative to your threshold, weighted by duration. 100 ≈ one hour at threshold.</string>
+    <string name="run_load_trimp_explanation">Heart-rate based (Banister TRIMP): no reliable pace, so load comes from heart-rate reserve and duration.</string>
+    <string name="run_load_duration_explanation">Estimated from duration only: no usable pace or heart rate for this activity.</string>
+    <string name="run_heart_rate">Heart rate</string>
+    <string name="run_heart_rate_subtitle">bpm over time</string>
+    <string name="run_heart_rate_description">Heart rate over time, %1$s</string>
+    <string name="run_pace_subtitle">%1$s pace over time · faster is higher</string>
+    <string name="run_pace_description">Pace over time, %1$s</string>
+    <string name="run_no_data">no data</string>
+    <string name="run_range">from %1$s to %2$s%3$s</string>
+    <string name="run_hr_zones">Time in heart-rate zones</string>
+    <string name="run_zone_short">Z%1$d</string>
+    <string name="run_zone_description">zone %1$d %2$s</string>
+    <string name="run_splits">Splits</string>
+    <string name="run_splits_subtitle">Per lap from the watch</string>
+    <string name="run_hr">HR</string>
+    <string name="run_elev">Elev</string>
+    <string name="run_efficiency">Aerobic efficiency</string>
+    <string name="run_efficiency_factor">Efficiency factor</string>
+    <string name="run_efficiency_factor_text">Grade-adjusted speed (m/min) per heartbeat. A rising EF at the same effort means your aerobic fitness is improving.</string>
+    <string name="run_decoupling">Aerobic decoupling</string>
+    <string name="run_decoupling_text">How far pace and heart rate drifted apart from the first half to the second. Under 5 % is good; over 10 % suggests building more base before adding intensity.</string>
+    <string name="run_percent">%1$s %%</string>
+    <string name="run_attribution_garmin">Data from Garmin Connect</string>
+    <string name="run_attribution_demo">Synthetic demo data — not from Garmin</string>
+</resources>

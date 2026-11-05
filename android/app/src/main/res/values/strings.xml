@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Stride</string>
+    <string name="nav_today">Today</string>
+    <string name="nav_runs">Runs</string>
+    <string name="nav_fitness">Fitness</string>
+    <string name="nav_plan">Plan</string>
+    <string name="nav_you">You</string>
+    <string name="nav_tab">%1$s tab</string>
 </resources>

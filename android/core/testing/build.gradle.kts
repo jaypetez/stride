@@ -16,6 +16,8 @@ dependencies {
     api(libs.hilt.android.testing)
     api(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui.test)
+    api(libs.androidx.compose.ui.test.accessibility)
     api(libs.roborazzi)
     api(libs.roborazzi.compose)
+    api(libs.roborazzi.accessibility.check)
 }

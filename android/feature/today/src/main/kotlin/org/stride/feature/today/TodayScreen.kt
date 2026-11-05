@@ -21,6 +21,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -30,6 +32,7 @@ import org.stride.core.data.insights.VolumeDelta
 import org.stride.core.data.insights.WeeklyVolume
 import org.stride.core.data.sync.SyncProgress
 import org.stride.core.designsystem.component.EmptyState
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.SectionHeader
 import org.stride.core.designsystem.component.StatTile
@@ -45,8 +48,12 @@ import org.stride.core.navigation.ActivityDetailRoute
 import org.stride.core.navigation.LocalNavigator
 import org.stride.core.science.model.WorkoutSuggestion
 import org.stride.core.ui.Format
+import org.stride.core.ui.LocalIs24HourClock
 import org.stride.core.ui.LocalUnitSystem
+import org.stride.core.ui.R as CoreUiR
 import org.stride.core.ui.color
+import org.stride.core.ui.descriptionRes
+import org.stride.core.ui.labelRes
 import org.stride.core.ui.listContentPadding
 
 @Composable
@@ -57,6 +64,7 @@ fun TodayRoute(modifier: Modifier = Modifier, viewModel: TodayViewModel = hiltVi
         state = state,
         onRefresh = viewModel::refresh,
         onOpenActivity = { navigator.navigate(ActivityDetailRoute(it)) },
+        onRetry = viewModel::retry,
         modifier = modifier
     )
 }
@@ -64,9 +72,15 @@ fun TodayRoute(modifier: Modifier = Modifier, viewModel: TodayViewModel = hiltVi
 /** Today (MVP-014): form, next workout (MVP-017), last run, weekly volume and wellness. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodayScreen(state: TodayUiState, onRefresh: () -> Unit, onOpenActivity: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun TodayScreen(
+    state: TodayUiState,
+    onRefresh: () -> Unit,
+    onOpenActivity: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {}
+) {
     CompositionLocalProvider(LocalUnitSystem provides state.units) {
-        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Today") }) { padding ->
+        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = stringResource(R.string.today_title)) }) { padding ->
             PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
                 onRefresh = onRefresh,
@@ -80,13 +94,21 @@ fun TodayScreen(state: TodayUiState, onRefresh: () -> Unit, onOpenActivity: (Lon
                 ) {
                     item(key = "sync") { SyncStatus(state.sync) }
                     when {
-                        state.isLoading -> item(key = "loading") { LoadingState(label = "Loading your training…") }
+                        state.loadFailed -> item(key = "error") {
+                            ErrorState(
+                                title = stringResource(CoreUiR.string.load_error_title),
+                                message = stringResource(CoreUiR.string.load_error_message),
+                                onRetry = onRetry
+                            )
+                        }
+
+                        state.isLoading -> item(key = "loading") { LoadingState(label = stringResource(R.string.today_loading)) }
 
                         content == null -> item(key = "empty") {
                             EmptyState(
-                                title = "No runs yet",
-                                message = "Pull down to sync from Garmin, or try the demo from settings.",
-                                actionLabel = "Sync now",
+                                title = stringResource(R.string.today_empty_title),
+                                message = stringResource(R.string.today_empty_message),
+                                actionLabel = stringResource(R.string.today_sync_now),
                                 onAction = onRefresh
                             )
                         }
@@ -109,7 +131,12 @@ fun TodayScreen(state: TodayUiState, onRefresh: () -> Unit, onOpenActivity: (Lon
 private fun SyncStatus(sync: SyncProgress, modifier: Modifier = Modifier) {
     when (sync) {
         is SyncProgress.Running -> Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val label = if (sync.total > 0) "Syncing ${sync.phase} · ${sync.done}/${sync.total}" else "Syncing ${sync.phase}…"
+            val phase = stringResource(sync.phase.labelRes)
+            val label = if (sync.total > 0) {
+                stringResource(R.string.today_syncing_progress, phase, sync.done, sync.total)
+            } else {
+                stringResource(R.string.today_syncing, phase)
+            }
             Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (sync.total > 0) {
                 LinearProgressIndicator(progress = { sync.fraction }, modifier = Modifier.fillMaxWidth())
@@ -119,7 +146,7 @@ private fun SyncStatus(sync: SyncProgress, modifier: Modifier = Modifier) {
         }
 
         is SyncProgress.Failed -> Text(
-            text = sync.reason.message,
+            text = stringResource(sync.reason.messageRes),
             style = MaterialTheme.typography.bodySmall,
             color = StrideTheme.colors.warning,
             modifier = modifier.fillMaxWidth()
@@ -131,39 +158,53 @@ private fun SyncStatus(sync: SyncProgress, modifier: Modifier = Modifier) {
 
 @Composable
 private fun FormCard(form: DailyLoadPoint?, band: FormBand?, modifier: Modifier = Modifier) {
-    StrideCard(modifier = modifier, title = "Form", subtitle = form?.let { "TSB · ${Format.day(it.date)}" }) {
+    StrideCard(
+        modifier = modifier,
+        title = stringResource(R.string.today_form),
+        subtitle = form?.let { stringResource(R.string.today_form_subtitle, Format.day(it.date)) }
+    ) {
         if (form == null) {
-            Text(text = "Not enough history to compute form yet.", style = MaterialTheme.typography.bodyMedium)
+            Text(text = stringResource(R.string.today_form_not_enough), style = MaterialTheme.typography.bodyMedium)
             return@StrideCard
         }
         val bandColor = band?.color() ?: MaterialTheme.colorScheme.onSurface
+        val bandLabel = band?.let { stringResource(it.labelRes) }
+        val formDescription = if (bandLabel != null) {
+            stringResource(R.string.today_form_description_band, Format.signed(form.tsb), bandLabel)
+        } else {
+            stringResource(R.string.today_form_description, Format.signed(form.tsb))
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.semantics(mergeDescendants = true) {
-                contentDescription = "Form ${Format.signed(form.tsb)}${band?.let { ", ${it.label}" }.orEmpty()}"
+                contentDescription = formDescription
             }
         ) {
             Text(text = Format.signed(form.tsb), style = MaterialTheme.typography.displayMedium, color = bandColor)
-            if (band != null) StatusPill(text = band.label, color = bandColor)
+            if (bandLabel != null) StatusPill(text = bandLabel, color = bandColor)
         }
         band?.let {
-            Text(text = it.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                text = stringResource(it.descriptionRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatTile(
-                label = "Fitness",
+                label = stringResource(R.string.today_fitness),
                 value = Format.number(form.ctl, 0),
-                unit = "CTL",
-                caption = "42-day load",
+                unit = stringResource(R.string.today_ctl),
+                caption = stringResource(R.string.today_fitness_caption),
                 accent = StrideTheme.colors.fitness,
                 modifier = Modifier.weight(1f)
             )
             StatTile(
-                label = "Fatigue",
+                label = stringResource(R.string.today_fatigue),
                 value = Format.number(form.atl, 0),
-                unit = "ATL",
-                caption = "7-day load",
+                unit = stringResource(R.string.today_atl),
+                caption = stringResource(R.string.today_fatigue_caption),
                 accent = StrideTheme.colors.fatigue,
                 modifier = Modifier.weight(1f)
             )
@@ -174,14 +215,19 @@ private fun FormCard(form: DailyLoadPoint?, band: FormBand?, modifier: Modifier 
 @Composable
 private fun NextWorkoutCard(workout: WorkoutSuggestion, modifier: Modifier = Modifier) {
     val units = LocalUnitSystem.current
-    StrideCard(modifier = modifier, title = "Next workout", subtitle = workout.type.displayName()) {
+    StrideCard(modifier = modifier, title = stringResource(R.string.today_next_workout), subtitle = workout.type.displayName()) {
         Text(text = workout.title, style = MaterialTheme.typography.titleLarge)
         Text(text = workout.description, style = MaterialTheme.typography.bodyMedium)
+        val time = stringResource(R.string.today_time)
+        val distance = stringResource(R.string.today_distance)
+        val pace = stringResource(R.string.today_pace)
+        val hr = stringResource(R.string.today_hr)
+        val zone = workout.targetHrZone?.let { stringResource(R.string.today_hr_zone, it) }
         val targets = buildList {
-            workout.targetDurationSec?.let { add("Time" to Format.durationShort(it)) }
-            workout.targetDistanceM?.let { add("Distance" to Format.distanceWithUnit(it, units, 1)) }
-            workout.targetPaceSecPerKm?.let { add("Pace" to "${Format.paceFromSecPerKm(it, units)} ${Format.paceUnit(units)}") }
-            workout.targetHrZone?.let { add("HR" to "Zone $it") }
+            workout.targetDurationSec?.let { add(time to Format.durationShort(it)) }
+            workout.targetDistanceM?.let { add(distance to Format.distanceWithUnit(it, units, 1)) }
+            workout.targetPaceSecPerKm?.let { add(pace to "${Format.paceFromSecPerKm(it, units)} ${Format.paceUnit(units)}") }
+            zone?.let { add(hr to it) }
         }
         if (targets.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -189,7 +235,7 @@ private fun NextWorkoutCard(workout: WorkoutSuggestion, modifier: Modifier = Mod
             }
         }
         Text(
-            text = "Why: ${workout.rationale}",
+            text = stringResource(R.string.today_why, workout.rationale),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -202,15 +248,15 @@ private fun LastRunCard(run: ActivityWithMetrics, onOpenActivity: (Long) -> Unit
     val a = run.activity
     StrideCard(
         modifier = modifier,
-        title = "Last run",
-        subtitle = "${Format.dayTime(a.startEpochSec, a.timeZone)} · ${a.name}",
+        title = stringResource(R.string.today_last_run),
+        subtitle = "${Format.dayTime(a.startEpochSec, a.timeZone, LocalIs24HourClock.current)} · ${a.name}",
         onClick = { onOpenActivity(a.id) }
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            LabelledValue("Distance", Format.distanceWithUnit(a.distanceM, units))
-            LabelledValue("Time", Format.duration(a.movingTimeSec ?: a.durationSec))
-            LabelledValue("Pace", Format.paceWithUnit(a.avgSpeedMps, units))
-            run.metrics?.let { LabelledValue("Load", Format.number(it.load, 0)) }
+            LabelledValue(stringResource(R.string.today_distance), Format.distanceWithUnit(a.distanceM, units))
+            LabelledValue(stringResource(R.string.today_time), Format.duration(a.movingTimeSec ?: a.durationSec))
+            LabelledValue(stringResource(R.string.today_pace), Format.paceWithUnit(a.avgSpeedMps, units))
+            run.metrics?.let { LabelledValue(stringResource(R.string.today_load), Format.number(it.load, 0)) }
         }
     }
 }
@@ -218,22 +264,42 @@ private fun LastRunCard(run: ActivityWithMetrics, onOpenActivity: (Long) -> Unit
 @Composable
 private fun WeekCard(thisWeek: WeeklyVolume, lastWeek: WeeklyVolume, delta: VolumeDelta, modifier: Modifier = Modifier) {
     val units = LocalUnitSystem.current
-    StrideCard(modifier = modifier, title = "This week", subtitle = "Compared with last week") {
-        WeekRow("", "This week", "Last week", "Change", header = true)
+    StrideCard(
+        modifier = modifier,
+        title = stringResource(R.string.today_this_week),
+        subtitle = stringResource(R.string.today_week_subtitle)
+    ) {
         WeekRow(
-            "Distance (${Format.distanceUnit(units)})",
+            "",
+            stringResource(R.string.today_this_week),
+            stringResource(R.string.today_last_week),
+            stringResource(R.string.today_change),
+            header = true
+        )
+        WeekRow(
+            stringResource(R.string.today_distance_unit, Format.distanceUnit(units)),
             Format.distance(thisWeek.distanceM, units, 1),
             Format.distance(lastWeek.distanceM, units, 1),
             Format.signedDistance(delta.distanceM, units)
         )
         WeekRow(
-            "Time",
+            stringResource(R.string.today_time),
             Format.durationShort(thisWeek.durationSec),
             Format.durationShort(lastWeek.durationSec),
             Format.signedDurationShort(delta.durationSec)
         )
-        WeekRow("Load", Format.number(thisWeek.load, 0), Format.number(lastWeek.load, 0), Format.signed(delta.load))
-        WeekRow("Runs", thisWeek.runs.toString(), lastWeek.runs.toString(), Format.signed(delta.runs.toDouble()))
+        WeekRow(
+            stringResource(R.string.today_load),
+            Format.number(thisWeek.load, 0),
+            Format.number(lastWeek.load, 0),
+            Format.signed(delta.load)
+        )
+        WeekRow(
+            stringResource(R.string.today_runs),
+            thisWeek.runs.toString(),
+            lastWeek.runs.toString(),
+            Format.signed(delta.runs.toDouble())
+        )
     }
 }
 
@@ -249,7 +315,12 @@ private fun WeekRow(
     val style = if (header) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium
     val color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(text = label, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.4f))
+        // An empty Text is an unlabelled node for TalkBack (caught by the ATF check); leave the header corner blank instead.
+        if (label.isEmpty()) {
+            Spacer(modifier = Modifier.weight(1.4f))
+        } else {
+            Text(text = label, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1.4f))
+        }
         Text(text = current, style = style, color = color, modifier = Modifier.weight(1f))
         Text(text = previous, style = style, color = color, modifier = Modifier.weight(1f))
         Text(text = change, style = style, color = color, modifier = Modifier.weight(0.9f))
@@ -258,20 +329,28 @@ private fun WeekRow(
 
 @Composable
 private fun WellnessSection(w: DailyWellness, modifier: Modifier = Modifier) {
+    val res = LocalResources.current
     val tiles = buildList {
-        w.restingHr?.let { add(WellnessTile("Resting HR", it.toString(), "bpm", null)) }
+        w.restingHr?.let {
+            add(WellnessTile(res.getString(R.string.today_resting_hr), it.toString(), res.getString(R.string.today_bpm), null))
+        }
         w.hrvLastNightMs?.let {
-            add(WellnessTile("HRV", Format.number(it, 0), "ms", w.hrvStatus?.lowercase()?.replaceFirstChar { c -> c.uppercase() }))
+            val status = w.hrvStatus?.lowercase()?.replaceFirstChar { c -> c.uppercase() }
+            add(WellnessTile(res.getString(R.string.today_hrv), Format.number(it, 0), res.getString(R.string.today_ms), status))
         }
-        w.sleepSec?.let { add(WellnessTile("Sleep", Format.durationShort(it.toDouble()), null, w.sleepScore?.let { s -> "Score $s" })) }
+        w.sleepSec?.let {
+            val score = w.sleepScore?.let { s -> res.getString(R.string.today_sleep_score, s) }
+            add(WellnessTile(res.getString(R.string.today_sleep), Format.durationShort(it.toDouble()), null, score))
+        }
         if (w.bodyBatteryHigh != null || w.bodyBatteryLow != null) {
-            add(WellnessTile("Body Battery", w.bodyBatteryHigh?.toString() ?: "–", null, w.bodyBatteryLow?.let { "Low $it" }))
+            val low = w.bodyBatteryLow?.let { res.getString(R.string.today_body_battery_low, it) }
+            add(WellnessTile(res.getString(R.string.today_body_battery), w.bodyBatteryHigh?.toString() ?: "–", null, low))
         }
-        w.stressAvg?.let { add(WellnessTile("Stress", it.toString(), "avg", null)) }
+        w.stressAvg?.let { add(WellnessTile(res.getString(R.string.today_stress), it.toString(), res.getString(R.string.today_avg), null)) }
     }
     if (tiles.isEmpty()) return
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionHeader(title = "Wellness · ${Format.day(w.date)}")
+        SectionHeader(title = stringResource(R.string.today_wellness, Format.day(w.date)))
         tiles.chunked(2).forEach { pair ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { t ->

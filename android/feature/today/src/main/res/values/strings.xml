@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="today_title">Today</string>
+    <string name="today_loading">Loading your training…</string>
+    <string name="today_empty_title">No runs yet</string>
+    <string name="today_empty_message">Pull down to sync from Garmin, or try the demo from settings.</string>
+    <string name="today_sync_now">Sync now</string>
+    <string name="today_syncing_progress">Syncing · %1$s · %2$d/%3$d</string>
+    <string name="today_syncing">Syncing · %1$s…</string>
+
+    <string name="today_form">Form</string>
+    <string name="today_form_subtitle">TSB · %1$s</string>
+    <string name="today_form_not_enough">Not enough history to compute form yet.</string>
+    <string name="today_form_description">Form %1$s</string>
+    <string name="today_form_description_band">Form %1$s, %2$s</string>
+    <string name="today_fitness">Fitness</string>
+    <string name="today_ctl">CTL</string>
+    <string name="today_fitness_caption">42-day load</string>
+    <string name="today_fatigue">Fatigue</string>
+    <string name="today_atl">ATL</string>
+    <string name="today_fatigue_caption">7-day load</string>
+
+    <string name="today_next_workout">Next workout</string>
+    <string name="today_time">Time</string>
+    <string name="today_distance">Distance</string>
+    <string name="today_pace">Pace</string>
+    <string name="today_hr">HR</string>
+    <string name="today_hr_zone">Zone %1$d</string>
+    <string name="today_why">Why: %1$s</string>
+    <string name="today_last_run">Last run</string>
+    <string name="today_load">Load</string>
+
+    <string name="today_this_week">This week</string>
+    <string name="today_last_week">Last week</string>
+    <string name="today_change">Change</string>
+    <string name="today_week_subtitle">Compared with last week</string>
+    <string name="today_distance_unit">Distance (%1$s)</string>
+    <string name="today_runs">Runs</string>
+
+    <string name="today_wellness">Wellness · %1$s</string>
+    <string name="today_resting_hr">Resting HR</string>
+    <string name="today_bpm">bpm</string>
+    <string name="today_hrv">HRV</string>
+    <string name="today_ms">ms</string>
+    <string name="today_sleep">Sleep</string>
+    <string name="today_sleep_score">Score %1$d</string>
+    <string name="today_body_battery">Body Battery</string>
+    <string name="today_body_battery_low">Low %1$d</string>
+    <string name="today_stress">Stress</string>
+    <string name="today_avg">avg</string>
+</resources>

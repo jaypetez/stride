@@ -3,9 +3,11 @@ package org.stride.feature.onboarding
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import java.io.File
+import java.time.LocalDate
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -35,6 +37,7 @@ import org.stride.core.testing.FakeStrideClock
 import org.stride.core.testing.MainDispatcherRule
 import org.stride.core.ui.profile.ProfileField
 import org.stride.core.ui.profile.ProfileFormState
+import org.stride.core.ui.profile.RaceDistance
 
 /** The onboarding flow's state machine and what it persists (MVP-013). Pure JVM: DataStore runs on a temp file. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -109,9 +112,44 @@ class OnboardingViewModelTest {
         onEvent(OnboardingEvent.Next)
     }
 
+    /** AUD-033: after process death onboarding resumes at the same step with every answer intact. */
+    @Test
+    fun resumesAfterProcessDeath() = runTest(main.testDispatcher) {
+        val saved = SavedStateHandle()
+        val before = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock(), saved)
+        before.onEvent(OnboardingEvent.Next)
+        val form =
+            ProfileFormState(
+                name = "Ada",
+                birthYear = "1990",
+                maxHr = "188",
+                raceDistance = RaceDistance.HALF,
+                raceDate = LocalDate.of(2027, 3, 14)
+            )
+        before.onEvent(OnboardingEvent.ProfileChanged(form))
+        before.onEvent(OnboardingEvent.Next)
+        before.onEvent(OnboardingEvent.ParqAnswered(0, yes = false))
+        before.onEvent(OnboardingEvent.ParqAnswered(2, yes = true))
+
+        // Only bundle-safe values survive; rebuild the handle from them as the system would.
+        val restored = SavedStateHandle(saved.keys().associateWith { saved.get<Any>(it) })
+        val after = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock(), restored).uiState.value
+        assertEquals(OnboardingStep.PARQ, after.step)
+        assertEquals(form, after.profile)
+        assertEquals(listOf(false, null, true) + List(PARQ_QUESTIONS.size - 3) { null }, after.parqAnswers)
+        assertFalse(after.disclaimerAccepted)
+    }
+
+    @Test
+    fun freshHandleStartsAtWelcome() = runTest(main.testDispatcher) {
+        val state = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock(), SavedStateHandle()).uiState.value
+        assertEquals(OnboardingStep.WELCOME, state.step)
+        assertTrue(state.parqAnswers.all { it == null })
+    }
+
     @Test
     fun invalidProfileBlocksAndShowsErrors() = runTest(main.testDispatcher) {
-        val vm = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock())
+        val vm = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock(), SavedStateHandle())
         vm.onEvent(OnboardingEvent.Next)
         vm.onEvent(OnboardingEvent.Next)
         val state = vm.uiState.value
@@ -121,7 +159,7 @@ class OnboardingViewModelTest {
 
     @Test
     fun parqAndDisclaimerMustBeAnswered() = runTest(main.testDispatcher) {
-        val vm = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock())
+        val vm = OnboardingViewModel(prefs(), FakeDemo(), FakeStrideClock(), SavedStateHandle())
         vm.onEvent(OnboardingEvent.Next)
         vm.onEvent(OnboardingEvent.ProfileChanged(ProfileFormState(name = "Ada", birthYear = "1990")))
         vm.onEvent(OnboardingEvent.Next)
@@ -143,7 +181,7 @@ class OnboardingViewModelTest {
     fun connectGarminPersistsProfileAndFlag() = runTest(main.testDispatcher) {
         val prefs = prefs()
         val demo = FakeDemo()
-        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock(), SavedStateHandle())
         vm.walkToFinish(parqYes = setOf(2))
         assertEquals(OnboardingStep.FINISH, vm.uiState.value.step)
         vm.destinations.test {
@@ -162,7 +200,7 @@ class OnboardingViewModelTest {
     fun tryDemoEntersDemoMode() = runTest(main.testDispatcher) {
         val prefs = prefs()
         val demo = FakeDemo()
-        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock(), SavedStateHandle())
         vm.walkToFinish()
         vm.destinations.test {
             vm.onEvent(OnboardingEvent.TryDemo)
@@ -176,7 +214,7 @@ class OnboardingViewModelTest {
     @Test
     fun handOffHappensAfterOnboardingIsPersisted() = runTest(main.testDispatcher) {
         val prefs = prefs()
-        val vm = OnboardingViewModel(prefs, FakeDemo(), FakeStrideClock())
+        val vm = OnboardingViewModel(prefs, FakeDemo(), FakeStrideClock(), SavedStateHandle())
         vm.walkToFinish()
         vm.destinations.test {
             vm.onEvent(OnboardingEvent.TryDemo)
@@ -191,7 +229,7 @@ class OnboardingViewModelTest {
         val store = FlakyStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "f.preferences_pb") })
         val prefs = UserPreferences(store)
         val demo = FakeDemo()
-        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock(), SavedStateHandle())
         vm.walkToFinish()
         store.failWrites = true
         vm.onEvent(OnboardingEvent.TryDemo)
@@ -210,7 +248,7 @@ class OnboardingViewModelTest {
     fun cancellationDuringDemoLoadStillCompletesOnboarding() = runTest(main.testDispatcher) {
         val prefs = prefs()
         val demo = SlowDemo()
-        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock(), SavedStateHandle())
         vm.walkToFinish()
         vm.onEvent(OnboardingEvent.TryDemo)
         runCurrent()

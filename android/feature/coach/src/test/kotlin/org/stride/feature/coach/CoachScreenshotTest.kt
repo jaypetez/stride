@@ -16,6 +16,15 @@ import org.stride.core.testing.captureScreenshot
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [ScreenshotDefaults.SDK], qualifiers = ScreenshotDefaults.PHONE)
 class CoachScreenshotTest {
+    /** AUD-032: settings could not be read. */
+    @Test fun error() = snap("error", CoachUiState(loading = false, loadFailed = true))
+
+    /** AUD-037: a retired model shows a readable message. */
+    @Test fun modelUnavailable() = snap(
+        "model_unavailable",
+        CoachUiState(loading = false, enabled = true, error = CoachLlmError.ModelUnavailable.message)
+    )
+
     @Test fun setup() = snap("setup", CoachUiState(loading = false, caveatAccepted = true, keyInput = "sk-ant-xxxx"))
 
     @Test
@@ -48,7 +57,7 @@ class CoachScreenshotTest {
     )
 
     private fun snap(name: String, state: CoachUiState, dark: Boolean = false) =
-        captureScreenshot("src/test/screenshots/coach_$name.png") {
+        captureScreenshot("src/test/screenshots/coach_$name.png", accessibilityChecks = !dark) {
             StrideTheme(darkTheme = dark) { CoachScreen(state = state, onEvent = {}, onBack = {}) }
         }
 }

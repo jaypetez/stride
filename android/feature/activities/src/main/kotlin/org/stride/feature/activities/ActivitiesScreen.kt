@@ -20,40 +20,61 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.stride.core.designsystem.component.EmptyState
+import org.stride.core.designsystem.component.ErrorState
 import org.stride.core.designsystem.component.LoadingState
 import org.stride.core.designsystem.component.StrideTopAppBar
 import org.stride.core.model.ActivityWithMetrics
 import org.stride.core.navigation.ActivityDetailRoute
 import org.stride.core.navigation.LocalNavigator
 import org.stride.core.ui.Format
+import org.stride.core.ui.LocalIs24HourClock
 import org.stride.core.ui.LocalUnitSystem
+import org.stride.core.ui.R as CoreUiR
 import org.stride.core.ui.listContentPadding
 
 @Composable
 fun ActivitiesRoute(modifier: Modifier = Modifier, viewModel: ActivitiesViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val navigator = LocalNavigator.current
-    ActivitiesScreen(state = state, onOpenActivity = { navigator.navigate(ActivityDetailRoute(it)) }, modifier = modifier)
+    ActivitiesScreen(
+        state = state,
+        onOpenActivity = { navigator.navigate(ActivityDetailRoute(it)) },
+        onRetry = viewModel::retry,
+        modifier = modifier
+    )
 }
 
 /** Runs (MVP-015): every synced activity, newest first, grouped by month. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ActivitiesScreen(state: ActivitiesUiState, onOpenActivity: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun ActivitiesScreen(
+    state: ActivitiesUiState,
+    onOpenActivity: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    onRetry: () -> Unit = {}
+) {
     CompositionLocalProvider(LocalUnitSystem provides state.units) {
-        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = "Runs") }) { padding ->
+        Scaffold(modifier = modifier, topBar = { StrideTopAppBar(title = stringResource(R.string.runs_title)) }) { padding ->
             when {
+                state.loadFailed -> ErrorState(
+                    title = stringResource(CoreUiR.string.load_error_title),
+                    message = stringResource(CoreUiR.string.load_error_message),
+                    onRetry = onRetry,
+                    modifier = Modifier.padding(padding)
+                )
+
                 state.isLoading -> LoadingState(modifier = Modifier.padding(padding))
 
                 state.months.isEmpty() -> EmptyState(
-                    title = "No runs yet",
-                    message = "Your Garmin activities appear here after the first sync.",
+                    title = stringResource(R.string.runs_empty_title),
+                    message = stringResource(R.string.runs_empty_message),
                     modifier = Modifier.padding(padding)
                 )
 
@@ -64,7 +85,7 @@ fun ActivitiesScreen(state: ActivitiesUiState, onOpenActivity: (Long) -> Unit, m
                     state.months.forEach { month ->
                         stickyHeader(key = "month-${month.key}", contentType = "header") {
                             Text(
-                                text = month.title,
+                                text = Format.monthYear(month.month),
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier
@@ -91,7 +112,7 @@ private fun ActivityRow(item: ActivityWithMetrics, onClick: () -> Unit, modifier
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClickLabel = "Open run", onClick = onClick)
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.runs_open_run), onClick = onClick)
             .padding(vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -104,7 +125,7 @@ private fun ActivityRow(item: ActivityWithMetrics, onClick: () -> Unit, modifier
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = Format.dayTime(a.startEpochSec, a.timeZone),
+                text = Format.dayTime(a.startEpochSec, a.timeZone, LocalIs24HourClock.current),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -113,7 +134,7 @@ private fun ActivityRow(item: ActivityWithMetrics, onClick: () -> Unit, modifier
             Metric(Format.distanceWithUnit(a.distanceM, units))
             Metric(Format.duration(a.movingTimeSec ?: a.durationSec))
             if (a.sport.isRun) Metric(Format.paceWithUnit(a.avgSpeedMps, units))
-            item.metrics?.let { Metric("Load ${Format.number(it.load, 0)}") }
+            item.metrics?.let { Metric(stringResource(R.string.runs_load, Format.number(it.load, 0))) }
         }
     }
 }

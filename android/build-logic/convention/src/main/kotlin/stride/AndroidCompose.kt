@@ -17,6 +17,8 @@ private fun Project.configureCompose() {
         add("implementation", libs.lib("androidx-compose-ui-tooling-preview"))
         add("debugImplementation", libs.lib("androidx-compose-ui-tooling"))
         add("testImplementation", libs.lib("androidx-compose-ui-test"))
+        // enableAccessibilityChecks() for Compose UI tests (AUD-035).
+        add("testImplementation", libs.lib("androidx-compose-ui-test-accessibility"))
         add("debugImplementation", libs.lib("androidx-compose-ui-testManifest"))
     }
     extensions.configure<ComposeCompilerGradlePluginExtension> {

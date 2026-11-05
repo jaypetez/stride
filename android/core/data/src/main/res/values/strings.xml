@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_phase_checking">Checking for new runs</string>
+    <string name="sync_phase_importing">Importing history</string>
+    <string name="sync_phase_details">Downloading run details</string>
+    <string name="sync_phase_computing">Computing your fitness</string>
+
+    <string name="sync_failure_key_missing">Connect Garmin to sync your runs.</string>
+    <string name="sync_failure_key_invalid">Garmin rejected your API key. It may have expired — reconnect with a new key.</string>
+    <string name="sync_failure_offline">No connection to Garmin. Sync will retry automatically.</string>
+    <string name="sync_failure_rate_limited">Garmin is busy. Sync will retry shortly.</string>
+    <string name="sync_failure_server">Garmin had a problem. Sync will retry shortly.</string>
+    <string name="sync_failure_unexpected">Sync failed unexpectedly. Try again later.</string>
+</resources>

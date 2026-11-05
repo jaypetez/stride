@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ds_back">Back</string>
+    <string name="ds_demo_banner">Demo mode · synthetic data</string>
+    <string name="ds_exit_demo">Exit demo</string>
+    <string name="ds_error_title">Something went wrong</string>
+    <string name="ds_error_retry">Try again</string>
+    <string name="ds_loading">Loading</string>
+</resources>

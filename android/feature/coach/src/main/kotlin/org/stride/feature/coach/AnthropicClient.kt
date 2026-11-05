@@ -1,43 +1,55 @@
 package org.stride.feature.coach
 
 import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import org.stride.core.ui.UiText
 
-/** Why the coach could not answer. Messages never contain the API key. */
+/** Why the coach could not answer. Messages never contain the API key; they are string resources (AUD-034). */
 sealed interface CoachLlmError {
-    val message: String
+    val message: UiText
 
     data object InvalidKey : CoachLlmError {
-        override val message = "Anthropic rejected your API key. Check it in the coach settings."
+        override val message = UiText(R.string.coach_error_invalid_key)
     }
 
     data object RateLimited : CoachLlmError {
-        override val message = "Anthropic is rate-limiting your key. Try again in a minute."
+        override val message = UiText(R.string.coach_error_rate_limited)
     }
 
     data object Overloaded : CoachLlmError {
-        override val message = "Anthropic is busy right now. Try again shortly."
+        override val message = UiText(R.string.coach_error_overloaded)
     }
 
     data object Network : CoachLlmError {
-        override val message = "Couldn't reach Anthropic. Check your internet connection."
+        override val message = UiText(R.string.coach_error_network)
     }
 
     data object Refused : CoachLlmError {
-        override val message = "The coach declined to answer this one."
+        override val message = UiText(R.string.coach_error_refused)
+    }
+
+    /** The model id was retired or is unknown to this key (HTTP 404, or a 400 naming the model) (AUD-037). */
+    data object ModelUnavailable : CoachLlmError {
+        override val message = UiText(R.string.coach_error_model_unavailable)
     }
 
     data class Failed(val detail: String) : CoachLlmError {
-        override val message = "The coach couldn't answer ($detail)."
+        override val message = UiText(R.string.coach_error_failed, detail)
     }
 }
 
@@ -97,13 +109,21 @@ class OkHttpAnthropicClient(
             .post(body.toRequestBody(JSON_MEDIA))
             .build()
         try {
-            http.newCall(request).execute().use { response ->
+            // await() rather than execute(): cancelling the coroutine (leaving the screen) cancels the HTTP call (AUD-036).
+            http.newCall(request).await().use { response ->
                 val text = response.body.string()
                 when {
                     response.isSuccessful -> parse(text)
+
                     response.code == 401 || response.code == 403 -> CoachLlmResult.Err(CoachLlmError.InvalidKey)
+
+                    response.code == 404 || (response.code == 400 && mentionsModel(text)) ->
+                        CoachLlmResult.Err(CoachLlmError.ModelUnavailable)
+
                     response.code == 429 -> CoachLlmResult.Err(CoachLlmError.RateLimited)
+
                     response.code == 529 || response.code >= 500 -> CoachLlmResult.Err(CoachLlmError.Overloaded)
+
                     else -> CoachLlmResult.Err(CoachLlmError.Failed("HTTP ${response.code}"))
                 }
             }
@@ -124,6 +144,9 @@ class OkHttpAnthropicClient(
             ignoreUnknownKeys = true
             encodeDefaults = true
         }
+
+        /** A 400 whose error message names the model (e.g. "model: claude-… not found"). */
+        internal fun mentionsModel(body: String): Boolean = Regex("\\bmodel\\b", RegexOption.IGNORE_CASE).containsMatchIn(body)
 
         internal fun buildRequest(model: String, system: String, user: String) = MessagesRequest(
             model = model,
@@ -173,4 +196,16 @@ fun coachUserPrompt(facts: CoachFacts): String {
         else -> "Explain my current fitness trend: fitness, fatigue, form and how this week compares with last week."
     }
     return "FACTS:\n${facts.toJson()}\n\n$question"
+}
+
+/** Suspends until the call completes; cancelling the coroutine cancels the call (same helper as the Garmin client). */
+internal suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
+    enqueue(
+        object : Callback {
+            override fun onResponse(call: Call, response: Response) = cont.resume(response)
+
+            override fun onFailure(call: Call, e: IOException) = cont.resumeWithException(e)
+        }
+    )
+    cont.invokeOnCancellation { runCatching { cancel() } }
 }
