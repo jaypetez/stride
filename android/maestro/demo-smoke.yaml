@@ -1,0 +1,81 @@
+# Demo-mode smoke flow (MVP-022): install → onboard → demo → Today → activity
+# detail → Fitness → Settings, the way a friend would use the app.
+# Run: maestro test android/maestro/demo-smoke.yaml   (debug build installed)
+appId: org.stride.app.debug
+name: Demo smoke
+---
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "Get started"
+    timeout: 20000
+- tapOn: "Get started"
+
+# Profile (all optional fields can stay empty)
+- extendedWaitUntil:
+    visible: "Your profile"
+    timeout: 10000
+- tapOn:
+    id: "profile_name"
+- inputText: "Maestro"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Continue"
+- tapOn: "Continue"
+
+# PAR-Q: answer "No" to every question
+- repeat:
+    while:
+      visible: "No"
+    commands:
+      - tapOn: "No"
+- scrollUntilVisible:
+    element: "Continue"
+- tapOn: "Continue"
+
+# Disclaimer
+- scrollUntilVisible:
+    element: "I understand"
+- tapOn: "I understand"
+
+# Finish: try the demo
+- extendedWaitUntil:
+    visible: "Try demo"
+    timeout: 10000
+- tapOn: "Try demo"
+
+# Today (demo data goes through the real pipeline)
+- extendedWaitUntil:
+    visible: "Demo mode · synthetic data"
+    timeout: 60000
+- assertVisible: "Form"
+- takeScreenshot: today
+
+# Runs → first activity detail
+- tapOn: "Runs tab"
+- extendedWaitUntil:
+    visible: ".*run.*"
+    timeout: 10000
+- tapOn:
+    text: ".*(Easy run|Long run|Tempo run|intervals|Recovery jog).*"
+    index: 0
+- extendedWaitUntil:
+    visible: "Splits"
+    timeout: 10000
+- takeScreenshot: activity-detail
+- back
+
+# Fitness
+- tapOn: "Fitness tab"
+- extendedWaitUntil:
+    visible: ".*Fitness.*"
+    timeout: 10000
+- assertVisible: ".*estimate.*"
+- takeScreenshot: fitness
+
+# Settings
+- tapOn: "You tab"
+- extendedWaitUntil:
+    visible: ".*Delete all data.*"
+    timeout: 10000
+- takeScreenshot: settings
