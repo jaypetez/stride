@@ -49,3 +49,8 @@ include(":feature:today")
 include(":feature:activities")
 include(":feature:fitness")
 include(":feature:plan")
+
+include(":feature:onboarding")
+include(":feature:connect")
+include(":feature:settings")
+include(":feature:coach")

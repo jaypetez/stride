@@ -8,13 +8,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import org.stride.app.navigation.StrideNavigationState
@@ -23,6 +31,8 @@ import org.stride.app.navigation.rememberStrideNavigationState
 import org.stride.core.designsystem.component.DemoBanner
 import org.stride.core.navigation.EntryProviderInstaller
 import org.stride.core.navigation.LocalNavigator
+import org.stride.core.navigation.OnboardingRoute
+import org.stride.core.navigation.StrideNavigator
 
 /**
  * The app shell (ANDF-009/010): an adaptive navigation suite (bottom bar on
@@ -35,10 +45,26 @@ fun StrideApp(
     installers: Set<EntryProviderInstaller>,
     modifier: Modifier = Modifier,
     navigationState: StrideNavigationState = rememberStrideNavigationState(),
+    onboardingComplete: Boolean = true,
     demoMode: Boolean = false,
     onExitDemo: () -> Unit = {}
 ) {
     val provider = entryProvider<NavKey> { installers.forEach { install -> install() } }
+    // Where the shell should open once onboarding hands over (e.g. ConnectGarminRoute).
+    var handoff by remember { mutableStateOf<NavKey?>(null) }
+
+    if (!onboardingComplete) {
+        // First launch, or after "Delete all data": full screen, no navigation bar.
+        LaunchedEffect(Unit) { navigationState.resetTo(TopLevelDestination.Today.key) }
+        OnboardingHost(provider = provider, onHandoff = { handoff = it }, modifier = modifier)
+        return
+    }
+    LaunchedEffect(handoff) {
+        handoff?.let {
+            navigationState.navigate(it)
+            handoff = null
+        }
+    }
     val decorators = listOf(
         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
         rememberViewModelStoreNavEntryDecorator<NavKey>()
@@ -86,4 +112,37 @@ fun StrideApp(
             }
         }
     }
+}
+
+/**
+ * The onboarding flow on its own back stack (OnboardingRoute, and ConnectGarminRoute
+ * if a screen pushes it). `resetTo(key)` from onboarding means "done": the shell
+ * opens on `key` once the onboarding flag is persisted.
+ */
+@Composable
+private fun OnboardingHost(provider: (NavKey) -> NavEntry<NavKey>, onHandoff: (NavKey) -> Unit, modifier: Modifier = Modifier) {
+    val stack = rememberNavBackStack(OnboardingRoute)
+    val navigator = remember(stack) { OnboardingNavigator(stack, onHandoff) }
+    val entries = rememberDecoratedNavEntries(
+        stack,
+        listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
+        provider
+    )
+    CompositionLocalProvider(LocalNavigator provides navigator) {
+        NavDisplay(entries = entries, onBack = { navigator.goBack() }, modifier = modifier.fillMaxSize())
+    }
+}
+
+private class OnboardingNavigator(private val stack: NavBackStack<NavKey>, private val onHandoff: (NavKey) -> Unit) : StrideNavigator {
+    override fun navigate(key: NavKey) {
+        if (stack.lastOrNull() != key) stack.add(key)
+    }
+
+    override fun goBack(): Boolean {
+        if (stack.size <= 1) return false
+        stack.removeAt(stack.lastIndex)
+        return true
+    }
+
+    override fun resetTo(key: NavKey) = onHandoff(key)
 }

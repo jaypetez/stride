@@ -16,6 +16,13 @@ import org.stride.core.database.StrideDatabase
 import org.stride.core.database.toEntity
 import org.stride.core.datastore.UserPreferences
 
+/** Enter / exit demo mode; [DemoMode] implements it (fakes in screen tests). */
+interface DemoController {
+    suspend fun enter()
+
+    suspend fun exit()
+}
+
 /**
  * "Try demo" (MVP-020): loads the synthetic dataset into a separate demo
  * database and runs the normal recompute pipeline over it, so every number on
@@ -29,13 +36,13 @@ class DemoMode @Inject constructor(
     private val clock: StrideClock,
     private val recomputer: MetricsRecomputer,
     @Dispatcher(StrideDispatchers.IO) private val io: CoroutineDispatcher
-) {
+) : DemoController {
     /** Re-attaches the demo database at startup if the app was left in demo mode. */
     suspend fun restore() = withContext(io) {
         if (prefs.current().demoMode) holder.switchTo(true)
     }
 
-    suspend fun enter() = withContext(io) {
+    override suspend fun enter() = withContext(io) {
         holder.switchTo(false)
         context.deleteDatabase(StrideDatabase.DEMO_NAME)
         holder.switchTo(true)
@@ -43,7 +50,7 @@ class DemoMode @Inject constructor(
         prefs.setDemoMode(true)
     }
 
-    suspend fun exit() = withContext(io) {
+    override suspend fun exit() = withContext(io) {
         holder.switchTo(false)
         context.deleteDatabase(StrideDatabase.DEMO_NAME)
         prefs.setDemoMode(false)
