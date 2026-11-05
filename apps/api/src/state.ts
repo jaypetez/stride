@@ -1,22 +1,8 @@
-import {
-  type CoachLLM,
-  createCoachLLM,
-  LocalStore,
-  loadConfig,
-  type StrideConfig,
-} from '@stride/core';
-import { config as loadDotenv } from 'dotenv';
+import { type AppState, loadAppState } from '@stride/core';
 
-export interface ApiState {
-  config: StrideConfig;
-  store: LocalStore;
-  llm: CoachLLM | null;
-}
+/** The API's startup state: the shared app state (validated config, store, LLM). */
+export type ApiState = AppState;
 
 export function loadApiState(): ApiState {
-  loadDotenv({ quiet: true });
-  const config = loadConfig(process.env as Record<string, string | undefined>);
-  const store = new LocalStore(config.dataDir);
-  const llm = createCoachLLM(config);
-  return { config, store, llm };
+  return loadAppState();
 }

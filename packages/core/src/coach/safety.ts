@@ -1,4 +1,5 @@
 import type { AthleteProfile, RedFlag } from '@stride/schemas';
+import { z } from 'zod';
 
 /** Standard, non-negotiable disclaimer attached to all coaching output. */
 export const DISCLAIMER =
@@ -17,16 +18,28 @@ export const PARQ_QUESTIONS: string[] = [
   'Do you know of any other reason you should not do physical activity?',
 ];
 
-/** Keyword patterns that should immediately halt coaching and refer to a professional. */
+/**
+ * Keyword patterns that should immediately halt coaching and refer to a
+ * professional. Kept narrow enough that ordinary training talk ("tight
+ * hamstrings", "chest strap", "heart rate") does not trip them; the positive and
+ * negative phrase tables in `safety.test.ts` pin both directions.
+ */
 const STOP_KEYWORDS: RegExp[] = [
   /\bchest pain\b/i,
   /\bchest tightness\b/i,
+  /\bchest (?:feels|felt|is|was|got|getting|going) (?:tight|heavy)\b/i,
+  /\btight(?:ness)? (?:in|across) (?:my|the) chest\b/i,
   /\bshort(ness)? of breath\b/i,
+  /\b(?:can['’]?t|cannot|can not|couldn['’]?t|could not) (?:breathe|catch my breath)\b/i,
+  /\b(?:trouble|difficulty|struggling|struggled) (?:to )?breath(?:e|ing)\b/i,
   /\bdizz(y|iness)\b/i,
+  /\blight[- ]?headed(?:ness)?\b/i,
   /\bfaint(ed|ing)?\b/i,
   /\bpass(ed)? out\b/i,
   /\bblack(ed)? out\b/i,
-  /\bheart palpitation/i,
+  /\bpalpitations?\b/i,
+  /\bheart (?:was |is |kept )?(?:racing|pounding|fluttering|skipping)\b/i,
+  /\birregular heart ?beat\b/i,
   /\bsevere pain\b/i,
 ];
 
@@ -134,8 +147,19 @@ const PARQ_FLAG_LABELS: string[] = [
   'other medical reason',
 ];
 
+/**
+ * The one validation every screening surface (API, CLI) applies: exactly one
+ * yes/no answer per PAR-Q question. A missing answer is NOT a "no".
+ */
+export const ScreeningAnswers = z.array(z.boolean()).length(PARQ_QUESTIONS.length, {
+  message: `Expected exactly ${PARQ_QUESTIONS.length} answers, one per PAR-Q question.`,
+});
+
+/** Label recorded when a screening is incomplete (never cleared). */
+export const INCOMPLETE_SCREENING_FLAG = 'incomplete screening';
+
 export interface ReadinessScreening {
-  /** True only when every PAR-Q answer is "no" (safe to clear). */
+  /** True only when ALL PAR-Q questions were answered and every answer is "no". */
   cleared: boolean;
   /** The full text of each question answered "yes". */
   flaggedQuestions: string[];
@@ -146,7 +170,9 @@ export interface ReadinessScreening {
 /**
  * PAR-Q-style readiness screening (GOAL §8). `answers[i]` is the athlete's
  * yes/no answer to `PARQ_QUESTIONS[i]`; a `true` ("yes") to any question means
- * they are not auto-cleared and should get medical sign-off first. Surfaces
+ * they are not auto-cleared and should get medical sign-off first. An answer
+ * list of the wrong length (missing or extra answers) is never cleared and
+ * records {@link INCOMPLETE_SCREENING_FLAG}: an unanswered question is not "no". Surfaces
  * (CLI/API/web onboarding) call this and persist the result onto the profile:
  * `medicalClearance = cleared`, `healthFlags = healthFlags`. Those fields then
  * flow into `detectRedFlags`, so the screening constrains every later request.
@@ -160,7 +186,9 @@ export function screenReadiness(answers: boolean[]): ReadinessScreening {
       healthFlags.push(PARQ_FLAG_LABELS[i] ?? PARQ_QUESTIONS[i]);
     }
   }
-  return { cleared: flaggedQuestions.length === 0, flaggedQuestions, healthFlags };
+  const complete = answers.length === PARQ_QUESTIONS.length;
+  if (!complete) healthFlags.push(INCOMPLETE_SCREENING_FLAG);
+  return { cleared: complete && flaggedQuestions.length === 0, flaggedQuestions, healthFlags };
 }
 
 /**

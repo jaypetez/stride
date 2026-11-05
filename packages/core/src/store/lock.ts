@@ -1,4 +1,9 @@
+import { randomUUID } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { open, readFile, rm, stat } from 'node:fs/promises';
+import { createLogger } from '../log';
+
+const log = createLogger('sync.lock');
 
 /** Thrown when another process already holds the sync lock. */
 export class SyncLockError extends Error {
@@ -8,8 +13,17 @@ export class SyncLockError extends Error {
   }
 }
 
-/** How long a lock may be held before it is presumed stale and reclaimed. */
+/**
+ * How long a lock may go WITHOUT a heartbeat before it is presumed stale and
+ * reclaimed. A live holder refreshes its record every
+ * {@link SYNC_LOCK_HEARTBEAT_MS}, so a sync that legitimately runs (or sleeps
+ * through Strava rate-limit back-off, up to ~16 min per retry) far longer than
+ * this keeps its lock; only a dead process stops beating.
+ */
 export const SYNC_LOCK_TTL_MS = 10 * 60 * 1000;
+
+/** How often a held lock refreshes its `at` timestamp (well inside the TTL). */
+export const SYNC_LOCK_HEARTBEAT_MS = 60 * 1000;
 
 /**
  * Grace period for an empty/unparseable lock file. A racing process creates the
@@ -20,13 +34,55 @@ export const SYNC_LOCK_TTL_MS = 10 * 60 * 1000;
 export const SYNC_LOCK_EMPTY_GRACE_MS = 5 * 1000;
 
 export interface SyncLock {
-  /** Release the lock (idempotent, best-effort). */
+  /**
+   * Release the lock (idempotent, best-effort). Only removes the lock file while
+   * it still carries THIS holder's owner token: if the lock was reclaimed by
+   * another process (e.g. after this one stalled past the TTL), release is a
+   * no-op and never deletes someone else's lock.
+   */
   release(): Promise<void>;
+  /** The owner token written into the lock record. */
+  readonly token: string;
 }
 
 interface LockRecord {
   pid: number;
   at: string;
+  /** Random per-acquire owner token; `release`/heartbeat only act on a match. */
+  token?: string;
+}
+
+function readRecordSync(file: string): Partial<LockRecord> | undefined {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8')) as Partial<LockRecord>;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Keep a held lock fresh: every {@link SYNC_LOCK_HEARTBEAT_MS} rewrite its `at`
+ * while the file still carries our token. Synchronous fs calls keep each beat
+ * atomic with respect to the event loop (and deterministic under fake timers).
+ * The timer is `unref`'d so it never keeps the process alive.
+ */
+function startHeartbeat(file: string, token: string): () => void {
+  const timer = setInterval(() => {
+    const record = readRecordSync(file);
+    if (record?.token !== token) {
+      log.warn('sync lock lost to another process; stopping heartbeat', { file });
+      clearInterval(timer);
+      return;
+    }
+    const next: LockRecord = { pid: process.pid, at: new Date().toISOString(), token };
+    try {
+      writeFileSync(file, `${JSON.stringify(next)}\n`);
+    } catch (err) {
+      log.warn('sync lock heartbeat failed', { file, err: String(err) });
+    }
+  }, SYNC_LOCK_HEARTBEAT_MS);
+  timer.unref?.();
+  return () => clearInterval(timer);
 }
 
 /**
@@ -48,13 +104,26 @@ export async function acquireSyncLock(
     // CodeQL "insecure temporary file" heuristic assumes a shared temp dir,
     // which does not apply here.
     const handle = await open(file, 'wx'); // codeql[js/insecure-temporary-file]
-    const record: LockRecord = { pid: process.pid, at: new Date(nowMs).toISOString() };
+    const token = randomUUID();
+    const record: LockRecord = { pid: process.pid, at: new Date(nowMs).toISOString(), token };
     try {
       await handle.writeFile(`${JSON.stringify(record)}\n`);
     } finally {
       await handle.close();
     }
-    return { release: async () => rm(file, { force: true }).catch(() => {}) };
+    const stopHeartbeat = startHeartbeat(file, token);
+    let released = false;
+    return {
+      token,
+      release: async () => {
+        if (released) return;
+        released = true;
+        stopHeartbeat();
+        // Owner check: never delete a lock another process has since reclaimed.
+        if (readRecordSync(file)?.token !== token) return;
+        await rm(file, { force: true }).catch(() => {});
+      },
+    };
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
 

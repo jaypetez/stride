@@ -247,7 +247,10 @@ async function runSync(
   }
 
   // (7) Persist the watermark / backfill state.
-  const truncated = rateLimited && !fetch.reachedEnd;
+  // Incremental: ANY stop before the end (rate limit OR the page budget running
+  // out) leaves unseen activities after the watermark. Backfill/rebuild: only a
+  // rate-limit stop is "truncated" (a spent page budget completes the pass).
+  const truncated = mode === 'incremental' ? !fetch.reachedEnd : rateLimited && !fetch.reachedEnd;
   const nextState = SyncState.parse({
     ...state,
     // A truncated incremental fetch left a gap between the prior watermark and

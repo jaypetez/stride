@@ -1,12 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { findCoachTool } from '@stride/core';
+import { IsoDate } from '@stride/schemas';
 import { z } from 'zod';
+import pkg from '../package.json' with { type: 'json' };
 import type { McpState } from './state';
 import { factTool, type ToolResult, toolAnalyze, toolNext, toolPlan } from './tools';
 
 function toContent(r: ToolResult) {
   return {
     content: [{ type: 'text' as const, text: `${r.text}\n\n${JSON.stringify(r.data, null, 2)}` }],
+    ...(r.isError ? { isError: true } : {}),
   };
 }
 
@@ -43,7 +46,7 @@ const FACT_TOOLS: Array<{ name: string; title: string; input: z.ZodRawShape }> =
  * accept an optional free-text `note` (threaded into red-flag detection).
  */
 export function buildServer(state: McpState): McpServer {
-  const server = new McpServer({ name: 'stride', version: '0.1.0' });
+  const server = new McpServer({ name: 'stride', version: pkg.version });
 
   for (const t of FACT_TOOLS) {
     const def = findCoachTool(t.name);
@@ -91,8 +94,8 @@ export function buildServer(state: McpState): McpServer {
         demo: z.boolean().optional(),
         race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
         weeks: z.number().int().min(1).max(52).optional(),
-        start: z.string().optional(),
-        date: z.string().optional(),
+        start: IsoDate.optional().describe('Plan start date (YYYY-MM-DD)'),
+        date: IsoDate.optional().describe('Goal race date (YYYY-MM-DD)'),
         note: z.string().optional(),
       },
     },

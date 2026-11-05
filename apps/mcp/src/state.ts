@@ -1,22 +1,8 @@
-import {
-  type CoachLLM,
-  createCoachLLM,
-  LocalStore,
-  loadConfig,
-  type StrideConfig,
-} from '@stride/core';
-import { config as loadDotenv } from 'dotenv';
+import { type AppState, loadAppState } from '@stride/core';
 
-export interface McpState {
-  config: StrideConfig;
-  store: LocalStore;
-  llm: CoachLLM | null;
-}
+/** The MCP server's startup state: the shared app state (validated config, store, LLM). */
+export type McpState = AppState;
 
 export function loadMcpState(): McpState {
-  loadDotenv({ quiet: true });
-  const config = loadConfig(process.env as Record<string, string | undefined>);
-  const store = new LocalStore(config.dataDir);
-  const llm = createCoachLLM(config);
-  return { config, store, llm };
+  return loadAppState();
 }

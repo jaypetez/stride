@@ -19,7 +19,7 @@ import org.stride.core.common.StrideClock
 import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
-import org.stride.core.data.plan.planStartDate
+import org.stride.core.data.plan.earliestRaceDate
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.model.UnitSystem
 import org.stride.core.science.model.GuardrailViolation
@@ -66,7 +66,7 @@ class PlanViewModel @Inject constructor(
     private val today = clock.today()
     private val form = MutableStateFlow(PlanForm(raceDate = today.plusWeeks(DEFAULT_WEEKS_OUT)))
     private val transient = MutableStateFlow(Transient())
-    private val initial = PlanUiState(today = today.toString(), form = form.value, earliestRaceDate = planStartDate(today))
+    private val initial = PlanUiState(today = today.toString(), form = form.value, earliestRaceDate = earliestRaceDate(today))
 
     init {
         viewModelScope.launch {

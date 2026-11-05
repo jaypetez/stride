@@ -7,8 +7,13 @@ export function toDateKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
+/**
+ * Parse a date key to UTC-midnight epoch ms. Accepts a `YYYY-MM-DD` key OR a full
+ * ISO datetime (normalised through {@link toDateKey} first), so a goal date such
+ * as `2026-09-06T00:00:00Z` no longer yields NaN.
+ */
 function keyToMs(key: string): number {
-  const [y, m, d] = key.split('-').map(Number);
+  const [y, m, d] = toDateKey(key).split('-').map(Number);
   return Date.UTC(y, (m ?? 1) - 1, d ?? 1);
 }
 
@@ -24,6 +29,7 @@ export function addDays(key: string, n: number): string {
   return msToKey(keyToMs(key) + n * MS_PER_DAY);
 }
 
+/** Whole calendar days from `a` to `b` (keys or ISO datetimes; time of day is ignored). */
 export function daysBetween(a: string, b: string): number {
   return Math.round((keyToMs(b) - keyToMs(a)) / MS_PER_DAY);
 }

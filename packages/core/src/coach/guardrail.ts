@@ -38,8 +38,39 @@ function isHardDay(day: PlanDay): boolean {
   return day.sessions.some((s) => QUALITY_TYPES.has(s.type));
 }
 
+/**
+ * A true rest day: only `rest` sessions (or none). A recovery RUN is still
+ * running — a week of daily recovery runs has no rest day.
+ */
 function isRestDay(day: PlanDay): boolean {
-  return day.sessions.every((s) => s.type === 'rest' || s.type === 'recovery');
+  return day.sessions.every((s) => s.type === 'rest');
+}
+
+/** Absolute day index across the plan (week 1 day 1 = 0) for cross-week adjacency. */
+function absDay(weekNumber: number, day: number): number {
+  return (weekNumber - 1) * 7 + (day - 1);
+}
+
+/** The given day of a week, if scheduled. */
+function dayOf(week: PlanWeek, day: number): PlanDay | undefined {
+  return week.days.find((d) => d.day === day);
+}
+
+/**
+ * True when the last day (7) of `prev` and the first day (1) of `week` are
+ * consecutive calendar days that are both hard.
+ */
+function hardAcrossWeeks(prev: PlanWeek, week: PlanWeek): PlanDay | undefined {
+  const prevLast = dayOf(prev, 7);
+  const first = dayOf(week, 1);
+  if (!prevLast || !first) return undefined;
+  if (absDay(week.weekNumber, 1) !== absDay(prev.weekNumber, 7) + 1) return undefined;
+  return isHardDay(prevLast) && isHardDay(first) ? first : undefined;
+}
+
+/** The long-run cap ignores race-day sessions: a race is not a training long run. */
+function isCappedSession(s: { type: string }): boolean {
+  return s.type !== 'race';
 }
 
 function dayTss(day: PlanDay): number {
@@ -54,9 +85,10 @@ function weekTss(week: PlanWeek): number {
   return week.targetTss ?? sessionsTss(week);
 }
 
-function weekDurationSec(week: PlanWeek): number {
-  return week.days.reduce(
-    (s, d) => s + d.sessions.reduce((a, x) => a + (x.targetDurationSec ?? 0), 0),
+function cappedDurationSec(days: PlanDay[]): number {
+  return days.reduce(
+    (s, d) =>
+      s + d.sessions.filter(isCappedSession).reduce((a, x) => a + (x.targetDurationSec ?? 0), 0),
     0,
   );
 }
@@ -132,7 +164,7 @@ export function validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = {})
   const rises = useCtlRamp ? projectWeekRises(plan, ctx.seedCtl ?? 0, ctx.seedAtl ?? 0) : undefined;
 
   let prevLoadTss: number | undefined;
-  for (const week of weeks) {
+  for (const [wi, week] of weeks.entries()) {
     const tss = weekTss(week);
 
     // Ramp: CTL-based cap when seeded, else week-over-week TSS ratio.
@@ -163,7 +195,17 @@ export function validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = {})
       prevLoadTss = tss;
     }
 
-    // Back-to-back hard days.
+    // Back-to-back hard days, first across the week boundary (day 7 of the
+    // previous week -> day 1 of this one), then within the week.
+    const prevWeek = wi > 0 ? weeks[wi - 1] : undefined;
+    if (prevWeek && hardAcrossWeeks(prevWeek, week)) {
+      violations.push({
+        rule: 'back_to_back_hard',
+        severity: 'error',
+        weekNumber: week.weekNumber,
+        message: `Weeks ${prevWeek.weekNumber} and ${week.weekNumber} have hard sessions on consecutive days (week ${prevWeek.weekNumber} day 7 & week ${week.weekNumber} day 1); allow ~48h between quality days.`,
+      });
+    }
     const days = [...week.days].sort((a, b) => a.day - b.day);
     for (let i = 1; i < days.length; i++) {
       if (days[i].day === days[i - 1].day + 1 && isHardDay(days[i]) && isHardDay(days[i - 1])) {
@@ -188,10 +230,12 @@ export function validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = {})
     }
 
     // Long-run cap.
-    const totalSec = weekDurationSec(week);
+    const totalSec = cappedDurationSec(week.days);
     const longestSec = Math.max(
       0,
-      ...week.days.flatMap((d) => d.sessions.map((s) => s.targetDurationSec ?? 0)),
+      ...week.days.flatMap((d) =>
+        d.sessions.filter(isCappedSession).map((s) => s.targetDurationSec ?? 0),
+      ),
     );
     if (totalSec > 0 && longestSec / totalSec > LONG_RUN_MAX_FRACTION) {
       violations.push({
@@ -204,6 +248,27 @@ export function validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = {})
   }
 
   return { valid: !violations.some((v) => v.severity === 'error'), violations, repaired: false };
+}
+
+/**
+ * Replace a hard day with an easy run of the same length. The athlete's real
+ * threshold speed is recovered from the hard session being downgraded so the
+ * easy day is paced/sized off their anchor, not a hardcoded default (which
+ * would misprescribe pace and distance).
+ */
+function downgradeToEasy(day: PlanDay): PlanDay {
+  const hard = day.sessions[0];
+  const dur = (hard?.targetDurationSec ?? 2700) / 60;
+  const threshold = hard ? thresholdFromSession(hard) : undefined;
+  return {
+    ...day,
+    sessions: [
+      makeSession('easy', dur, threshold ?? 3.0, {
+        date: day.date,
+        rationale: 'Downgraded to easy to keep ~48h between quality sessions.',
+      }),
+    ],
+  };
 }
 
 /** Deep-clone the plan's weeks/days/sessions so repair never mutates the input. */
@@ -230,10 +295,7 @@ function withWeekTotals(week: PlanWeek): PlanWeek {
 
 /** Cap the week's longest session so it is ≤ LONG_RUN_MAX_FRACTION of volume. */
 function capLongRun(days: PlanDay[], weekNumber: number, fixed: GuardrailViolation[]): PlanDay[] {
-  const totalSec = days.reduce(
-    (s, d) => s + d.sessions.reduce((a, x) => a + (x.targetDurationSec ?? 0), 0),
-    0,
-  );
+  const totalSec = cappedDurationSec(days);
   if (totalSec <= 0) return days;
 
   let maxSec = 0;
@@ -242,6 +304,7 @@ function capLongRun(days: PlanDay[], weekNumber: number, fixed: GuardrailViolati
   for (let dIdx = 0; dIdx < days.length; dIdx++) {
     const { sessions } = days[dIdx];
     for (let sIdx = 0; sIdx < sessions.length; sIdx++) {
+      if (!isCappedSession(sessions[sIdx])) continue;
       const dur = sessions[sIdx].targetDurationSec ?? 0;
       if (dur > maxSec) {
         maxSec = dur;
@@ -290,7 +353,8 @@ function scaleWeekQualityLong(week: PlanWeek, factor: number): PlanWeek | null {
 
 /**
  * Repair error-level violations and return the repaired plan plus the fixes.
- * In order: (1) convert the later of two consecutive hard days to easy; (2)
+ * In order: (0)/(1) convert the later of two consecutive hard days (across a
+ * week boundary, then within a week) to easy; (2)
  * insert a rest day when below the weekly minimum; (3) cap an oversized long
  * run; (4) scale a loading week down until its ramp (CTL rise when seeded, else
  * week-over-week TSS) is within cap. Re-validate afterwards to see what remains.
@@ -300,7 +364,22 @@ export function repairPlan(
   ctx: PlanGuardrailContext = {},
 ): { plan: TrainingPlan; fixed: GuardrailViolation[] } {
   const fixed: GuardrailViolation[] = [];
-  let weeks = cloneWeeks(plan);
+  let weeks = cloneWeeks(plan).sort((a, b) => a.weekNumber - b.weekNumber);
+
+  // (0) Back-to-back hard across a week boundary: downgrade day 1 of the later
+  // week to easy (the same fix (1) applies within a week).
+  for (let wi = 1; wi < weeks.length; wi++) {
+    const first = hardAcrossWeeks(weeks[wi - 1], weeks[wi]);
+    if (!first) continue;
+    const week = weeks[wi];
+    weeks[wi] = { ...week, days: week.days.map((d) => (d === first ? downgradeToEasy(d) : d)) };
+    fixed.push({
+      rule: 'back_to_back_hard',
+      severity: 'error',
+      weekNumber: week.weekNumber,
+      message: `Repaired: converted week ${week.weekNumber} day 1 to an easy run.`,
+    });
+  }
 
   // Per-week structural repairs (independent of load projection).
   weeks = weeks.map((week) => {
@@ -309,21 +388,7 @@ export function repairPlan(
     // (1) Back-to-back hard: downgrade the later day to easy.
     for (let i = 1; i < days.length; i++) {
       if (days[i].day === days[i - 1].day + 1 && isHardDay(days[i]) && isHardDay(days[i - 1])) {
-        const hard = days[i].sessions[0];
-        const dur = (hard?.targetDurationSec ?? 2700) / 60;
-        // Recover the athlete's real threshold speed from the hard session being
-        // downgraded so the easy day is paced/sized off their anchor, not a
-        // hardcoded default (which would misprescribe pace and distance).
-        const threshold = hard ? thresholdFromSession(hard) : undefined;
-        days[i] = {
-          ...days[i],
-          sessions: [
-            makeSession('easy', dur, threshold ?? 3.0, {
-              date: days[i].date,
-              rationale: 'Downgraded to easy to keep ~48h between quality sessions.',
-            }),
-          ],
-        };
+        days[i] = downgradeToEasy(days[i]);
         fixed.push({
           rule: 'back_to_back_hard',
           severity: 'error',

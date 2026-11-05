@@ -3,10 +3,11 @@ import {
   type Activity,
   type AthleteProfile,
   type DailyLoad,
+  IsoDate,
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
-import { coachDeps, getProfile, loadApp, todayKey } from '../app';
+import { coachDeps, getProfile, loadApp, refNowIso } from '../app';
 import { dim, errorMsg, printDisclaimer, printFlags, printPlan, success } from '../ui';
 
 const RACE_CHOICES = ['5k', '10k', 'half', 'marathon'];
@@ -21,6 +22,18 @@ export async function planCommand(opts: {
   note?: string;
 }): Promise<void> {
   const app = loadApp();
+
+  // Validate user-supplied dates BEFORE planning: garbage would otherwise
+  // become NaN-NaN-NaN dates in a persisted plan.
+  for (const [flag, value] of [
+    ['--start', opts.start],
+    ['--date', opts.date],
+  ] as const) {
+    if (value !== undefined && !IsoDate.safeParse(value).success) {
+      errorMsg(`Invalid ${flag} "${value}"; expected a real date in YYYY-MM-DD format.`);
+      return;
+    }
+  }
 
   let profile: AthleteProfile = DEMO_PROFILE;
   let activities: Activity[];
@@ -58,9 +71,10 @@ export async function planCommand(opts: {
     }
     weeks = Math.max(1, Math.min(52, Math.round(n)));
   }
-  const startDate = opts.start ?? todayKey(app.config);
+  const asOfDate = refNowIso(app.config, opts.demo);
+  const startDate = opts.start ?? asOfDate.slice(0, 10);
 
-  const context = buildCoachContext({ activities, profile, goal, dailyLoads });
+  const context = buildCoachContext({ activities, profile, goal, asOfDate, dailyLoads });
   const { plan, validation, disclaimer, flags } = await generatePlan({
     profile,
     goal,
@@ -70,6 +84,14 @@ export async function planCommand(opts: {
     note: opts.note,
     deps: coachDeps(app),
   });
+
+  // A plan that still breaks a guardrail after repair is never saved.
+  if (!validation.valid) {
+    if (opts.json) console.log(JSON.stringify({ validation, disclaimer, flags }, null, 2));
+    else printPlan(plan, validation);
+    errorMsg('Plan failed guardrail validation after repair; it was not saved.');
+    return;
+  }
 
   if (!opts.demo) {
     await app.store.savePlan(plan);

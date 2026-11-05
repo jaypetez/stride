@@ -204,3 +204,122 @@ describe('guardrail — unrepairable plan is rejected', () => {
     expect(after.violations.some((x) => x.rule === 'ramp')).toBe(true);
   });
 });
+
+describe('AUD-004 guardrail hardening', () => {
+  const S = {
+    rest: (d: number): [number, WorkoutSuggestion] => [d, makeSession('rest', 0, THRESHOLD)],
+    easy: (d: number, m = 40): [number, WorkoutSuggestion] => [
+      d,
+      makeSession('easy', m, THRESHOLD),
+    ],
+    rec: (d: number, m = 30): [number, WorkoutSuggestion] => [
+      d,
+      makeSession('recovery', m, THRESHOLD),
+    ],
+    int: (d: number, m = 50): [number, WorkoutSuggestion] => [
+      d,
+      makeSession('interval', m, THRESHOLD),
+    ],
+    thr: (d: number, m = 50): [number, WorkoutSuggestion] => [
+      d,
+      makeSession('threshold', m, THRESHOLD),
+    ],
+    long: (d: number, m = 70): [number, WorkoutSuggestion] => [
+      d,
+      makeSession('long', m, THRESHOLD),
+    ],
+  };
+
+  const acrossWeeks = plan([
+    week(1, 'build', [S.rest(1), S.easy(2), S.easy(3), S.easy(4), S.rest(5), S.easy(6), S.int(7)]),
+    week(2, 'build', [S.thr(1), S.easy(2), S.easy(3), S.rest(4), S.easy(5), S.rest(6), S.long(7)]),
+  ]);
+
+  it('flags hard sessions on week N day 7 and week N+1 day 1', () => {
+    const v = validatePlan(acrossWeeks);
+    expect(v.valid).toBe(false);
+    const b2b = v.violations.filter((x) => x.rule === 'back_to_back_hard');
+    expect(b2b).toHaveLength(1);
+    expect(b2b[0].weekNumber).toBe(2);
+    expect(b2b[0].message).toMatch(/week 1 day 7 & week 2 day 1/);
+  });
+
+  it('repairs a cross-week back-to-back by easing day 1 of the later week', () => {
+    const { plan: repaired, fixed } = repairPlan(acrossWeeks);
+    expect(fixed.some((f) => f.rule === 'back_to_back_hard' && f.weekNumber === 2)).toBe(true);
+    const day1 = repaired.weeks[1].days.find((d) => d.day === 1);
+    expect(day1?.sessions[0].type).toBe('easy');
+    expect(validatePlan(repaired).violations.some((x) => x.rule === 'back_to_back_hard')).toBe(
+      false,
+    );
+    // Input untouched.
+    expect(acrossWeeks.weeks[1].days[0].sessions[0].type).toBe('threshold');
+  });
+
+  it('does not flag non-consecutive weeks (week 1 day 7 then week 3 day 1)', () => {
+    const p = plan([
+      week(1, 'build', [
+        S.rest(1),
+        S.easy(2),
+        S.easy(3),
+        S.easy(4),
+        S.rest(5),
+        S.easy(6),
+        S.int(7),
+      ]),
+      week(3, 'build', [
+        S.thr(1),
+        S.easy(2),
+        S.easy(3),
+        S.rest(4),
+        S.easy(5),
+        S.rest(6),
+        S.long(7),
+      ]),
+    ]);
+    expect(validatePlan(p).violations.some((x) => x.rule === 'back_to_back_hard')).toBe(false);
+  });
+
+  it('a week of daily recovery runs fails rest_minimum (recovery is not rest)', () => {
+    const p = plan([
+      week(1, 'recovery', [S.rec(1), S.rec(2), S.rec(3), S.rec(4), S.rec(5), S.rec(6), S.rec(7)]),
+    ]);
+    const v = validatePlan(p);
+    expect(v.violations.some((x) => x.rule === 'rest_minimum')).toBe(true);
+    const { plan: repaired } = repairPlan(p);
+    expect(validatePlan(repaired).violations.some((x) => x.rule === 'rest_minimum')).toBe(false);
+    expect(repaired.weeks[0].days.some((d) => d.sessions[0].type === 'rest')).toBe(true);
+  });
+
+  it('an empty day still counts as rest', () => {
+    const p = plan([
+      {
+        weekNumber: 1,
+        phase: 'base',
+        focus: 'test',
+        days: [
+          { day: 1, sessions: [] },
+          ...[2, 3, 4].map((d) => ({ day: d, sessions: [S.easy(d)[1]] })),
+        ],
+      },
+    ]);
+    expect(validatePlan(p).violations.some((x) => x.rule === 'rest_minimum')).toBe(false);
+  });
+
+  it('a race session is exempt from the long-run cap', () => {
+    const raceWeek = plan([
+      week(1, 'taper', [
+        S.rest(1),
+        S.thr(2, 30),
+        S.easy(3, 30),
+        S.rest(4),
+        S.easy(5, 25),
+        S.rest(6),
+        [7, makeSession('race', 210, THRESHOLD)],
+      ]),
+    ]);
+    const v = validatePlan(raceWeek);
+    expect(v.violations.some((x) => x.rule === 'long_run_cap')).toBe(false);
+    expect(v.valid).toBe(true);
+  });
+});

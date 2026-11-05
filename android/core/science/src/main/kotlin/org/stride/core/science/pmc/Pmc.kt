@@ -48,15 +48,17 @@ data class PmcOptions(
     val atlDays: Double = 7.0,
     val seedCtl: Double = 0.0,
     val seedAtl: Double = 0.0,
-    /** Extend the series to this day key when it is after the last load (projection). */
+    /** End the series on this day key: extends past (projection) or truncates before the last load. */
     val throughDate: String? = null
 )
 
-/** Calendar range from the first entry to max(last entry, throughDate). Entries are taken in list order (not re-sorted). */
+/**
+ * Calendar range from the first entry to throughDate (extend OR truncate) when given, else the last entry.
+ * Entries are taken in list order (not re-sorted). Mirrors pmc.ts#seriesEnd.
+ */
 private fun seriesDays(dailyLoads: List<DailyLoad>, throughDate: String?): List<String> {
     val start = dailyLoads.first().date
-    val lastActivity = dailyLoads.last().date
-    val end = if (throughDate != null && throughDate > lastActivity) throughDate else lastActivity
+    val end = if (throughDate != null) DateKeys.toDateKey(throughDate) else dailyLoads.last().date
     return DateKeys.eachDay(start, end)
 }
 
@@ -114,7 +116,7 @@ private fun flagFor(acwr: Double, chronic: Double): AcwrFlag = when {
 
 /**
  * EWMA acute:chronic workload ratio, lambda = 2/(N+1). Both EWMAs are seeded with the mean TSS of the first
- * acuteDays ENTRIES; flags are forced OK for the first warmupDays points and when chronic < 1 (flag uses
+ * acuteDays CALENDAR DAYS (missing days = 0); flags are forced OK for the first warmupDays points and when chronic < 1 (flag uses
  * unrounded values). Points are rounded to 2 dp. Mirrors packages/core/src/science/acwr.ts#buildAcwrSeries.
  */
 fun buildAcwrSeries(dailyLoads: List<DailyLoad>, options: AcwrOptions = AcwrOptions()): List<AcwrPoint> {
@@ -123,10 +125,13 @@ fun buildAcwrSeries(dailyLoads: List<DailyLoad>, options: AcwrOptions = AcwrOpti
     val acuteLambda = 2.0 / (options.acuteDays + 1)
     val chronicLambda = 2.0 / (options.chronicDays + 1)
     val tssByDate = dailyLoads.associate { it.date to it.tss }
-    val seed = mean(dailyLoads.take(options.acuteDays).map { it.tss })
+    val days = seriesDays(dailyLoads, options.throughDate)
+    if (days.isEmpty()) return emptyList()
+    // Seed = mean TSS over the first acuteDays CALENDAR days (rest days count as 0), never past the series end.
+    val seed = mean(days.take(options.acuteDays).map { tssByDate[it] ?: 0.0 })
     var acute = seed
     var chronic = seed
-    return seriesDays(dailyLoads, options.throughDate).mapIndexed { dayIndex, date ->
+    return days.mapIndexed { dayIndex, date ->
         val tss = tssByDate[date] ?: 0.0
         acute = tss * acuteLambda + (1 - acuteLambda) * acute
         chronic = tss * chronicLambda + (1 - chronicLambda) * chronic

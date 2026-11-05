@@ -29,6 +29,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // errorMsg() marks failures via process.exitCode; don't leak that into the runner.
+  process.exitCode = undefined;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });

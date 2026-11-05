@@ -2,17 +2,17 @@ import {
   buildCoachContext,
   DEMO_PROFILE,
   demoActivity,
+  demoGoal,
   demoHistory,
   suggestNextWorkout,
 } from '@stride/core';
-import {
-  type Activity,
-  type AthleteProfile,
-  type DailyLoad,
-  RaceGoal,
-  type RaceGoal as RaceGoalType,
+import type {
+  Activity,
+  AthleteProfile,
+  DailyLoad,
+  RaceGoal as RaceGoalType,
 } from '@stride/schemas';
-import { coachDeps, getProfile, loadApp, todayIso } from '../app';
+import { coachDeps, getProfile, loadApp, refNowIso } from '../app';
 import { dim, errorMsg, heading, printDisclaimer, printFlags, printWorkout } from '../ui';
 
 export async function nextCommand(opts: {
@@ -21,6 +21,7 @@ export async function nextCommand(opts: {
   note?: string;
 }): Promise<void> {
   const app = loadApp();
+  const asOfDate = refNowIso(app.config, opts.demo);
 
   let profile: AthleteProfile = DEMO_PROFILE;
   let activities: Activity[];
@@ -29,7 +30,7 @@ export async function nextCommand(opts: {
 
   if (opts.demo) {
     activities = [...demoHistory(), demoActivity()];
-    goal = RaceGoal.parse({ distance: '10k', name: '10k', date: '2026-09-06' });
+    goal = demoGoal(asOfDate);
   } else {
     profile = await getProfile(app.store);
     activities = await app.store.loadActivities();
@@ -47,7 +48,7 @@ export async function nextCommand(opts: {
     activities,
     profile,
     goal,
-    asOfDate: todayIso(app.config),
+    asOfDate,
     dailyLoads,
   });
   const workout = await suggestNextWorkout({
@@ -64,6 +65,9 @@ export async function nextCommand(opts: {
           fitness: context.fitness,
           acwr: context.acwr,
           weeklyDistribution: context.weeklyDistribution,
+          goal: context.goal,
+          daysToRace: context.daysToRace,
+          planPhase: context.planPhase,
           workout,
         },
         null,
@@ -87,6 +91,13 @@ export async function nextCommand(opts: {
     const d = context.weeklyDistribution;
     console.log(
       `  Last 7 days: ${context.weeklyVolumeKm} km · ${d.easyPct}% easy / ${d.hardPct}% hard`,
+    );
+  }
+
+  if (context.goal?.date && context.daysToRace !== undefined) {
+    const phase = context.planPhase ? `, ${context.planPhase} phase` : '';
+    console.log(
+      `  Goal: ${context.goal.name ?? context.goal.distance} on ${context.goal.date} (${context.daysToRace} days${phase})`,
     );
   }
 

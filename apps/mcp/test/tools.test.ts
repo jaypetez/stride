@@ -78,3 +78,27 @@ describe('MCP action tools (demo) carry the disclaimer', () => {
     expect((r.data as any).disclaimer).toContain('informational');
   });
 });
+
+describe('MCP demo anchoring and plan rejection (AUD-003/AUD-008)', () => {
+  it('demo facts use the demo goal and today, not the wall clock', async () => {
+    const unpinned: McpState = {
+      config: loadConfig({}),
+      store: new LocalStore(path.join(os.tmpdir(), `stride-mcp-demo-${process.pid}-${Date.now()}`)),
+      llm: null,
+    };
+    const ctx = await (await buildProvider(unpinned, true)).getContext();
+    expect(ctx.goal?.date).toBe('2026-09-06');
+    expect(ctx.daysToRace).toBe(59);
+    expect(ctx.planPhase).toBe('build');
+    expect(ctx.generatedAt).toBe('2026-07-09T00:00:00Z');
+  });
+
+  it('generate_plan aligns to a race date and reports the real week count', async () => {
+    const r = await toolPlan(makeState(), { demo: true, weeks: 6, date: '2026-08-30' });
+    const { plan, validation } = r.data as any;
+    expect(validation.valid).toBe(true);
+    expect(plan.endDate).toBe('2026-08-30');
+    expect(r.text).toMatch(/^6-week/);
+    expect(r.isError).toBeUndefined();
+  });
+});

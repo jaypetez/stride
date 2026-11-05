@@ -46,7 +46,7 @@ class PlanScreenshotTest {
                 plan = plan,
                 currentWeekIndex = 2,
                 form = form,
-                earliestRaceDate = LocalDate.parse("2026-11-02"),
+                earliestRaceDate = LocalDate.parse("2026-11-08"),
                 repairs = result.repairs
             )
         }
@@ -68,7 +68,7 @@ class PlanScreenshotTest {
     @Test
     fun form() = snap(
         "form",
-        PlanUiState(isLoading = false, today = "2026-11-01", form = form, earliestRaceDate = LocalDate.parse("2026-11-02"))
+        PlanUiState(isLoading = false, today = "2026-11-01", form = form, earliestRaceDate = LocalDate.parse("2026-11-08"))
     )
 
     @Test
@@ -78,7 +78,7 @@ class PlanScreenshotTest {
             isLoading = false,
             today = "2026-11-01",
             form = form,
-            earliestRaceDate = LocalDate.parse("2026-11-02"),
+            earliestRaceDate = LocalDate.parse("2026-11-08"),
             violations = listOf(GuardrailViolation("ramp", "CTL would rise 9 pts (cap 7).", "error", 3))
         )
     )

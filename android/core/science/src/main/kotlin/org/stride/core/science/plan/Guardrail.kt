@@ -17,6 +17,7 @@ import org.stride.core.science.model.PlanPhase
 import org.stride.core.science.model.PlanValidation
 import org.stride.core.science.model.PlanWeek
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.science.model.WorkoutSuggestion
 import org.stride.core.science.model.WorkoutType
 import org.stride.core.science.pmc.PmcOptions
 import org.stride.core.science.pmc.buildPmcSeries
@@ -66,14 +67,28 @@ data class RepairResult(val plan: TrainingPlan, val fixed: List<GuardrailViolati
 
 private fun isHardDay(day: PlanDay) = day.sessions.any { it.type in QUALITY_TYPES }
 
-/** Rest or recovery-only (an empty day counts as rest). */
-private fun isRestDay(day: PlanDay) = day.sessions.all { it.type == WorkoutType.REST || it.type == WorkoutType.RECOVERY }
+/** Rest-only (an empty day counts as rest); a recovery RUN is not rest. Mirrors guardrail.ts#isRestDay. */
+private fun isRestDay(day: PlanDay) = day.sessions.all { it.type == WorkoutType.REST }
+
+/** The long-run cap ignores race-day sessions. Mirrors guardrail.ts#isCappedSession. */
+private fun isCappedSession(s: WorkoutSuggestion) = s.type != WorkoutType.RACE
+
+private fun absDay(weekNumber: Int, day: Int) = (weekNumber - 1) * 7 + (day - 1)
+
+/** Day 1 of [week] when it and day 7 of [prev] are consecutive and both hard. Mirrors guardrail.ts#hardAcrossWeeks. */
+private fun hardAcrossWeeks(prev: PlanWeek, week: PlanWeek): PlanDay? {
+    val prevLast = prev.days.firstOrNull { it.day == 7 } ?: return null
+    val first = week.days.firstOrNull { it.day == 1 } ?: return null
+    if (absDay(week.weekNumber, 1) != absDay(prev.weekNumber, 7) + 1) return null
+    return if (isHardDay(prevLast) && isHardDay(first)) first else null
+}
 
 private fun dayTss(day: PlanDay) = day.sessions.sumOf { it.targetTss ?: 0.0 }
 
 private fun weekTss(week: PlanWeek) = week.targetTss ?: week.days.sumOf { dayTss(it) }
 
-private fun weekDurationSec(days: List<PlanDay>) = days.sumOf { d -> d.sessions.sumOf { it.targetDurationSec ?: 0.0 } }
+private fun weekDurationSec(days: List<PlanDay>) =
+    days.sumOf { d -> d.sessions.filter(::isCappedSession).sumOf { it.targetDurationSec ?: 0.0 } }
 
 private fun isLoadingWeek(week: PlanWeek) = week.phase != PlanPhase.RECOVERY && week.phase != PlanPhase.TAPER
 
@@ -124,7 +139,8 @@ fun validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = PlanGuardrailCo
     val rises = if (ctx.seedCtl != null && hasTargetTss(plan.weeks)) projectWeekRises(plan.weeks, ctx.seedCtl, ctx.seedAtl ?: 0.0) else null
 
     var prevLoadTss: Double? = null
-    for (week in plan.weeks.sortedBy { it.weekNumber }) {
+    val sorted = plan.weeks.sortedBy { it.weekNumber }
+    for ((wi, week) in sorted.withIndex()) {
         if (isLoadingWeek(week)) {
             val tss = weekTss(week)
             violations += if (rises != null) {
@@ -133,6 +149,16 @@ fun validatePlan(plan: TrainingPlan, ctx: PlanGuardrailContext = PlanGuardrailCo
                 tssRampViolation(week.weekNumber, tss, prevLoadTss)
             }
             prevLoadTss = tss
+        }
+        val prevWeek = sorted.getOrNull(wi - 1)
+        if (prevWeek != null && hardAcrossWeeks(prevWeek, week) != null) {
+            val a = prevWeek.weekNumber
+            val b = week.weekNumber
+            violations += violation(
+                RULE_B2B,
+                b,
+                "Weeks $a and $b have hard sessions on consecutive days (week $a day 7 & week $b day 1); allow ~48h between quality days."
+            )
         }
         violations += backToBackViolations(week)
         if (week.days.count(::isRestDay) < MIN_REST_DAYS) {
@@ -167,7 +193,10 @@ private fun backToBackViolations(week: PlanWeek): List<GuardrailViolation> {
 
 private fun longRunViolation(week: PlanWeek): List<GuardrailViolation> {
     val totalSec = weekDurationSec(week.days)
-    val longestSec = max(0.0, week.days.flatMap { d -> d.sessions.map { it.targetDurationSec ?: 0.0 } }.maxOrNull() ?: 0.0)
+    val longestSec = max(
+        0.0,
+        week.days.flatMap { d -> d.sessions.filter(::isCappedSession).map { it.targetDurationSec ?: 0.0 } }.maxOrNull() ?: 0.0
+    )
     if (totalSec <= 0 || longestSec / totalSec <= LONG_RUN_MAX_FRACTION) return emptyList()
     val share = jsString(jsRound(longestSec / totalSec * 100))
     val cap = jsString(jsRound(LONG_RUN_MAX_FRACTION * 100))
@@ -190,7 +219,7 @@ private fun capLongRun(days: List<PlanDay>, weekNumber: Int, fixed: MutableList<
     var si = -1
     days.forEachIndexed { dIdx, day ->
         day.sessions.forEachIndexed { sIdx, s ->
-            val dur = s.targetDurationSec ?: 0.0
+            val dur = if (isCappedSession(s)) s.targetDurationSec ?: 0.0 else 0.0
             if (dur > maxSec) {
                 maxSec = dur
                 di = dIdx
@@ -250,23 +279,28 @@ private fun scaleWhile(weeks: MutableList<PlanWeek>, idx: Int, factor: Double, o
     return steps > 0
 }
 
+/** The hard day as an easy run of the same length, paced off the athlete's recovered threshold. Mirrors guardrail.ts#downgradeToEasy. */
+private fun downgradeToEasy(day: PlanDay): PlanDay {
+    val hard = day.sessions.firstOrNull()
+    val dur = (hard?.targetDurationSec ?: 2700.0) / 60
+    val threshold = hard?.let { thresholdFromSession(it) } ?: DEFAULT_THRESHOLD_MPS
+    val easy = makeSession(
+        WorkoutType.EASY,
+        dur,
+        threshold,
+        date = day.date,
+        rationale = "Downgraded to easy to keep ~48h between quality sessions."
+    )
+    return day.copy(sessions = listOf(easy))
+}
+
 /** Repairs (1) back-to-back hard days and (2) the rest minimum in one week; returns the new day list. */
 private fun repairStructure(week: PlanWeek, fixed: MutableList<GuardrailViolation>): List<PlanDay> {
     val n = week.weekNumber
     val days = week.days.sortedBy { it.day }.toMutableList()
     for (i in 1 until days.size) {
         if (days[i].day == days[i - 1].day + 1 && isHardDay(days[i]) && isHardDay(days[i - 1])) {
-            val hard = days[i].sessions.firstOrNull()
-            val dur = (hard?.targetDurationSec ?: 2700.0) / 60
-            val threshold = hard?.let { thresholdFromSession(it) } ?: DEFAULT_THRESHOLD_MPS
-            val easy = makeSession(
-                WorkoutType.EASY,
-                dur,
-                threshold,
-                date = days[i].date,
-                rationale = "Downgraded to easy to keep ~48h between quality sessions."
-            )
-            days[i] = days[i].copy(sessions = listOf(easy))
+            days[i] = downgradeToEasy(days[i])
             fixed += violation(RULE_B2B, n, "Repaired: converted day ${days[i].day} to an easy run.")
         }
     }
@@ -300,7 +334,15 @@ private fun repairStructure(week: PlanWeek, fixed: MutableList<GuardrailViolatio
  */
 fun repairPlan(plan: TrainingPlan, ctx: PlanGuardrailContext = PlanGuardrailContext()): RepairResult {
     val fixed = mutableListOf<GuardrailViolation>()
-    val weeks = plan.weeks.map { week ->
+    val sorted = plan.weeks.sortedBy { it.weekNumber }.toMutableList()
+    // (0) Back-to-back hard across a week boundary: day 1 of the later week becomes easy.
+    for (wi in 1 until sorted.size) {
+        val first = hardAcrossWeeks(sorted[wi - 1], sorted[wi]) ?: continue
+        val week = sorted[wi]
+        sorted[wi] = week.copy(days = week.days.map { if (it === first) downgradeToEasy(it) else it })
+        fixed += violation(RULE_B2B, week.weekNumber, "Repaired: converted week ${week.weekNumber} day 1 to an easy run.")
+    }
+    val weeks = sorted.map { week ->
         val days = capLongRun(repairStructure(week, fixed), week.weekNumber, fixed)
         withWeekTotals(week.copy(days = days))
     }.toMutableList()

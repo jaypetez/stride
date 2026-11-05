@@ -36,6 +36,7 @@ import {
 } from '../packages/core/src/coach/safety.ts';
 import { DEMO_PROFILE, demoActivity, demoHistory } from '../packages/core/src/fixtures.ts';
 import {
+  addDays,
   aerobicDecoupling,
   banisterTrimp,
   buildAcwrSeries,
@@ -662,7 +663,7 @@ function pmcFile(): GoldenFile {
       },
     ],
     [
-      'throughDate before last activity is ignored',
+      'throughDate before last activity truncates the series',
       demoDailies,
       {
         ...PMC_DEFAULTS,
@@ -694,11 +695,16 @@ function pmcFile(): GoldenFile {
         throughDate: '2026-07-26',
       },
     ],
+    [
+      'throughDate before last activity truncates the series',
+      demoDailies,
+      { ...ACWR_DEFAULTS, throughDate: '2026-06-20' },
+    ],
     ['spiky series: low/ok/high/very_high flags', spiky, { ...ACWR_DEFAULTS }],
     ['spiky series, no warm-up suppression', spiky, { ...ACWR_DEFAULTS, warmupDays: 0 }],
     ['custom windows', spiky, { acuteDays: 5, chronicDays: 21, warmupDays: 10 }],
     [
-      'fewer days than acute window (seed = mean of all)',
+      'fewer days than acute window (seed = mean over the available calendar days)',
       demoDailies.slice(0, 3),
       {
         ...ACWR_DEFAULTS,
@@ -739,9 +745,9 @@ function pmcFile(): GoldenFile {
     },
     notes: [
       'Dates are YYYY-MM-DD keys; toDailyLoads uses startDateLocal (else startDate), first 10 chars, no timezone math.',
-      'buildPmcSeries/buildAcwrSeries emit one point per calendar day from the first daily load to max(last load, throughDate), filling missing days with 0 TSS.',
+      'buildPmcSeries/buildAcwrSeries emit one point per calendar day from the first daily load to throughDate when given (extending past OR truncating before the last load), else to the last load, filling missing days with 0 TSS.',
       'PMC ctl/atl/tsb and ACWR acwr/acuteLoad/chronicLoad are rounded with toFixed(2) per point, but the EWMA state carries full precision between days.',
-      'PMC alpha = 1 - exp(-1/N); ACWR lambda = 2/(N+1), both EWMAs seeded with mean(tss of the first acuteDays DAILY LOAD ENTRIES, not calendar days).',
+      'PMC alpha = 1 - exp(-1/N); ACWR lambda = 2/(N+1), both EWMAs seeded with the mean TSS of the first acuteDays CALENDAR DAYS of the series (missing days = 0; never past the series end).',
       'options objects list every default explicitly; throughDate is optional (absent = no projection).',
     ],
     cases,
@@ -1123,6 +1129,42 @@ function plannerFile(now: string): GoldenFile {
     ],
     ['2 weeks (no taper/peak arithmetic edge)', P, goal({ distance: '10k' }), 2],
     ['1 week', P, goal({ distance: '5k' }), 1],
+    [
+      'race 10 weeks out, 8 requested: start shifts so week 8 ends on race day',
+      P,
+      goal({ distance: '10k', name: 'Autumn 10k', date: addDays(start, 69) }),
+      8,
+    ],
+    [
+      'race in 3.5 weeks, 8 requested: shrinks to 3 whole weeks',
+      P,
+      goal({ distance: '5k', date: addDays(start, 24) }),
+      8,
+    ],
+    [
+      'race goal as full ISO datetime',
+      PROFILES.vdotOnly,
+      goal({ distance: 'half', date: `${addDays(start, 83)}T07:30:00Z` }),
+      12,
+    ],
+    [
+      'marathon race day exempt from the long-run cap',
+      PROFILES.female,
+      goal({ distance: 'marathon', date: addDays(start, 111) }),
+      16,
+    ],
+    [
+      '2-week build with race: hard day 6 eased before the race',
+      P,
+      goal({ distance: '10k', date: addDays(start, 13) }),
+      2,
+    ],
+    [
+      'race before the start date: no alignment',
+      P,
+      goal({ distance: '10k', date: addDays(start, -3) }),
+      4,
+    ],
   ];
   for (const [name, prof, g, weeks] of skeletons) {
     const params = {
@@ -1200,6 +1242,7 @@ function plannerFile(now: string): GoldenFile {
     },
     notes: [
       `buildPlanSkeleton params.startDate/createdAt are the pinned reference clock (${now}); startDate is truncated to YYYY-MM-DD inside.`,
+      'With goal.date on/after the start, buildPlanSkeleton aligns to the race (alignToRace): weeks = max(1, min(requested, floor((daysBetween(start, race)+1)/7))), start = race - (weeks*7-1); the last week day 7 is a race session (goal distance at threshold speed) and a hard day 6 becomes an easy run of the same length.',
       'Strings (titles, descriptions, rationales incl. interpolated numbers like "TSB -30") are part of the contract and must match exactly.',
       'makeSession: durationSec = Math.round(min*60); targetTss = toFixed(0) of IF^2*hours*100; pace = Math.round(1000/speed) s/km; distance = Math.round(speed*durationSec); pace is omitted (absent) when speed <= 0.',
       'proposeNextWorkout threshold: profile.thresholdSpeedMps, else from vdot, else 3.0 m/s.',
@@ -1297,7 +1340,7 @@ function guardrailFile(now: string): GoldenFile {
       ]),
     ],
     [
-      'recovery runs count as rest',
+      'recovery runs do NOT count as rest',
       plan('recovery-rest', [
         week(1, 'base', [
           S.rec(1, 30),
@@ -1354,6 +1397,57 @@ function guardrailFile(now: string): GoldenFile {
         ]),
       ]),
     ],
+    [
+      'week of daily recovery runs has no rest day',
+      plan('all-recovery', [
+        week(1, 'recovery', [
+          S.rec(1, 30),
+          S.rec(2, 30),
+          S.rec(3, 30),
+          S.rec(4, 30),
+          S.rec(5, 30),
+          S.rec(6, 30),
+          S.rec(7, 30),
+        ]),
+      ]),
+    ],
+    [
+      'hard day 7 then hard day 1 of the next week',
+      plan('b2b-across-weeks', [
+        week(1, 'build', [
+          S.rest(1),
+          S.easy(2, 45),
+          S.easy(3, 40),
+          S.easy(4, 40),
+          S.rest(5),
+          S.easy(6, 40),
+          S.int(7, 50),
+        ]),
+        week(2, 'build', [
+          S.thr(1, 50),
+          S.easy(2, 45),
+          S.easy(3, 40),
+          S.rest(4),
+          S.easy(5, 40),
+          S.rest(6),
+          S.long(7, 70),
+        ]),
+      ]),
+    ],
+    [
+      'race day is exempt from the long-run cap',
+      plan('race-week', [
+        week(1, 'taper', [
+          S.rest(1),
+          S.thr(2, 30),
+          S.easy(3, 30),
+          S.rest(4),
+          S.easy(5, 25),
+          S.rest(6),
+          [7, makeSession('race', 210, T)],
+        ]),
+      ]),
+    ],
     ['empty plan', plan('empty', [])],
   ];
 
@@ -1394,6 +1488,7 @@ function guardrailFile(now: string): GoldenFile {
       'ctx.seedCtl PRESENT switches the ramp rule to the CTL-rise cap (ctlRampCap by experienceLevel) projected through buildPmcSeries; ABSENT uses the week-over-week TSS ratio. experienceLevel defaults to intermediate; seedAtl to 0.',
       'Violation messages (incl. the "≤" character and toFixed(1) CTL numbers) are part of the contract.',
       'repairPlan returns {plan, fixed}; it never mutates its input and recomputes week targetTss/targetDistanceKm.',
+      'Rest days are rest-only (a recovery run is not rest); back-to-back hard days are also checked across the week boundary (week N day 7 -> week N+1 day 1, repaired first by easing week N+1 day 1); race sessions are excluded from the long-run cap (both total and longest).',
     ],
     cases,
   };
@@ -1418,6 +1513,13 @@ function safetyFile(): GoldenFile {
     ['passed out -> stop', { text: 'passed out briefly after the race' }],
     ['blacked out -> stop', { text: 'blacked out for a second' }],
     ['palpitations -> stop', { text: 'heart palpitations during the tempo' }],
+    ['bare palpitations -> stop', { text: 'Palpitations on the last rep' }],
+    ['lightheaded -> stop', { text: 'felt lightheaded after the hill' }],
+    ['chest feels tight -> stop', { text: 'my chest feels tight on climbs' }],
+    ["can't breathe -> stop", { text: "I can't breathe properly when I push" }],
+    ['heart racing -> stop', { text: 'heart was racing at rest' }],
+    ['negative: tight hamstrings', { text: 'tight hamstrings after the long run' }],
+    ['negative: heart rate talk', { text: 'heart rate stayed in zone 2' }],
     ['severe pain -> stop (no extra warning)', { text: 'severe pain in my knee' }],
     ['pain -> warning', { text: 'some pain in my left shin' }],
     ['injured -> warning', { text: 'I am injured, calf strain' }],
@@ -1448,8 +1550,9 @@ function safetyFile(): GoldenFile {
     ['all no -> cleared', [false, false, false, false, false, false, false]],
     ['chest pain yes', [false, true, false, false, false, false, false]],
     ['several yes', [true, false, true, true, false, true, false]],
-    ['short answers array', [false, true]],
-    ['empty answers -> cleared', []],
+    ['short answers array -> not cleared (incomplete)', [false, true]],
+    ['empty answers -> not cleared (incomplete)', []],
+    ['too many answers -> not cleared', [false, false, false, false, false, false, false, false]],
   ] as const) {
     run(cases, name, 'screenReadiness', { answers: [...answers] }, (i) =>
       screenReadiness(i.answers),
@@ -1480,6 +1583,7 @@ function safetyFile(): GoldenFile {
     notes: [
       'detectRedFlags keyword regexes are case-insensitive with \\b word boundaries; at most one stop keyword flag, and keyword warnings are only checked when there is no stop flag.',
       'Flag order: keyword, health (healthFlags), health (medicalClearance === false), load (ACWR very_high), load (tsb < -30).',
+      'screenReadiness clears only a COMPLETE answer list (length === PARQ_QUESTIONS.length) of all "no"; a wrong-length list appends the "incomplete screening" health flag.',
     ],
     cases,
   };

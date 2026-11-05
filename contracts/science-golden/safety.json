@@ -239,6 +239,178 @@
     {
       "fn": "detectRedFlags",
       "input": {
+        "input": {"text": "Palpitations on the last rep"}
+      },
+      "name": "bare palpitations -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "bare palpitations -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "felt lightheaded after the hill"}
+      },
+      "name": "lightheaded -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "lightheaded -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "my chest feels tight on climbs"}
+      },
+      "name": "chest feels tight -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "chest feels tight -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "I can't breathe properly when I push"}
+      },
+      "name": "can't breathe -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "can't breathe -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "heart was racing at rest"}
+      },
+      "name": "heart racing -> stop",
+      "output": [
+        {
+          "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+          "severity": "stop",
+          "source": "keyword"
+        }
+      ]
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": [
+          {
+            "message": "Symptoms you described (e.g. chest pain, dizziness, fainting) can be serious. Stop exercising and seek advice from a medical professional before continuing.",
+            "severity": "stop",
+            "source": "keyword"
+          }
+        ]
+      },
+      "name": "heart racing -> stop",
+      "output": true
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "tight hamstrings after the long run"}
+      },
+      "name": "negative: tight hamstrings",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "negative: tight hamstrings",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
+        "input": {"text": "heart rate stayed in zone 2"}
+      },
+      "name": "negative: heart rate talk",
+      "output": []
+    },
+    {
+      "fn": "shouldHalt",
+      "input": {
+        "flags": []
+      },
+      "name": "negative: heart rate talk",
+      "output": false
+    },
+    {
+      "fn": "detectRedFlags",
+      "input": {
         "input": {"text": "severe pain in my knee"}
       },
       "name": "severe pain -> stop (no extra warning)",
@@ -779,11 +951,11 @@
       "input": {
         "answers": [false, true]
       },
-      "name": "short answers array",
+      "name": "short answers array -> not cleared (incomplete)",
       "output": {
         "cleared": false,
         "flaggedQuestions": ["Do you feel pain in your chest when you do physical activity?"],
-        "healthFlags": ["chest pain on exertion"]
+        "healthFlags": ["chest pain on exertion", "incomplete screening"]
       }
     },
     {
@@ -791,11 +963,23 @@
       "input": {
         "answers": []
       },
-      "name": "empty answers -> cleared",
+      "name": "empty answers -> not cleared (incomplete)",
       "output": {
-        "cleared": true,
+        "cleared": false,
         "flaggedQuestions": [],
-        "healthFlags": []
+        "healthFlags": ["incomplete screening"]
+      }
+    },
+    {
+      "fn": "screenReadiness",
+      "input": {
+        "answers": [false, false, false, false, false, false, false, false]
+      },
+      "name": "too many answers -> not cleared",
+      "output": {
+        "cleared": false,
+        "flaggedQuestions": [],
+        "healthFlags": ["incomplete screening"]
       }
     },
     {
@@ -860,7 +1044,7 @@
     }
   ],
   "meta": {
-    "caseCount": 63,
+    "caseCount": 78,
     "description": "Safety layer: PAR-Q questions, disclaimer, red-flag detection, readiness screening.",
     "formatVersion": 1,
     "functions": {
@@ -872,7 +1056,7 @@
       "shouldHalt": "packages/core/src/coach/safety.ts"
     },
     "generator": "scripts/science-golden.mts",
-    "notes": ["detectRedFlags keyword regexes are case-insensitive with \\b word boundaries; at most one stop keyword flag, and keyword warnings are only checked when there is no stop flag.", "Flag order: keyword, health (healthFlags), health (medicalClearance === false), load (ACWR very_high), load (tsb < -30)."],
+    "notes": ["detectRedFlags keyword regexes are case-insensitive with \\b word boundaries; at most one stop keyword flag, and keyword warnings are only checked when there is no stop flag.", "Flag order: keyword, health (healthFlags), health (medicalClearance === false), load (ACWR very_high), load (tsb < -30).", "screenReadiness clears only a COMPLETE answer list (length === PARQ_QUESTIONS.length) of all \"no\"; a wrong-length list appends the \"incomplete screening\" health flag."],
     "now": "2026-07-09T00:00:00Z",
     "regenerate": "pnpm science:golden",
     "tolerance": {"relative": 0.000001}

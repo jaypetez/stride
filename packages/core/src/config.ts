@@ -6,6 +6,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
+import { z } from 'zod';
 
 export interface StravaConfig {
   clientId?: string;
@@ -58,6 +59,51 @@ export const DEFAULT_WEB_ORIGIN = 'http://localhost:5173';
 
 type Env = Record<string, string | undefined>;
 
+/** Thrown by {@link loadConfig} when an environment variable is malformed. */
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
+/** Treat an empty env var as unset (e.g. `STRIDE_API_PORT=` in a .env). */
+const optionalVar = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((v) => (v === '' ? undefined : v), schema.optional());
+
+/**
+ * The env vars whose values are parsed (not just passed through). Validated up
+ * front so a typo fails fast with a clear message instead of surfacing later as
+ * a NaN port or an "Invalid Date" clock.
+ */
+const ValidatedEnv = z.object({
+  STRIDE_API_PORT: optionalVar(
+    z
+      .string()
+      .regex(/^\d+$/, 'expected an integer port between 1 and 65535')
+      .transform(Number)
+      .pipe(z.number().int().min(1).max(65535, 'expected an integer port between 1 and 65535')),
+  ),
+  STRIDE_NOW: optionalVar(
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}/, 'expected an ISO-8601 date/time, e.g. 2026-07-09T00:00:00Z')
+      .refine((v) => Number.isFinite(Date.parse(v)), 'not a valid ISO-8601 date/time'),
+  ),
+});
+
+function validateEnv(env: Env): z.infer<typeof ValidatedEnv> {
+  const parsed = ValidatedEnv.safeParse(env);
+  if (parsed.success) return parsed.data;
+  const detail = parsed.error.issues
+    .map((i) => {
+      const key = String(i.path[0] ?? 'env');
+      return `${key}=${JSON.stringify(env[key])}: ${i.message}`;
+    })
+    .join('; ');
+  throw new ConfigError(`Invalid configuration — ${detail}`);
+}
+
 /**
  * Expand a leading `~`/`~/` and `$HOME` / `${HOME}` / `%USERPROFILE%` (win32)
  * references in a path to the current user's home directory. Applied to
@@ -80,7 +126,12 @@ export function expandHome(p: string): string {
   return out;
 }
 
+/**
+ * Resolve the runtime config from `env`. Throws {@link ConfigError} on a
+ * malformed STRIDE_API_PORT or STRIDE_NOW so every surface fails fast.
+ */
 export function loadConfig(env: Env = {}): StrideConfig {
+  const valid = validateEnv(env);
   return {
     strava: {
       clientId: env.STRAVA_CLIENT_ID,
@@ -96,9 +147,9 @@ export function loadConfig(env: Env = {}): StrideConfig {
       classify: env.STRIDE_MODEL_CLASSIFY ?? DEFAULT_MODELS.classify,
     },
     dataDir: expandHome(env.STRIDE_DATA_DIR ?? '.stride'),
-    apiPort: env.STRIDE_API_PORT ? Number(env.STRIDE_API_PORT) : 8720,
+    apiPort: valid.STRIDE_API_PORT ?? 8720,
     webOrigin: env.STRIDE_WEB_ORIGIN ?? DEFAULT_WEB_ORIGIN,
-    now: env.STRIDE_NOW,
+    now: valid.STRIDE_NOW,
   };
 }
 

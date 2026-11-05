@@ -46,7 +46,7 @@ class PlanViewModelTest {
         vm.uiState.test {
             val form = awaitWhere { !it.isLoading }
             assertNull(form.plan)
-            assertEquals(LocalDate.parse("2026-11-02"), form.earliestRaceDate)
+            assertEquals(LocalDate.parse("2026-11-08"), form.earliestRaceDate)
 
             vm.setDistance(RaceDistance.HALF)
             vm.setRaceDate(LocalDate.parse("2027-02-28"))

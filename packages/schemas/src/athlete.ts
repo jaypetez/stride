@@ -41,6 +41,19 @@ export const AthleteProfile = z.object({
 });
 export type AthleteProfile = z.infer<typeof AthleteProfile>;
 
+/**
+ * A strict calendar date `YYYY-MM-DD` that actually exists (rejects
+ * `2026-02-30`, `07/09/2026`, garbage). Used to validate user-supplied plan
+ * start / race dates at every surface (API, MCP, CLI) BEFORE planning.
+ */
+export const IsoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a date in YYYY-MM-DD format')
+  .refine((s) => {
+    const ms = Date.parse(`${s}T00:00:00Z`);
+    return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === s;
+  }, 'Not a real calendar date');
+
 /** A goal race the plan is built toward. */
 export const RaceGoal = z.object({
   distance: RaceDistance.default('10k'),

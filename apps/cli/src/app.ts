@@ -1,28 +1,22 @@
 import {
+  type AppState,
   type CoachDeps,
-  type CoachLLM,
-  createCoachLLM,
-  LocalStore,
-  loadConfig,
+  demoNowIso,
+  type LocalStore,
+  loadAppState,
   resolveNowIso,
   type StrideConfig,
 } from '@stride/core';
 import { type Activity, AthleteProfile } from '@stride/schemas';
-import { config as loadDotenv } from 'dotenv';
 
-export interface App {
-  config: StrideConfig;
-  store: LocalStore;
-  llm: CoachLLM | null;
-}
+export type App = AppState;
 
-/** Load env, config, the local store, and (if configured) the Claude client. */
+/**
+ * Load env, the VALIDATED config (a bad STRIDE_NOW / STRIDE_API_PORT throws a
+ * clear `ConfigError`), the local store, and (if configured) the Claude client.
+ */
 export function loadApp(): App {
-  loadDotenv({ quiet: true });
-  const config = loadConfig(process.env as Record<string, string | undefined>);
-  const store = new LocalStore(config.dataDir);
-  const llm = createCoachLLM(config);
-  return { config, store, llm };
+  return loadAppState();
 }
 
 export async function getProfile(store: LocalStore): Promise<AthleteProfile> {
@@ -40,6 +34,14 @@ export function todayIso(config: StrideConfig): string {
 
 export function todayKey(config: StrideConfig): string {
   return resolveNowIso(config).slice(0, 10);
+}
+
+/**
+ * Reference clock for a command: in demo mode the demo "today" (anchored to the
+ * bundled history unless STRIDE_NOW/--now pins it), else {@link todayIso}.
+ */
+export function refNowIso(config: StrideConfig, demo: boolean | undefined): string {
+  return demo ? demoNowIso(config.now) : todayIso(config);
 }
 
 /** Coach dependencies, including a fixed clock when STRIDE_NOW is set. */

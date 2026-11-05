@@ -36,7 +36,16 @@ sealed interface PlanResult {
 /** Plans start on the Monday after [today] (a Monday also moves to the next one). */
 fun planStartDate(today: LocalDate): LocalDate = today.with(TemporalAdjusters.next(DayOfWeek.MONDAY))
 
-/** Whole weeks from [start] through the race week, clamped to [MIN_PLAN_WEEKS]..[MAX_PLAN_WEEKS]. */
+/**
+ * The earliest race date: the Sunday that ends the first plan week. Plans end ON race day
+ * (core:science aligns the last week to it), so the race needs at least one full week after [planStartDate].
+ */
+fun earliestRaceDate(today: LocalDate): LocalDate = planStartDate(today).plusDays(6)
+
+/**
+ * Whole weeks from [start] through the race week, clamped to [MIN_PLAN_WEEKS]..[MAX_PLAN_WEEKS]. This is the
+ * REQUESTED length: core:science shrinks it to the whole weeks that fit before the race.
+ */
 fun planWeeks(start: LocalDate, raceDate: LocalDate): Int =
     (ChronoUnit.DAYS.between(start, raceDate) / 7 + 1).toInt().coerceIn(MIN_PLAN_WEEKS, MAX_PLAN_WEEKS)
 
@@ -47,6 +56,10 @@ fun raceDistanceM(distance: RaceDistance): Double = resolveRaceDistanceM(RaceGoa
  * Builds a plan with core:science's skeleton, then validates it against the
  * guardrails and repairs it once if needed. Only a plan that passes
  * [validatePlan] with [ctx] is returned as [PlanResult.Created].
+ *
+ * The skeleton is aligned to the race: its last week ends on race day with a race
+ * session, so for a race that is not on a Sunday the first week starts a few days
+ * after the Monday from [planStartDate].
  */
 fun generatePlan(
     request: PlanRequest,
@@ -57,7 +70,10 @@ fun generatePlan(
     createdAt: String
 ): PlanResult {
     val start = planStartDate(today)
-    if (request.raceDate.isBefore(start)) return PlanResult.Invalid("Pick a race date on or after $start, when the plan starts.")
+    val earliest = earliestRaceDate(today)
+    if (request.raceDate.isBefore(earliest)) {
+        return PlanResult.Invalid("Pick a race date on or after $earliest, so the plan has at least one full week.")
+    }
     if (request.goalTimeSec != null && request.goalTimeSec <= 0) return PlanResult.Invalid("Goal time must be positive.")
     val skeleton = buildPlanSkeleton(
         PlanSkeletonParams(

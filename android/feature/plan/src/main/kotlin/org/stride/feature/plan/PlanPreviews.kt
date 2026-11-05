@@ -32,7 +32,7 @@ private fun PlanPreview() {
                 plan = previewPlan,
                 currentWeekIndex = 0,
                 form = PlanForm(raceDate = LocalDate.parse("2027-01-31")),
-                earliestRaceDate = LocalDate.parse("2026-11-09")
+                earliestRaceDate = LocalDate.parse("2026-11-15")
             ),
             actions = PlanActions()
         )
@@ -48,7 +48,7 @@ private fun PlanFormPreview() {
                 isLoading = false,
                 today = "2026-11-05",
                 form = PlanForm(raceDate = LocalDate.parse("2027-01-31"), goalTime = "1:45:00"),
-                earliestRaceDate = LocalDate.parse("2026-11-09")
+                earliestRaceDate = LocalDate.parse("2026-11-15")
             ),
             actions = PlanActions()
         )

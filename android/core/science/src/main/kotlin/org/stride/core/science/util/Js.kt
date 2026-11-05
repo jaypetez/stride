@@ -46,16 +46,19 @@ object DateKeys {
     /** First 10 chars of an ISO datetime or date. Mirrors dates.ts#toDateKey. */
     fun toDateKey(iso: String): String = iso.take(10)
 
-    /** Mirrors dates.ts#addDays. */
-    fun addDays(key: String, n: Int): String = LocalDate.parse(key).plusDays(n.toLong()).toString()
+    /** A key or a full ISO datetime, normalised to its calendar day. Mirrors dates.ts#keyToMs. */
+    private fun parseDay(keyOrIso: String): LocalDate = LocalDate.parse(toDateKey(keyOrIso))
 
-    /** Whole days from [a] to [b]. Mirrors dates.ts#daysBetween. */
-    fun daysBetween(a: String, b: String): Int = ChronoUnit.DAYS.between(LocalDate.parse(a), LocalDate.parse(b)).toInt()
+    /** Mirrors dates.ts#addDays. */
+    fun addDays(key: String, n: Int): String = parseDay(key).plusDays(n.toLong()).toString()
+
+    /** Whole calendar days from [a] to [b] (keys or ISO datetimes). Mirrors dates.ts#daysBetween. */
+    fun daysBetween(a: String, b: String): Int = ChronoUnit.DAYS.between(parseDay(a), parseDay(b)).toInt()
 
     /** Inclusive list of keys from [start] to [end] (empty when end < start). Mirrors dates.ts#eachDay. */
     fun eachDay(start: String, end: String): List<String> {
         val total = daysBetween(start, end)
-        val first = LocalDate.parse(start)
+        val first = parseDay(start)
         return (0..total).map { first.plusDays(it.toLong()).toString() }
     }
 }

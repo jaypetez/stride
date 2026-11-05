@@ -128,4 +128,85 @@ describe('Stride API', () => {
     const profile = (await (await screenApp.request('/profile')).json()) as any;
     expect(profile.healthFlags).toEqual(body.profile.healthFlags);
   });
+
+  describe('PAR-Q answer completeness (AUD-001)', () => {
+    const screenApp = () =>
+      buildApp({
+        config: loadConfig({}),
+        store: new LocalStore(
+          path.join(os.tmpdir(), `stride-api-parq-${process.pid}-${Date.now()}-${Math.random()}`),
+        ),
+        llm: null,
+      });
+    const post = (a: ReturnType<typeof buildApp>, answers: unknown) =>
+      a.request('/profile/screening', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ answers }),
+      });
+
+    it.each([
+      ['empty', []],
+      ['short', [false, false]],
+      ['long', [false, false, false, false, false, false, false, false]],
+    ])(
+      'rejects a %s answer list with 400 and leaves the profile unchanged',
+      async (_name, answers) => {
+        const a = screenApp();
+        const before = (await (await a.request('/profile')).json()) as any;
+        const res = await post(a, answers);
+        expect(res.status).toBe(400);
+        const body = (await res.json()) as any;
+        expect(body.error).toMatch(/answers/);
+        const after = (await (await a.request('/profile')).json()) as any;
+        expect(after).toEqual(before);
+        expect(after.medicalClearance).not.toBe(true);
+      },
+    );
+
+    it('clears a complete all-no answer list', async () => {
+      const res = await post(screenApp(), [false, false, false, false, false, false, false]);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.screening.cleared).toBe(true);
+      expect(body.profile.medicalClearance).toBe(true);
+    });
+  });
+
+  describe('plan date validation and race alignment (AUD-003)', () => {
+    const postPlan = (body: unknown) =>
+      app.request('/plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    it.each([
+      ['start', { demo: true, start: 'garbage' }],
+      ['start (impossible date)', { demo: true, start: '2026-02-30' }],
+      ['date', { demo: true, date: '09/06/2026' }],
+    ])('rejects an invalid %s with 400 before planning', async (_name, body) => {
+      const res = await postPlan(body);
+      expect(res.status).toBe(400);
+      const json = (await res.json()) as any;
+      expect(json.error).toMatch(/YYYY-MM-DD|calendar date/);
+    });
+
+    it('ends the last week on race day with a race session', async () => {
+      const res = await postPlan({
+        demo: true,
+        race: '10k',
+        weeks: 6,
+        start: '2026-07-13',
+        date: '2026-09-06',
+      });
+      expect(res.status).toBe(200);
+      const { plan, validation } = (await res.json()) as any;
+      expect(validation.valid).toBe(true);
+      expect(plan.endDate).toBe('2026-09-06');
+      const last = plan.weeks[plan.weeks.length - 1];
+      const raceDay = last.days.find((d: any) => d.date === '2026-09-06');
+      expect(raceDay.sessions[0].type).toBe('race');
+    });
+  });
 });

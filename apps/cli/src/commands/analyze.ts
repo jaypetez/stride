@@ -4,15 +4,11 @@ import {
   computeActivityMetrics,
   DEMO_PROFILE,
   demoActivity,
+  demoGoal,
   demoHistory,
 } from '@stride/core';
-import {
-  type Activity,
-  type DailyLoad,
-  RaceGoal,
-  type RaceGoal as RaceGoalType,
-} from '@stride/schemas';
-import { coachDeps, getProfile, loadApp, mostRecent } from '../app';
+import type { Activity, DailyLoad, RaceGoal as RaceGoalType } from '@stride/schemas';
+import { coachDeps, getProfile, loadApp, mostRecent, refNowIso } from '../app';
 import {
   dim,
   errorMsg,
@@ -40,7 +36,7 @@ export async function analyzeCommand(opts: {
   if (opts.demo) {
     activity = demoActivity();
     activities = [...demoHistory(), activity];
-    goal = RaceGoal.parse({ distance: '10k', name: '10k' });
+    goal = demoGoal(refNowIso(app.config, true));
   } else {
     profile = await getProfile(app.store);
     activities = await app.store.loadActivities();
@@ -61,7 +57,8 @@ export async function analyzeCommand(opts: {
     activities,
     profile,
     goal,
-    asOfDate: activity.startDate,
+    // The athlete's LOCAL day of the run (day keys use startDateLocal).
+    asOfDate: activity.startDateLocal ?? activity.startDate,
     dailyLoads,
   });
   const metrics = computeActivityMetrics(activity, profile);

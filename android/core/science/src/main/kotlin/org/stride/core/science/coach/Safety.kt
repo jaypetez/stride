@@ -25,6 +25,9 @@ val PARQ_QUESTIONS: List<String> = listOf(
     "Do you know of any other reason you should not do physical activity?"
 )
 
+/** Label recorded when the answer list is incomplete (never cleared). Mirrors safety.ts#INCOMPLETE_SCREENING_FLAG. */
+const val INCOMPLETE_SCREENING_FLAG = "incomplete screening"
+
 /** Short labels aligned 1:1 with [PARQ_QUESTIONS], stored as AthleteProfile.healthFlags. */
 private val PARQ_FLAG_LABELS = listOf(
     "heart condition",
@@ -46,12 +49,19 @@ private fun keyword(body: String, endBoundary: Boolean = true) =
 private val STOP_KEYWORDS = listOf(
     keyword("chest pain"),
     keyword("chest tightness"),
+    keyword("chest (?:feels|felt|is|was|got|getting|going) (?:tight|heavy)"),
+    keyword("tight(?:ness)? (?:in|across) (?:my|the) chest"),
     keyword("short(ness)? of breath"),
+    keyword("(?:can['’]?t|cannot|can not|couldn['’]?t|could not) (?:breathe|catch my breath)"),
+    keyword("(?:trouble|difficulty|struggling|struggled) (?:to )?breath(?:e|ing)"),
     keyword("dizz(y|iness)"),
+    keyword("light[- ]?headed(?:ness)?"),
     keyword("faint(ed|ing)?"),
     keyword("pass(ed)? out"),
     keyword("black(ed)? out"),
-    keyword("heart palpitation", endBoundary = false),
+    keyword("palpitations?"),
+    keyword("heart (?:was |is |kept )?(?:racing|pounding|fluttering|skipping)"),
+    keyword("irregular heart ?beat"),
     keyword("severe pain")
 )
 
@@ -137,15 +147,16 @@ fun shouldHalt(flags: List<RedFlag>): Boolean = flags.any { it.severity == RedFl
 data class ReadinessScreening(val cleared: Boolean, val flaggedQuestions: List<String>, val healthFlags: List<String>)
 
 /**
- * PAR-Q screening: answers[i] is the yes (true) / no answer to PARQ_QUESTIONS[i] (missing answers count as
- * no); cleared only when every answer is no. Mirrors packages/core/src/coach/safety.ts#screenReadiness.
+ * PAR-Q screening: answers[i] is the yes (true) / no answer to PARQ_QUESTIONS[i]. Cleared only when exactly one
+ * answer per question was given and every answer is no; a wrong-length list adds INCOMPLETE_SCREENING_FLAG. Mirrors packages/core/src/coach/safety.ts#screenReadiness.
  */
 fun screenReadiness(answers: List<Boolean>): ReadinessScreening {
     val yes = PARQ_QUESTIONS.indices.filter { answers.getOrElse(it) { false } }
+    val complete = answers.size == PARQ_QUESTIONS.size
     return ReadinessScreening(
-        cleared = yes.isEmpty(),
+        cleared = complete && yes.isEmpty(),
         flaggedQuestions = yes.map { PARQ_QUESTIONS[it] },
-        healthFlags = yes.map { PARQ_FLAG_LABELS[it] }
+        healthFlags = yes.map { PARQ_FLAG_LABELS[it] } + if (complete) emptyList() else listOf(INCOMPLETE_SCREENING_FLAG)
     )
 }
 

@@ -9,12 +9,15 @@ import {
   createLogger,
   DEMO_PROFILE,
   demoActivity,
+  demoGoal,
   demoHistory,
+  demoNowIso,
   generatePlan,
   latestAcwr,
   latestPmc,
   rampRatePerWeek,
   resolveNowIso,
+  ScreeningAnswers,
   STRIDE_CORE_VERSION,
   StravaApiError,
   StravaRateLimitError,
@@ -24,7 +27,7 @@ import {
   syncStrava,
   toDailyLoads,
 } from '@stride/core';
-import { type Activity, AthleteProfile, type DailyLoad, RaceGoal } from '@stride/schemas';
+import { type Activity, AthleteProfile, type DailyLoad, IsoDate, RaceGoal } from '@stride/schemas';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { z } from 'zod';
@@ -46,15 +49,20 @@ declare module 'hono' {
 const PlanBody = z.object({
   race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
   weeks: z.number().int().positive().max(52).optional(),
-  start: z.string().optional(),
-  date: z.string().optional(),
+  /** Plan start, YYYY-MM-DD (validated before planning). */
+  start: IsoDate.optional(),
+  /** Goal race date, YYYY-MM-DD (validated before planning). */
+  date: IsoDate.optional(),
   note: z.string().optional(),
   demo: z.boolean().optional(),
 });
 
 const ScreeningBody = z.object({
-  /** One boolean per PAR-Q question; `true` == "yes" (a potential red flag). */
-  answers: z.array(z.boolean()),
+  /**
+   * Exactly one boolean per PAR-Q question; `true` == "yes" (a potential red
+   * flag). A short/long list is a 400 — a missing answer is never a "no".
+   */
+  answers: ScreeningAnswers,
 });
 
 const DemoQuery = z.object({ demo: z.string().optional() });
@@ -84,6 +92,8 @@ const onInvalid = (
 export function buildApp(state: ApiState) {
   const { store, llm, config } = state;
   const nowIso = () => resolveNowIso(config);
+  /** Demo "today": STRIDE_NOW when pinned, else anchored to the bundled demo history. */
+  const demoNow = () => demoNowIso(config.now);
   const deps = {
     llm,
     models: config.models,
@@ -176,7 +186,7 @@ export function buildApp(state: ApiState) {
       if (id === 'demo') {
         activity = demoActivity();
         activities = [...demoHistory(), activity];
-        goal = RaceGoal.parse({ distance: '10k', name: '10k' });
+        goal = demoGoal(demoNow());
       } else {
         profile = await loadProfile();
         activities = await store.loadActivities();
@@ -194,7 +204,8 @@ export function buildApp(state: ApiState) {
         activities,
         profile,
         goal,
-        asOfDate: activity.startDate,
+        // The athlete's LOCAL day of the run (day keys use startDateLocal).
+        asOfDate: activity.startDateLocal ?? activity.startDate,
         dailyLoads,
       });
       const metrics = computeActivityMetrics(activity, profile);
@@ -206,15 +217,13 @@ export function buildApp(state: ApiState) {
       const demo = demoQ === 'true';
       const profile = demo ? DEMO_PROFILE : await loadProfile();
       const activities = demo ? [...demoHistory(), demoActivity()] : await store.loadActivities();
-      const goal = demo
-        ? RaceGoal.parse({ distance: '10k', date: '2026-09-06' })
-        : ((await store.loadGoal()) ?? undefined);
+      const goal = demo ? demoGoal(demoNow()) : ((await store.loadGoal()) ?? undefined);
       const dailyLoads = demo ? undefined : await store.loadDailyLoads();
       const context = buildCoachContext({
         activities,
         profile,
         goal,
-        asOfDate: nowIso(),
+        asOfDate: demo ? demoNow() : nowIso(),
         dailyLoads,
       });
       const workout = await suggestNextWorkout({ context, profile, note, deps });
@@ -224,6 +233,9 @@ export function buildApp(state: ApiState) {
           acwr: context.acwr,
           weeklyDistribution: context.weeklyDistribution,
           weeklyVolumeKm: context.weeklyVolumeKm,
+          goal: context.goal,
+          daysToRace: context.daysToRace,
+          planPhase: context.planPhase,
         },
         workout,
         disclaimer: workout.disclaimer,
@@ -243,9 +255,10 @@ export function buildApp(state: ApiState) {
         date: body.date ?? storedGoal?.date,
       });
       const weeks = body.weeks ?? 8;
-      const startDate = body.start ?? nowIso().slice(0, 10);
+      const asOfDate = demo ? demoNow() : nowIso();
+      const startDate = body.start ?? asOfDate.slice(0, 10);
       const dailyLoads = demo ? undefined : await store.loadDailyLoads();
-      const context = buildCoachContext({ activities, profile, goal, dailyLoads });
+      const context = buildCoachContext({ activities, profile, goal, asOfDate, dailyLoads });
       const result = await generatePlan({
         profile,
         goal,
@@ -255,6 +268,18 @@ export function buildApp(state: ApiState) {
         note: body.note,
         deps,
       });
+      // A plan that still breaks a guardrail after repair is never persisted
+      // (nor returned as if usable): 422 with the violations.
+      if (!result.validation.valid) {
+        return c.json(
+          {
+            error: 'Plan failed guardrail validation after repair; it was not saved.',
+            requestId: c.get('requestId'),
+            validation: result.validation,
+          },
+          422,
+        );
+      }
       if (!demo) {
         await store.savePlan(result.plan);
         await store.saveGoal(goal);
