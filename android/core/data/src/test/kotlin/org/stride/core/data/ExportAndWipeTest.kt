@@ -106,7 +106,7 @@ class ExportAndWipeTest {
             env.prefs,
             env.clock,
             env.recomputer,
-            dispatcher,
+            dispatcher
         )
         RoomDataEraser(env.context, env.holder, env.prefs, secrets, sync, plans, dispatcher).wipeEverything()
         kotlin.test.assertNull(plans.plan.first())
@@ -149,9 +149,9 @@ class ExportAndWipeTest {
                 env.prefs,
                 env.clock,
                 env.recomputer,
-                dispatcher,
+                dispatcher
             ),
-            dispatcher,
+            dispatcher
         ).clearSyncedData()
 
         assertEquals(0, env.db.activityDao().count())
