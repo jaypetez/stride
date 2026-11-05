@@ -21,13 +21,33 @@ export const METRICS = /** @type {const} */ (['lines', 'statements', 'functions'
 const WORKSPACE_GLOBS = ['packages', 'apps', 'tools'];
 
 /**
+ * The top level of the `thresholds: { ... }` object, with nested objects (glob
+ * thresholds such as `'src/coach/planner.ts': { lines: 99 }`) blanked out so
+ * only the package-wide numbers are read.
+ * @param {string} source
+ */
+function topLevelBlock(source) {
+  const start = /thresholds\s*:\s*\{/.exec(source);
+  if (!start) return '';
+  let depth = 1;
+  let out = '';
+  for (let i = start.index + start[0].length; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) break;
+    else if (depth === 1) out += ch;
+  }
+  return out;
+}
+
+/**
  * Parse the numeric `thresholds` out of a vitest config's source. Returns only
  * the metrics it finds (a config without thresholds yields `{}`).
  * @param {string} source
  * @returns {Partial<Record<(typeof METRICS)[number], number>>}
  */
 export function parseThresholds(source) {
-  const block = /thresholds\s*:\s*\{([\s\S]*?)\}/.exec(source)?.[1] ?? '';
+  const block = topLevelBlock(source);
   /** @type {Partial<Record<(typeof METRICS)[number], number>>} */
   const out = {};
   for (const m of METRICS) {

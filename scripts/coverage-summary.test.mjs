@@ -47,6 +47,23 @@ test('parseThresholds reads numeric thresholds and ignores autoUpdate', () => {
   assert.deepEqual(parseThresholds('export default {}'), {});
 });
 
+test('parseThresholds ignores nested glob thresholds wherever they appear', () => {
+  const source = `defineConfig({ test: { coverage: { thresholds: {
+    'src/coach/planner.ts': { lines: 99, statements: 99, functions: 100, branches: 96 },
+    lines: 92,
+    statements: 89,
+    'src/x/**': { functions: 1 },
+    functions: 88,
+    branches: 79,
+  } } } });`;
+  assert.deepEqual(parseThresholds(source), {
+    lines: 92,
+    statements: 89,
+    functions: 88,
+    branches: 79,
+  });
+});
+
 test('collectRows pairs each summary with its thresholds and skips missing ones', () => {
   const root = fixture();
   try {

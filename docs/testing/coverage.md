@@ -13,6 +13,7 @@ below any threshold fails `pnpm coverage` locally and the `coverage` job in CI
 | `pnpm coverage:summary` | Prints a Markdown table of the last run's coverage vs. thresholds (what CI posts to the job summary). |
 | `pnpm coverage:ratchet` | Re-runs coverage with `COVERAGE_RATCHET=1`, which rewrites the thresholds in each `vitest.config.*` up to the new, floored coverage. Commit the result. |
 | `pnpm --filter @stride/<pkg> exec vitest run --coverage` | One package, while iterating. |
+| `pnpm --filter @stride/core exec vitest run planner --coverage` | A filename-filtered run: only the glob thresholds that name the filter are checked (see below). |
 
 Reports land in each package's `coverage/` (text, `json-summary`, `lcov`); the
 root scripts suite writes to `coverage/scripts/`. All are git-ignored.
@@ -58,6 +59,23 @@ against the package.
 5. Thresholds are global per package. Prefer raising the package number over
    per-file thresholds; add a per-file glob only for code that must stay near
    100% (for example a safety rule).
+
+## Filtered runs
+
+`coverage.include` covers all of `src/**`, and Vitest treats a filename-filtered
+run (`vitest run planner --coverage`) as a full run, so every file the filtered
+tests never load counts at 0% and the package-wide numbers can't be met. The
+`coverageScope()` Vitest plugin (`scripts/vitest-coverage-scope.ts`) handles
+this. When the command line has test-file filters, it drops the package-wide
+thresholds, keeps only the glob thresholds whose glob contains a filter, and
+turns off `autoUpdate` so a partial run never ratchets. Unfiltered runs
+(`pnpm coverage`, CI, the ratchet) are unchanged.
+
+`@stride/core` uses it for AUD-014. `src/coach/planner.ts` has its own glob
+threshold (at least 90% lines, currently 99%), so
+`pnpm --filter @stride/core exec vitest run planner --coverage` enforces the
+planner's coverage. In a full run the same glob is checked alongside the
+package numbers. Glob thresholds are ratcheted like the global ones.
 
 ## CI
 
