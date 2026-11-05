@@ -5,7 +5,9 @@ plugins {
 
 // Pure Kotlin/JVM: the on-device port of packages/core science (ADR 0010). No Android deps.
 dependencies {
-    testImplementation(libs.kotlinx.serialization.json)
+    // Model types are @Serializable so the app can persist them (plans, profiles) and the parity tests can
+    // decode golden inputs straight into them.
+    implementation(libs.kotlinx.serialization.json)
 }
 
 tasks.withType<Test>().configureEach {
