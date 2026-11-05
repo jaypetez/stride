@@ -25,4 +25,13 @@ class FormatTest {
         assertEquals("0", Format.signed(0.2))
         assertEquals("Sun 1 Nov", Format.day("2026-11-01"))
     }
+
+    @Test
+    fun signedDeltas() {
+        assertEquals("+3.5", Format.signedDistance(3_500.0, UnitSystem.METRIC))
+        assertEquals("−1.0", Format.signedDistance(-1_609.344, UnitSystem.IMPERIAL))
+        assertEquals("+1h 5m", Format.signedDurationShort(3_900.0))
+        assertEquals("−42m", Format.signedDurationShort(-2_520.0))
+        assertEquals("0m", Format.signedDurationShort(10.0))
+    }
 }

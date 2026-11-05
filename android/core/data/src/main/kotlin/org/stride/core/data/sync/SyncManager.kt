@@ -16,13 +16,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
 
+/** What screens need from sync: progress plus "sync now" (pull-to-refresh). Lets ViewModels be tested without WorkManager. */
+interface SyncController {
+    val progress: StateFlow<SyncProgress>
+
+    fun syncNow()
+}
+
 /** Schedules Garmin sync: a daily periodic job plus expedited one-offs for pull-to-refresh. */
 @Singleton
 class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val status: SyncStatus
-) {
-    val progress: StateFlow<SyncProgress> = status.progress
+) : SyncController {
+    override val progress: StateFlow<SyncProgress> = status.progress
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
@@ -36,7 +43,7 @@ class SyncManager @Inject constructor(
     }
 
     /** Pull-to-refresh / after connecting: run now (expedited when quota allows). */
-    fun syncNow() {
+    override fun syncNow() {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
