@@ -25,11 +25,24 @@ function fixture() {
     const dir = path.join(root, rel);
     mkdirSync(path.join(dir, 'coverage'), { recursive: true });
     writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name }));
-    writeFileSync(path.join(dir, 'coverage', 'coverage-summary.json'), JSON.stringify(summary(pct)));
+    writeFileSync(
+      path.join(dir, 'coverage', 'coverage-summary.json'),
+      JSON.stringify(summary(pct)),
+    );
     if (config) writeFileSync(path.join(dir, 'vitest.config.ts'), config);
   };
-  add('packages/core', '@stride/core', { lines: 90, statements: 88, functions: 81, branches: 70 }, CONFIG);
-  add('apps/api', '@stride/api', { lines: 50, statements: 50, functions: 50, branches: 50 }, CONFIG);
+  add(
+    'packages/core',
+    '@stride/core',
+    { lines: 90, statements: 88, functions: 81, branches: 70 },
+    CONFIG,
+  );
+  add(
+    'apps/api',
+    '@stride/api',
+    { lines: 50, statements: 50, functions: 50, branches: 50 },
+    CONFIG,
+  );
   add('apps/plain', '@stride/plain', { lines: 10, statements: 10, functions: 10, branches: 10 });
   // A package that never ran coverage is skipped, not reported as 0%.
   mkdirSync(path.join(root, 'tools', 'none'), { recursive: true });
@@ -97,7 +110,11 @@ test('renderTable marks passes and misses and names the failing packages', () =>
 
 test('renderTable reports an all-green run and an empty run', () => {
   const green = renderTable([
-    { name: 'x', pct: { lines: 1, statements: 1, functions: 1, branches: 1 }, thresholds: { lines: 1 } },
+    {
+      name: 'x',
+      pct: { lines: 1, statements: 1, functions: 1, branches: 1 },
+      thresholds: { lines: 1 },
+    },
   ]);
   assert.match(green, /All packages meet their coverage thresholds/);
   assert.match(renderTable([]), /No coverage summaries found/);

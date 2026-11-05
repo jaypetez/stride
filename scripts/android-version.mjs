@@ -15,7 +15,11 @@ const versionFile = join(root, 'android', 'version.json');
 export function bump(version, level = 'patch') {
   const [major, minor, patch] = version.versionName.split(/[.-]/).map(Number);
   const versionName =
-    level === 'major' ? `${major + 1}.0.0` : level === 'minor' ? `${major}.${minor + 1}.0` : `${major}.${minor}.${patch + 1}`;
+    level === 'major'
+      ? `${major + 1}.0.0`
+      : level === 'minor'
+        ? `${major}.${minor + 1}.0`
+        : `${major}.${minor}.${patch + 1}`;
   return { versionName, versionCode: version.versionCode + 1 };
 }
 
@@ -56,13 +60,17 @@ function main(argv) {
     }
     const current = readVersion(null);
     if (!isIncreasing(previous, current)) {
-      console.error(`android-version: versionCode ${current.versionCode} must be > ${previous.versionCode} (${tag}).`);
+      console.error(
+        `android-version: versionCode ${current.versionCode} must be > ${previous.versionCode} (${tag}).`,
+      );
       return 1;
     }
     console.log(`android-version: ${previous.versionCode} → ${current.versionCode} ok.`);
     return 0;
   }
-  const changed = tag ? git('diff', '--name-only', `${tag}..HEAD`, '--', 'android').length > 0 : true;
+  const changed = tag
+    ? git('diff', '--name-only', `${tag}..HEAD`, '--', 'android').length > 0
+    : true;
   if (!changed) {
     console.log('android-version: android/ unchanged since last release; not bumping.');
     return 0;

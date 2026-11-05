@@ -280,7 +280,11 @@ async function checkMcp() {
     });
     await waitFor(async () => responses.has(3), 8000);
     const text = responses.get(3)?.result?.content?.[0]?.text ?? '';
-    assert(text.includes('CTL'), 'tools/call get_training_load returns computed load', text.slice(0, 120));
+    assert(
+      text.includes('CTL'),
+      'tools/call get_training_load returns computed load',
+      text.slice(0, 120),
+    );
 
     // Give any stray output a beat to flush, then police stdout purity.
     await new Promise((r) => setTimeout(r, 200));

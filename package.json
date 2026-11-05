@@ -16,11 +16,12 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck && pnpm typecheck:scripts",
+    "typecheck:scripts": "tsc -p scripts --noEmit",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
     "test": "turbo run test && vitest run",
     "test:watch": "turbo watch test",
-    "test:affected": "turbo run test --filter=...[origin/main]",
+    "test:affected": "turbo run test --affected",
     "coverage": "turbo run test -- --coverage && vitest run --coverage",
     "coverage:ratchet": "node scripts/coverage-ratchet.mjs",
     "coverage:summary": "node scripts/coverage-summary.mjs",
@@ -39,7 +40,7 @@
     "science:golden": "tsx scripts/science-golden.mts"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,json}": "biome check --write --no-errors-on-unmatched"
+    "*.{ts,mts,tsx,js,mjs,json}": "biome check --write --no-errors-on-unmatched"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.3",

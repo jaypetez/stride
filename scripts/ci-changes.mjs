@@ -20,7 +20,9 @@ export function classify(files) {
 }
 
 function changedFiles(baseSha) {
-  const out = execFileSync('git', ['diff', '--name-only', `${baseSha}...HEAD`], { encoding: 'utf8' });
+  const out = execFileSync('git', ['diff', '--name-only', `${baseSha}...HEAD`], {
+    encoding: 'utf8',
+  });
   return out.split('\n').filter(Boolean);
 }
 

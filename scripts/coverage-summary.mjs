@@ -128,9 +128,13 @@ export function renderTable(rows) {
   lines.push(`| Package | ${METRICS.map((m) => m[0].toUpperCase() + m.slice(1)).join(' | ')} |`);
   lines.push(`|---|${METRICS.map(() => '---:').join('|')}|`);
   for (const r of rows) {
-    lines.push(`| \`${r.name}\` | ${METRICS.map((m) => cell(r.pct[m], r.thresholds[m])).join(' | ')} |`);
+    lines.push(
+      `| \`${r.name}\` | ${METRICS.map((m) => cell(r.pct[m], r.thresholds[m])).join(' | ')} |`,
+    );
   }
-  const misses = rows.filter((r) => METRICS.some((m) => r.thresholds[m] !== undefined && r.pct[m] < r.thresholds[m]));
+  const misses = rows.filter((r) =>
+    METRICS.some((m) => r.thresholds[m] !== undefined && r.pct[m] < r.thresholds[m]),
+  );
   lines.push('');
   lines.push(
     misses.length === 0
