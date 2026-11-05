@@ -46,7 +46,7 @@ import org.stride.core.ui.Format
 import org.stride.core.ui.LocalUnitSystem
 
 @Composable
-fun ActivityDetailRoute(activityId: Long, modifier: Modifier = Modifier) {
+fun ActivityDetailFlow(activityId: Long, modifier: Modifier = Modifier) {
     val viewModel = hiltViewModel<ActivityDetailViewModel, ActivityDetailViewModel.Factory>(
         key = "activity-$activityId",
         creationCallback = { it.create(activityId) }

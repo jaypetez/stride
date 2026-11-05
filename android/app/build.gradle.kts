@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 plugins {
     alias(libs.plugins.stride.android.application.compose)
     alias(libs.plugins.stride.android.hilt)
@@ -5,13 +7,33 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// versionName/versionCode come from android/version.json (REL-003, scripts/android-version.mjs).
+@Suppress("UNCHECKED_CAST")
+val appVersion = JsonSlurper().parse(rootProject.file("version.json")) as Map<String, Any>
+
+// Release signing (REL-002): CI decodes the keystore from the `release` environment
+// into a temp file and passes its path + credentials as env vars. Without them the
+// release build falls back to the debug key (local builds, PR dry runs).
+val releaseKeystore: String? = providers.environmentVariable("STRIDE_KEYSTORE_PATH").orNull
+
 android {
     namespace = "org.stride.app"
 
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = providers.environmentVariable("STRIDE_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("STRIDE_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("STRIDE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "org.stride.app"
-        versionCode = 1
-        versionName = "0.1.0-mvp"
+        versionCode = (appVersion["versionCode"] as Number).toInt()
+        versionName = appVersion["versionName"] as String
         testInstrumentationRunner = "org.stride.core.testing.HiltTestRunner"
     }
 
@@ -28,8 +50,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Debug-signed until REL-002 provides the release keystore; CI overrides via signing env.
-            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = false
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 }
@@ -66,4 +88,10 @@ dependencies {
     debugImplementation(libs.leakcanary.android)
 
     testImplementation(project(":core:testing"))
+}
+
+tasks.register("printVersion") {
+    val name = appVersion["versionName"]
+    val code = appVersion["versionCode"]
+    doLast { println("versionName=$name versionCode=$code") }
 }

@@ -1,0 +1,102 @@
+name: Release Android
+
+# Signed APK + AAB for GitHub Releases (REL-002). Triggered by `android-v*` tags.
+# Pull requests that touch the release path get a dry run with a throwaway,
+# CI-generated keystore — no secrets needed.
+on:
+  push:
+    tags: ["android-v*"]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-android.yml"
+      - "scripts/android/release-build.sh"
+      - "android/app/build.gradle.kts"
+      - "android/app/proguard-rules.pro"
+      - "android/version.json"
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup JDK 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@7296c772c13d12d9871528814b51fb2143c138ef # v6.4.1
+        with:
+          cache-read-only: true
+      - name: Build release with a throwaway key
+        run: scripts/android/release-build.sh stride-dry-run
+      - name: Upload dry-run APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dry-run-apk
+          path: dist/
+          retention-days: 3
+
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Signing secrets live in the protected `release` environment (GOV-015).
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup JDK 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@7296c772c13d12d9871528814b51fb2143c138ef # v6.4.1
+        with:
+          cache-read-only: true
+      - name: Check versionCode increases
+        run: node scripts/android-version.mjs --check
+      - name: Build signed APK and AAB
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "::error::release keystore secrets are missing (GOV-015)"; exit 1; fi
+          scripts/android/release-build.sh "stride-${GITHUB_REF_NAME}"
+      - name: Upload R8 mapping (private workflow artifact)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: r8-mapping-${{ github.ref_name }}
+          path: android/app/build/outputs/mapping/release/mapping.txt
+          retention-days: 90
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.apk
+            dist/*.aab
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/*.apk dist/*.aab dist/SHA256SUMS \
+            --title "Stride for Android ${TAG#android-v}" \
+            --notes "Signed APK for sideloading or Obtainium — see docs/release/install-android.md. Verify with: gh attestation verify <apk> -R ${GITHUB_REPOSITORY}" \
+            --verify-tag

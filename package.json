@@ -31,7 +31,7 @@
     "factory": "tsx tools/factory/src/cli.ts",
     "dev": "turbo run dev",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && node scripts/android-version.mjs",
     "release": "changeset publish",
     "prepare": "husky",
     "science:golden": "tsx scripts/science-golden.mts"
