@@ -1,7 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { expandHome, loadConfig } from '../src/config';
+import { expandHome, isLoopbackHost, loadConfig } from '../src/config';
 
 const HOME = os.homedir();
 
@@ -55,5 +55,48 @@ describe('loadConfig', () => {
     expect(loadConfig({ STRIDE_WEB_ORIGIN: 'https://stride.example' }).webOrigin).toBe(
       'https://stride.example',
     );
+  });
+
+  it('binds the API to loopback by default and honors STRIDE_API_HOST', () => {
+    expect(loadConfig({}).apiHost).toBe('127.0.0.1');
+    expect(loadConfig({ STRIDE_API_HOST: '0.0.0.0' }).apiHost).toBe('0.0.0.0');
+    expect(loadConfig({ STRIDE_API_HOST: '  ' }).apiHost).toBe('127.0.0.1');
+  });
+
+  it('reads an optional API bearer token and extra allowed hosts', () => {
+    expect(loadConfig({}).apiToken).toBeUndefined();
+    expect(loadConfig({ STRIDE_API_TOKEN: '' }).apiToken).toBeUndefined();
+    expect(loadConfig({ STRIDE_API_TOKEN: 's3cret' }).apiToken).toBe('s3cret');
+    expect(loadConfig({}).apiAllowedHosts).toEqual([]);
+    expect(
+      loadConfig({ STRIDE_API_ALLOWED_HOSTS: '192.168.1.5, Stride.Lan ,' }).apiAllowedHosts,
+    ).toEqual(['192.168.1.5', 'stride.lan']);
+  });
+});
+
+describe('isLoopbackHost', () => {
+  it('accepts loopback names and addresses', () => {
+    for (const h of [
+      'localhost',
+      'LOCALHOST',
+      'app.localhost',
+      '127.0.0.1',
+      '127.1.2.3',
+      '::1',
+      '[::1]',
+    ])
+      expect(isLoopbackHost(h), h).toBe(true);
+  });
+
+  it('rejects LAN, wildcard and public names', () => {
+    for (const h of [
+      '0.0.0.0',
+      '::',
+      '192.168.1.5',
+      'evil.example',
+      'localhost.evil.example',
+      '127.0.0.1.evil.example',
+    ])
+      expect(isLoopbackHost(h), h).toBe(false);
   });
 });

@@ -82,10 +82,15 @@ describe('Stride API', () => {
   it('routes a forced failure (offline /sync) through onError as { error, requestId } + 500', async () => {
     // No Strava credentials + no tokens => syncStrava throws; the local try/catch
     // is gone, so this must surface via onError with a matching x-request-id.
-    const res = await app.request('/sync', { method: 'POST' });
+    const res = await app.request('/sync', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+    });
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
-    expect(typeof body.error).toBe('string');
+    // Generic message only — the internal cause stays in the logs (AUD-012).
+    expect(body.error).toBe('Internal Server Error');
+    expect(Object.keys(body).sort()).toEqual(['error', 'requestId']);
     expect(typeof body.requestId).toBe('string');
     expect(res.headers.get('x-request-id')).toBe(body.requestId);
   });

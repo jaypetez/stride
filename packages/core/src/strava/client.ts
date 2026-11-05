@@ -250,8 +250,11 @@ export class StravaClient {
       }
 
       if (!res.ok) {
+        // The upstream body can echo request details; keep it in the (stderr)
+        // logs only, never in the error message that may reach an HTTP client.
         const text = await res.text().catch(() => '');
-        throw new StravaApiError(res.status, `Strava API ${path} failed (${res.status}): ${text}`);
+        log.warn('strava request failed', { path, status: res.status, body: text.slice(0, 500) });
+        throw new StravaApiError(res.status, `Strava API ${path} failed (${res.status})`);
       }
       return (await res.json()) as T;
     }

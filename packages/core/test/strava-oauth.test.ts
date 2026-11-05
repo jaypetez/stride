@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deauthorize } from '../src/strava/index';
+import { deauthorize, missingStravaScopes } from '../src/strava/index';
 
 describe('deauthorize', () => {
   it('POSTs the access token to the Strava OAuth deauthorize endpoint', async () => {
@@ -24,5 +24,23 @@ describe('deauthorize', () => {
   it('throws when Strava rejects the revoke', async () => {
     const fetchImpl = async () => new Response('unauthorized', { status: 401 });
     await expect(deauthorize('bad', fetchImpl)).rejects.toThrow(/deauthorize failed \(401\)/);
+  });
+});
+
+describe('missingStravaScopes', () => {
+  it('returns nothing when activity:read_all was granted', () => {
+    expect(missingStravaScopes('read,activity:read_all,profile:read_all')).toEqual([]);
+  });
+
+  it('reports activity:read_all when the user unticked it', () => {
+    expect(missingStravaScopes('read,activity:read')).toEqual(['activity:read_all']);
+  });
+
+  it('treats a missing scope parameter as nothing granted', () => {
+    expect(missingStravaScopes(undefined)).toEqual(['activity:read_all']);
+    expect(missingStravaScopes(null, ['read', 'activity:read_all'])).toEqual([
+      'read',
+      'activity:read_all',
+    ]);
   });
 });

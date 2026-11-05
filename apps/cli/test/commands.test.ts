@@ -149,6 +149,42 @@ describe('doctorCommand', () => {
     await expect(doctorCommand()).resolves.toBeUndefined();
     expect(output()).toContain('Environment');
   });
+
+  it('reports the loopback bind address and token status by default', async () => {
+    delete process.env.STRIDE_API_HOST;
+    delete process.env.STRIDE_API_TOKEN;
+    await doctorCommand();
+    const out = output();
+    expect(out).toContain('127.0.0.1:');
+    expect(out).toContain('loopback only');
+    expect(out).toMatch(/Bearer token:\s+not set/);
+    expect(out).not.toContain('WITHOUT a token');
+  });
+
+  it('warns when bound to a non-loopback address without a token', async () => {
+    process.env.STRIDE_API_HOST = '0.0.0.0';
+    delete process.env.STRIDE_API_TOKEN;
+    try {
+      await doctorCommand();
+      expect(output()).toContain('WITHOUT a token');
+    } finally {
+      delete process.env.STRIDE_API_HOST;
+    }
+  });
+
+  it('does not warn on a non-loopback bind when a token is set', async () => {
+    process.env.STRIDE_API_HOST = '0.0.0.0';
+    process.env.STRIDE_API_TOKEN = 'tok';
+    try {
+      await doctorCommand();
+      const out = output();
+      expect(out).toMatch(/Bearer token:\s+set/);
+      expect(out).not.toContain('WITHOUT a token');
+    } finally {
+      delete process.env.STRIDE_API_HOST;
+      delete process.env.STRIDE_API_TOKEN;
+    }
+  });
 });
 
 describe('profileCommand', () => {

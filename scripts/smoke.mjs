@@ -197,6 +197,24 @@ async function checkApi() {
       'error responses carry { error, requestId } + matching x-request-id header',
       `body=${JSON.stringify(badBody)} header=${bad.headers.get('x-request-id')}`,
     );
+
+    // Local hardening (AUD-011): a cross-site "simple" POST is refused before
+    // it can run, and responses carry secure headers.
+    const simple = await fetch(`${base}/plan`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: JSON.stringify({ demo: true }),
+    });
+    assert(
+      simple.status === 415,
+      'POST /plan with text/plain is refused (415, CSRF guard)',
+      `got ${simple.status}`,
+    );
+    const health = await fetch(`${base}/health`);
+    assert(
+      health.headers.get('x-content-type-options') === 'nosniff',
+      'API responses carry secure headers',
+    );
   } finally {
     killTree(child);
   }

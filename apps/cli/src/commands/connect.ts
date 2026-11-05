@@ -5,11 +5,12 @@ import {
   assertStravaConfigured,
   buildAuthorizeUrl,
   exchangeCodeForTokens,
+  missingStravaScopes,
   StravaClient,
 } from '@stride/core';
 import { AthleteProfile } from '@stride/schemas';
 import { getProfile, loadApp, todayIso } from '../app';
-import { dim, errorMsg, info, success } from '../ui';
+import { dim, errorMsg, info, success, warn } from '../ui';
 
 /** Default time to wait for the browser OAuth round-trip before giving up. */
 const DEFAULT_OAUTH_TIMEOUT_MS = 5 * 60_000;
@@ -24,6 +25,27 @@ function openBrowser(url: string): void {
   } catch {
     // If we can't open a browser, the user can copy the printed URL.
   }
+}
+
+/** The OAuth callback result: the code plus the `scope` Strava says was granted. */
+export interface OAuthCallback {
+  code: string;
+  /** Comma-separated scopes the user actually granted (absent if Strava omitted it). */
+  scope?: string;
+}
+
+/**
+ * A user-facing warning when the granted scopes are narrower than Stride needs
+ * (the Strava consent screen lets users untick scopes), else `null`.
+ */
+export function scopeWarning(granted: string | undefined): string | null {
+  const missing = missingStravaScopes(granted);
+  if (missing.length === 0) return null;
+  return (
+    `Strava did not grant the required scope(s): ${missing.join(', ')}. ` +
+    'Sync will miss activities (including private runs). Re-run `stride connect` and ' +
+    'keep "View data about your private activities" ticked.'
+  );
 }
 
 export interface WaitForOAuthCodeOptions {
@@ -47,7 +69,7 @@ export interface WaitForOAuthCodeOptions {
  * enforces the CSRF `state` check, times out so the CLI can't hang forever, and
  * always closes the server (success, failure, or timeout) so no listener leaks.
  */
-export function waitForOAuthCode(opts: WaitForOAuthCodeOptions): Promise<{ code: string }> {
+export function waitForOAuthCode(opts: WaitForOAuthCodeOptions): Promise<OAuthCallback> {
   const {
     port,
     host = '127.0.0.1',
@@ -57,20 +79,20 @@ export function waitForOAuthCode(opts: WaitForOAuthCodeOptions): Promise<{ code:
     onListening,
   } = opts;
 
-  return new Promise<{ code: string }>((resolve, reject) => {
+  return new Promise<OAuthCallback>((resolve, reject) => {
     let settled = false;
     const server = http.createServer();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     // Single exit path: stop the timer, close the server (so we never leak the
     // listener), then settle the promise exactly once.
-    const settle = (err: Error | null, code?: string): void => {
+    const settle = (err: Error | null, code?: string, scope?: string): void => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
       server.close();
       if (err) reject(err);
-      else resolve({ code: code ?? '' });
+      else resolve(scope === undefined ? { code: code ?? '' } : { code: code ?? '', scope });
     };
 
     server.on('request', (req, res) => {
@@ -96,7 +118,7 @@ export function waitForOAuthCode(opts: WaitForOAuthCodeOptions): Promise<{ code:
       res.end(
         '<h2>Stride connected ✓</h2><p>You can close this tab and return to the terminal.</p>',
       );
-      settle(null, returnedCode);
+      settle(null, returnedCode, reqUrl.searchParams.get('scope') ?? undefined);
     });
 
     server.on('error', (err) => settle(err));
@@ -135,6 +157,7 @@ export async function connectCommand(): Promise<void> {
   const authorizeUrl = buildAuthorizeUrl(app.config.strava, state);
 
   let code: string;
+  let grantedScope: string | undefined;
   try {
     // Bind loopback only (127.0.0.1) so the OAuth code is never reachable from
     // the LAN, and time out rather than hang if the browser flow is abandoned.
@@ -150,10 +173,17 @@ export async function connectCommand(): Promise<void> {
       },
     });
     code = result.code;
+    grantedScope = result.scope;
   } catch (err) {
     errorMsg((err as Error).message);
     return;
   }
+
+  // Strava echoes the granted scopes on the callback; the user may have
+  // unticked some on the consent screen. Warn loudly rather than sync silently
+  // incomplete data.
+  const missingScopeWarning = scopeWarning(grantedScope);
+  if (missingScopeWarning) warn(missingScopeWarning);
 
   const tokens = await exchangeCodeForTokens(app.config.strava, code);
   await app.store.saveTokens(tokens);

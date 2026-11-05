@@ -53,12 +53,32 @@ rather than a bare Hono `400`:
 
 Status mapping: rate limit → `429`, upstream Strava error → `502`, sync lock held
 → `409` (see [ADR 0004](../../docs/adr/0004-advisory-sync-lock.md)), validation →
-`400`, not found → `404`, otherwise `500`.
+`400`, not found → `404`, otherwise `500`. `500` and `502` bodies carry a generic
+message only; the detail is in the stderr log line with the same `requestId`. A
+client `x-request-id` is echoed only if it matches `^[\w-]{1,64}$`; otherwise a
+UUID is generated.
+
+## Local hardening
+
+The API is a local server for one owner, so it defends against the browser and
+the LAN (see `src/security.ts`):
+
+| Guard | Behaviour |
+|---|---|
+| Bind address | `STRIDE_API_HOST`, default `127.0.0.1` (loopback only). `stride doctor` warns on a non-loopback bind without a token. |
+| Bearer token | Optional `STRIDE_API_TOKEN`; when set, every request needs `Authorization: Bearer <token>` or gets `401`. The Vite dev proxy attaches it for the web UI. |
+| Host allowlist | `Host` must be `localhost`, `127.0.0.1`, `[::1]`, the bind host, or a `STRIDE_API_ALLOWED_HOSTS` entry, else `403` (blocks DNS rebinding). |
+| JSON-only writes | `POST`/`PUT`/`PATCH`/`DELETE` need `Content-Type: application/json`, else `415` (forces a CORS preflight, so cross-site pages cannot fire `/sync`). |
+| Body limit | 64 KiB, else `413`. |
+| Rate limits | `POST /sync`: 5/min. Coach routes (`/analyze/*`, `/next`, `POST /plan`): 30/min shared. Over the limit → `429` + `Retry-After`. |
+| Secure headers | `hono/secure-headers` plus `Content-Security-Policy: default-src 'none'`. |
+| Notes | Free-text `note` is capped at 1000 characters (`400`). |
 
 ## Compliance / config
 
 - **CORS is locked to `STRIDE_WEB_ORIGIN`** (default `http://localhost:5173`) —
   never `*`. The API serves the owner's own private Strava data, so it must not
   be world-readable (GOAL §4 owner-only visibility).
-- Port from `STRIDE_API_PORT` (default `8720`); Anthropic key optional (prose
+- Port from `STRIDE_API_PORT` (default `8720`), interface from `STRIDE_API_HOST`
+  (default `127.0.0.1`); Anthropic key optional (prose
   enrichment only). Logs go to stderr with a structured logger.
