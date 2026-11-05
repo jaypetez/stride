@@ -274,6 +274,92 @@ class OkHttpGarminClientTest {
         assertEquals("application/x-zip-compressed", requests.last().headers["Accept"])
     }
 
+    /** AUD-026: a Retry-After far beyond the cap returns RateLimited at once instead of sleeping for an hour. */
+    @Test
+    fun hugeRetryAfterGivesUpWithoutSleeping() = runTest {
+        route(OkHttpGarminClient.ACTIVITIES_PATH, code(429, mapOf("Retry-After" to "3600")))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.activities(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-04"))
+        assertEquals(StrideResult.Err(GarminError.RateLimited(3600)), result)
+        assertTrue(sleeps.isEmpty(), "must not sleep for Retry-After 3600 s, slept $sleeps")
+    }
+
+    @Test
+    fun retrySleepsNeverExceedTheCap() = runTest {
+        route(OkHttpGarminClient.ACTIVITIES_PATH, code(500))
+        val c = OkHttpGarminClient(
+            http = OkHttpClient(),
+            keyProvider = { apiKey },
+            tokenCache = InMemoryTokenCache(),
+            clock = FixedStrideClock(now),
+            ioDispatcher = StandardTestDispatcher(testScheduler),
+            config = GarminConfig(baseUrl = server.url("/"), maxRetries = 6, initialBackoffMs = 1_000, maxBackoffMs = 5_000),
+            sleep = { sleeps += it }
+        )
+        c.activities(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-04"))
+        assertEquals(listOf(1_000L, 2_000L, 4_000L, 5_000L, 5_000L, 5_000L), sleeps)
+    }
+
+    /** AUD-028 / AUD-029: bad items are skipped, good ones kept, and the recorded offset becomes the zone. */
+    @Test
+    fun malformedActivitiesAreSkippedAndLocalOffsetIsKept() = runTest {
+        route(OkHttpGarminClient.ACTIVITIES_PATH, ok(Fixtures.text("activities-malformed.json")))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.activities(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-04"))
+        assertIs<StrideResult.Ok<List<org.stride.core.model.Activity>>>(result)
+        val byId = result.value.associateBy { it.id }
+        assertEquals(setOf(910000001L, 910000006L), byId.keys)
+        val abroad = byId.getValue(910000001L)
+        assertEquals(Instant.parse("2026-11-03T22:05:00Z").epochSecond, abroad.startEpochSec)
+        assertEquals("+09:00", abroad.timeZone)
+        val iso = byId.getValue(910000006L)
+        assertEquals(Instant.parse("2026-11-02T08:05:00Z").epochSecond, iso.startEpochSec)
+        assertEquals("+01:00", iso.timeZone)
+        assertTrue(result.value.none { it.startEpochSec <= 0 }, "no 1970 runs")
+    }
+
+    @Test
+    fun activityDetailMapsSummaryStartAndIanaZone() = runTest {
+        route(OkHttpGarminClient.DETAIL_PATH, ok(Fixtures.text("activity-detail.json")))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.activityDetail(900000006)
+        assertIs<StrideResult.Ok<org.stride.core.model.Activity>>(result)
+        assertEquals("Europe/Berlin", result.value.timeZone)
+        assertEquals(Instant.parse("2026-11-04T06:05:00Z").epochSecond, result.value.startEpochSec)
+    }
+
+    @Test
+    fun corruptOrTruncatedZipIsParseError() = runTest {
+        val zipped = zip("1_ACTIVITY.fit", ByteArray(4096) { (it % 7).toByte() })
+        val corrupt = zipped.copyOf().also { bytes -> for (i in 30 until 60) bytes[i] = 0x7F }
+        route(OkHttpGarminClient.FIT_PATH, MockResponse.Builder().code(200).body(Buffer().write(corrupt)).build())
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        assertIs<GarminError.Parse>((c.fitFile(1) as StrideResult.Err).error)
+
+        listOf(zipped.copyOf(zipped.size / 2), zipped.copyOf(10), byteArrayOf(0x50, 0x4B, 3, 4)).forEach { bad ->
+            assertIs<StrideResult.Err<GarminError>>(OkHttpGarminClient.unzipFit(bad))
+        }
+        assertEquals(StrideResult.Err(GarminError.Parse("download contained no .fit file")), OkHttpGarminClient.unzipFit(zip("readme.txt", byteArrayOf(1))))
+    }
+
+    /** AUD-028: a zip bomb is rejected once it inflates past the cap, without inflating it all. */
+    @Test
+    fun inflatedFitAboveCapIsRejected() {
+        val bomb = zip("bomb.fit", ByteArray(2 * 1024 * 1024))
+        assertTrue(bomb.size < 16 * 1024, "zeros compress well: ${bomb.size}")
+        assertEquals(StrideResult.Err(GarminError.Parse("FIT file too large")), OkHttpGarminClient.unzipFit(bomb, maxBytes = 1024 * 1024))
+        assertIs<StrideResult.Ok<ByteArray>>(OkHttpGarminClient.unzipFit(bomb, maxBytes = 2 * 1024 * 1024))
+        assertEquals(50L * 1024 * 1024, OkHttpGarminClient.MAX_FIT_BYTES)
+    }
+
+    private fun zip(name: String, content: ByteArray): ByteArray = ByteArrayOutputStream().also { out ->
+        ZipOutputStream(out).use { z ->
+            z.putNextEntry(ZipEntry(name))
+            z.write(content)
+            z.closeEntry()
+        }
+    }.toByteArray()
+
     @Test
     fun keyAndTokenNeverAppearInErrorsLogsOrToString() = runTest {
         val logged = CopyOnWriteArrayList<String>()

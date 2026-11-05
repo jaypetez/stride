@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.test.TestScope
 import org.stride.core.data.metrics.ScienceMetricsRecomputer
 import org.stride.core.data.sync.GarminSyncer
+import org.stride.core.data.sync.SyncLock
 import org.stride.core.data.sync.SyncStatus
 import org.stride.core.database.DatabaseHolder
 import org.stride.core.database.StrideDatabase
@@ -26,8 +27,9 @@ class TestEnv(scope: TestScope, private val dispatcher: CoroutineDispatcher, dir
     val clock = FakeStrideClock()
     val status = SyncStatus()
     val recomputer = ScienceMetricsRecomputer(holder, prefs, clock, dispatcher)
+    val lock = SyncLock()
 
-    fun syncer(client: GarminClient) = GarminSyncer(client, holder, prefs, clock, status, recomputer, dispatcher)
+    fun syncer(client: GarminClient) = GarminSyncer(client, holder, prefs, clock, status, recomputer, lock, dispatcher)
 
     val db: StrideDatabase get() = holder.db
 }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import org.stride.core.common.Dispatcher
 import org.stride.core.common.StrideDispatchers
 import org.stride.core.data.plan.PlanRepository
+import org.stride.core.data.sync.SyncLock
 import org.stride.core.data.sync.SyncScheduler
 import org.stride.core.database.DatabaseHolder
 import org.stride.core.database.StrideDatabase
@@ -35,25 +36,38 @@ class RoomDataEraser @Inject constructor(
     private val secrets: SecretStore,
     private val sync: SyncScheduler,
     private val plans: PlanRepository,
+    private val lock: SyncLock,
     @Dispatcher(StrideDispatchers.IO) private val io: CoroutineDispatcher
 ) : DataEraser {
-    override suspend fun clearSyncedData() = withContext(io) {
+    // Both erasers hold the sync lock, so a sync in flight finishes (or is cancelled) before
+    // the tables are cleared and can never write rows back afterwards (AUD-026).
+    override suspend fun clearSyncedData() = lock.withLock {
+        withContext(io) {
+            clearSyncedDataLocked()
+        }
+    }
+
+    private fun clearSyncedDataLocked() {
         if (holder.isDemo) {
             // The real database is closed while demo mode is active: delete its file.
             context.deleteDatabase(StrideDatabase.NAME)
         } else {
             holder.db.clearAllTables()
         }
-        Unit
     }
 
-    override suspend fun wipeEverything() = withContext(io) {
+    override suspend fun wipeEverything() {
+        // Cancel first so a running sync stops at its next suspension point instead of finishing.
         sync.cancelAll()
-        holder.switchTo(false)
-        holder.db.clearAllTables()
-        context.deleteDatabase(StrideDatabase.DEMO_NAME)
-        secrets.wipe()
-        plans.delete()
-        prefs.wipe()
+        lock.withLock {
+            withContext(io) {
+                holder.switchTo(false)
+                holder.db.clearAllTables()
+                context.deleteDatabase(StrideDatabase.DEMO_NAME)
+                secrets.wipe()
+                plans.delete()
+                prefs.wipe()
+            }
+        }
     }
 }

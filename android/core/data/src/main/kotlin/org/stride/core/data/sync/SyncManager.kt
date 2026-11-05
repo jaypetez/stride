@@ -33,7 +33,11 @@ interface SyncScheduler : SyncController {
     fun cancelAll()
 }
 
-/** Schedules Garmin sync: a daily periodic job plus expedited one-offs for pull-to-refresh. */
+/**
+ * Schedules Garmin sync: a daily periodic job plus expedited one-offs for pull-to-refresh.
+ * The two are separate unique works, so they can run at the same time; [GarminSyncer]
+ * serialises them on [SyncLock] (AUD-026).
+ */
 @Singleton
 class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context,

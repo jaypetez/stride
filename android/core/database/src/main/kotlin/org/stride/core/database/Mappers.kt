@@ -14,7 +14,11 @@ import org.stride.core.model.DataSource
 import org.stride.core.model.Lap
 import org.stride.core.model.SportType
 
-/** The calendar date an activity counts towards: its start in its own zone (UTC if unknown). */
+/**
+ * The calendar date an activity counts towards: its start in the zone it was recorded in
+ * (an IANA id or a fixed offset like `+09:00`), so a run abroad keeps its local date (AUD-029).
+ * Falls back to [fallbackZone] when the zone is unknown or unparseable.
+ */
 fun Activity.localDate(fallbackZone: ZoneId = ZoneOffset.UTC): String {
     val zone = timeZone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: fallbackZone
     return Instant.ofEpochSecond(startEpochSec).atZone(zone).toLocalDate().toString()

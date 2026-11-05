@@ -2,7 +2,8 @@ package org.stride.core.garmin
 
 import java.time.LocalDateTime
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
+import kotlin.math.abs
+import kotlin.math.roundToLong
 import org.stride.core.garmin.dto.ActivityDto
 import org.stride.core.garmin.dto.DailySummaryDto
 import org.stride.core.garmin.dto.HrvSummaryDto
@@ -14,7 +15,29 @@ import org.stride.core.model.DailyWellness
 import org.stride.core.model.DataSource
 import org.stride.core.model.SportType
 
-private val GMT_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+private const val QUARTER_HOUR_SEC = 900.0
+private const val MAX_OFFSET_SEC = 18 * 3600L
+
+/**
+ * Parses Garmin's local/GMT timestamps: `2026-11-04 07:05:00` (list endpoint) or
+ * `2026-11-04T07:05:00.0` (detail endpoint). Null for anything else, never throws (AUD-028).
+ */
+fun parseGarminDateTime(text: String?): LocalDateTime? {
+    val trimmed = text?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return runCatching { LocalDateTime.parse(trimmed.replace(' ', 'T')) }.getOrNull()
+}
+
+/**
+ * The fixed UTC offset (e.g. `+09:00`, `Z`) where the activity was recorded, from Garmin's
+ * `startTimeLocal` and the UTC start (AUD-029). Rounded to the quarter hour; null when unknown.
+ */
+internal fun recordedOffsetId(startTimeLocal: String?, startEpochSec: Long): String? {
+    val local = parseGarminDateTime(startTimeLocal) ?: return null
+    val diff = local.toEpochSecond(ZoneOffset.UTC) - startEpochSec
+    val rounded = (diff / QUARTER_HOUR_SEC).roundToLong() * QUARTER_HOUR_SEC.toLong()
+    if (abs(rounded) > MAX_OFFSET_SEC) return null
+    return ZoneOffset.ofTotalSeconds(rounded.toInt()).id
+}
 
 /** Garmin `typeKey` → Stride sport. */
 fun sportFromTypeKey(typeKey: String?): SportType = when (typeKey?.lowercase()) {
@@ -29,16 +52,22 @@ fun sportFromTypeKey(typeKey: String?): SportType = when (typeKey?.lowercase()) 
     else -> SportType.OTHER
 }
 
-fun ActivityDto.toActivity(timeZone: String? = null): Activity {
-    val start = beginTimestamp?.let { it / 1000 }
-        ?: startTimeGMT?.let { LocalDateTime.parse(it, GMT_FORMAT).toEpochSecond(ZoneOffset.UTC) }
-        ?: 0L
+/**
+ * Maps a list/detail DTO to an [Activity], or null when it has no usable start time:
+ * a missing or unparseable timestamp would otherwise become a 1970 run (AUD-028).
+ * [timeZone] (IANA, from the detail endpoint) wins; otherwise the zone is the offset
+ * implied by `startTimeLocal`, so runs abroad keep their local date (AUD-029).
+ */
+fun ActivityDto.toActivityOrNull(timeZone: String? = null): Activity? {
+    val start = beginTimestamp?.takeIf { it > 0 }?.let { it / 1000 }
+        ?: parseGarminDateTime(startTimeGMT)?.toEpochSecond(ZoneOffset.UTC)?.takeIf { it > 0 }
+        ?: return null
     return Activity(
         id = activityId,
         name = activityName?.takeIf { it.isNotBlank() } ?: "Activity",
         sport = sportFromTypeKey(activityType?.typeKey),
         startEpochSec = start,
-        timeZone = timeZone,
+        timeZone = timeZone ?: recordedOffsetId(startTimeLocal, start),
         durationSec = duration ?: 0.0,
         movingTimeSec = movingDuration,
         distanceM = distance ?: 0.0,

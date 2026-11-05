@@ -1,6 +1,7 @@
 package org.stride.core.garmin
 
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.time.LocalDate
 import java.util.zip.ZipInputStream
@@ -15,7 +16,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -24,6 +27,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.stride.core.common.StrideClock
+import org.stride.core.common.StrideLog
 import org.stride.core.common.StrideResult
 import org.stride.core.garmin.dto.ActivityDetailDto
 import org.stride.core.garmin.dto.ActivityDto
@@ -92,11 +96,12 @@ class OkHttpGarminClient(
                     .addQueryParameter("start", offset.toString())
                     .addQueryParameter("limit", config.pageSize.toString())
                     .build()
-                val page = when (val r = getJson(url, ListSerializer(ActivityDto.serializer()))) {
+                // Decoded item by item: one malformed activity is skipped, not the whole page (AUD-028).
+                val page = when (val r = getJson(url, ListSerializer(JsonElement.serializer()))) {
                     is StrideResult.Err -> return r
                     is StrideResult.Ok -> r.value ?: emptyList()
                 }
-                all += page.map { it.toActivity() }
+                all += page.mapNotNull(::decodeActivity)
                 if (page.size < config.pageSize) break
                 offset += config.pageSize
             }
@@ -110,8 +115,15 @@ class OkHttpGarminClient(
             is StrideResult.Ok -> r.value ?: return StrideResult.Err(GarminError.Http(204))
         }
         // The detail endpoint nests summary fields differently; reuse the list shape for the numbers.
-        val dto = ActivityDto(activityId = detail.activityId, activityName = detail.activityName, activityType = detail.activityTypeDTO)
-        return StrideResult.Ok(dto.toActivity(timeZone = detail.timeZoneUnitDTO?.timeZone))
+        val dto = ActivityDto(
+            activityId = detail.activityId,
+            activityName = detail.activityName,
+            activityType = detail.activityTypeDTO,
+            startTimeGMT = detail.summaryDTO?.startTimeGMT,
+            startTimeLocal = detail.summaryDTO?.startTimeLocal
+        )
+        return dto.toActivityOrNull(timeZone = detail.timeZoneUnitDTO?.timeZone)?.let { StrideResult.Ok(it) }
+            ?: StrideResult.Err(GarminError.Parse("activity has no usable start time"))
     }
 
     override suspend fun fitFile(activityId: Long): GarminResult<ByteArray> {
@@ -120,8 +132,7 @@ class OkHttpGarminClient(
         return when (val r = executeAuthorized(request)) {
             is StrideResult.Err -> r
 
-            is StrideResult.Ok -> unzipFit(r.value)?.let { StrideResult.Ok(it) }
-                ?: StrideResult.Err(GarminError.Parse("download contained no .fit file"))
+            is StrideResult.Ok -> unzipFit(r.value)
         }
     }
 
@@ -186,6 +197,21 @@ class OkHttpGarminClient(
         }
     }
 
+    /** One list item to [Activity], or null (logged) when it is malformed or has no usable start time. */
+    private fun decodeActivity(element: JsonElement): Activity? {
+        val dto = try {
+            json.decodeFromJsonElement(ActivityDto.serializer(), element)
+        } catch (e: IllegalArgumentException) {
+            // SerializationException is an IllegalArgumentException.
+            StrideLog.w(TAG, "skipped a malformed activity", e)
+            return null
+        }
+        return dto.toActivityOrNull() ?: run {
+            StrideLog.w(TAG, "skipped activity ${dto.activityId}: no usable start time")
+            null
+        }
+    }
+
     private fun authorized(url: HttpUrl, accept: String): Request? =
         Request.Builder().url(url).header("Accept", accept).get().build()
 
@@ -232,14 +258,17 @@ class OkHttpGarminClient(
             }
             val retryAfter = (outcome as? StrideResult.Err)?.error?.let(::retryDelayMs)
             if (retryAfter == null || attempt >= config.maxRetries) return outcome
-            sleep(maxOf(retryAfter, backoff))
+            // A Retry-After beyond our cap (e.g. 3600 s) would park the worker for an hour:
+            // give up now with RateLimited and let WorkManager's backoff reschedule (AUD-026).
+            if (retryAfter > config.maxBackoffMs) return outcome
+            sleep(min(maxOf(retryAfter, backoff), config.maxBackoffMs))
             backoff = min(backoff * 2, config.maxBackoffMs)
             attempt++
         }
     }
 
     private fun retryDelayMs(error: GarminError): Long? = when (error) {
-        is GarminError.RateLimited -> (error.retryAfterSec ?: 0) * 1000
+        is GarminError.RateLimited -> (error.retryAfterSec ?: 0).coerceIn(0, Long.MAX_VALUE / 1000) * 1000
         is GarminError.Server -> 0
         is GarminError.Network -> 0
         is GarminError.Http -> if (error.code == 408) 0 else null
@@ -269,16 +298,56 @@ class OkHttpGarminClient(
         const val STRESS_PATH = "usersummary-service/stats/stress/daily"
         const val WEIGHT_PATH = "weight-service/weight/range"
         private const val DEFAULT_TOKEN_TTL_SEC = 24L * 3600
+        private const val TAG = "GarminClient"
+        private const val COPY_BUFFER = 8 * 1024
 
-        /** Returns the first `.fit` entry of a ZIP, or the bytes themselves if they already are a FIT file. */
-        fun unzipFit(bytes: ByteArray): ByteArray? {
-            if (bytes.size >= 12 && String(bytes, 8, 4, Charsets.US_ASCII) == ".FIT") return bytes
-            ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
-                while (true) {
-                    val entry = zip.nextEntry ?: return null
-                    if (!entry.isDirectory && entry.name.endsWith(".fit", ignoreCase = true)) return zip.readBytes()
-                }
+        /** Largest inflated FIT file accepted; a multi-hour run is a few MB, so anything bigger is hostile (zip bomb). */
+        const val MAX_FIT_BYTES: Long = 50L * 1024 * 1024
+
+        /**
+         * Returns the first `.fit` entry of a ZIP, or the bytes themselves if they already are a FIT file.
+         * Corrupt or truncated archives and entries inflating past [maxBytes] are [GarminError.Parse], never thrown (AUD-028).
+         */
+        fun unzipFit(bytes: ByteArray, maxBytes: Long = MAX_FIT_BYTES): GarminResult<ByteArray> {
+            if (bytes.size >= 12 && String(bytes, 8, 4, Charsets.US_ASCII) == ".FIT") {
+                return if (bytes.size > maxBytes) StrideResult.Err(GarminError.Parse("FIT file too large")) else StrideResult.Ok(bytes)
             }
+            return try {
+                ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> firstFitEntry(zip, maxBytes) }
+            } catch (e: IOException) {
+                // ZipException (bad header / CRC) and EOFException (truncated) are both IOExceptions.
+                StrideResult.Err(GarminError.Parse(e::class.simpleName ?: "zip error"))
+            } catch (e: IllegalArgumentException) {
+                // Malformed entry names (bad UTF-8) surface as IllegalArgumentException.
+                StrideResult.Err(GarminError.Parse(e::class.simpleName ?: "zip error"))
+            }
+        }
+
+        private fun firstFitEntry(zip: ZipInputStream, maxBytes: Long): GarminResult<ByteArray> {
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name.endsWith(".fit", ignoreCase = true)) {
+                    return readCapped(zip, maxBytes)?.let { StrideResult.Ok(it) }
+                        ?: StrideResult.Err(GarminError.Parse("FIT file too large"))
+                }
+                entry = zip.nextEntry
+            }
+            return StrideResult.Err(GarminError.Parse("download contained no .fit file"))
+        }
+
+        /** Reads at most [maxBytes]; null if the stream holds more. */
+        private fun readCapped(zip: ZipInputStream, maxBytes: Long): ByteArray? {
+            val out = ByteArrayOutputStream()
+            val buffer = ByteArray(COPY_BUFFER)
+            var total = 0L
+            var n = zip.read(buffer)
+            while (n >= 0) {
+                total += n
+                if (total > maxBytes) return null
+                out.write(buffer, 0, n)
+                n = zip.read(buffer)
+            }
+            return out.toByteArray()
         }
     }
 }

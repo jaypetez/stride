@@ -17,6 +17,7 @@ real person's data:
 |---|---|---|
 | `token.txt` | `POST /personalapitoken-service/personal-api/personal-api-key/token` | Raw JWT text body. The `exp` claim is 24 h after `iat` |
 | `activities.json` | `GET /activitylist-service/activities/search/activities` | 4 runs (road, trail, a race) plus cycling and strength, newest first |
+| `activities-malformed.json` | `GET /activitylist-service/activities/search/activities` | Hostile page (AUD-028/029): a run recorded at UTC+9, a non-standard start time, no start time, no id, a non-numeric id, detail-style ISO timestamps |
 | `activity-detail.json` | `GET /activity-service/activity/{id}` | Detail for the newest run (`activityId` 900000006) |
 | `dailies.json` | `GET /usersummary-service/v2/dailysummaries` | `{ "data": [...] }`, 7 days. Has RHR, stress, Body Battery, steps |
 | `sleeps.json` | `GET /sleep-service/sleep/dailySleepSummariesByDate` | Timestamps are epoch ms |

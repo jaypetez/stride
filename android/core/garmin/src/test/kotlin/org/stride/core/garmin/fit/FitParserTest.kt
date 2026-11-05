@@ -1,5 +1,7 @@
 package org.stride.core.garmin.fit
 
+import com.garmin.fit.CRC
+import kotlin.random.Random
 import kotlin.system.measureTimeMillis
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -51,6 +53,63 @@ class FitParserTest {
         assertIs<StrideResult.Err<FitError>>(FitParser.parse(flipped, 1))
     }
 
+    /** AUD-028: no session message → cadence falls back to the Garmin summary's sport instead of being halved. */
+    @Test
+    fun missingSessionFallsBackToSummarySportForCadence() {
+        val bytes = SyntheticFit.records(listOf(0, 1, 2), withSession = false)
+        val asRun = FitParser.parse(bytes, activityId = 1, fallbackIsRun = true)
+        assertIs<StrideResult.Ok<FitActivity>>(asRun)
+        assertNull(asRun.value.sport)
+        assertEquals(172.0, asRun.value.streams.cadenceSpm!!.first())
+        val notRun = FitParser.parse(bytes, activityId = 1)
+        assertEquals(86.0, (notRun as StrideResult.Ok).value.streams.cadenceSpm!!.first())
+        // A session in the file still wins over the fallback.
+        val withSession = FitParser.parse(SyntheticFit.records(listOf(0, 1), withSession = true), 1, fallbackIsRun = false)
+        assertEquals(172.0, (withSession as StrideResult.Ok).value.streams.cadenceSpm!!.first())
+    }
+
+    /** AUD-028: records without a timestamp are dropped (not placed at time 0) and the rest are sorted. */
+    @Test
+    fun timestamplessRecordsAreDroppedAndOutOfOrderRecordsSorted() {
+        // HR is 100 + file index: indices 0..4 at offsets 10, -, 5, 20, -.
+        val bytes = SyntheticFit.records(listOf(10, null, 5, 20, null), withSession = true)
+        val result = FitParser.parse(bytes, activityId = 1)
+        assertIs<StrideResult.Ok<FitActivity>>(result)
+        val streams = result.value.streams
+        assertEquals(listOf(0.0, 5.0, 15.0), streams.timeSec.toList())
+        assertEquals(listOf(102.0, 100.0, 103.0), streams.heartRate!!.toList())
+        assertEquals(SyntheticFit.START.epochSecond + 5, result.value.startEpochSec)
+    }
+
+    @Test
+    fun onlyTimestamplessRecordsMeansNoRecords() {
+        val bytes = SyntheticFit.records(listOf(null, null), withSession = false)
+        assertEquals(StrideResult.Err(FitError.NoRecords), FitParser.parse(bytes, 1))
+    }
+
+    /**
+     * AUD-028: the never-throws contract holds for hostile input that passes the CRC check:
+     * random bytes are flipped and the file CRC is recomputed so the decoder really runs.
+     */
+    @Test
+    fun corruptedFilesWithValidCrcNeverThrow() {
+        val good = SyntheticFit.run(60)
+        val random = Random(42)
+        repeat(300) {
+            val bad = good.copyOf()
+            repeat(1 + random.nextInt(8)) {
+                val i = HEADER_SIZE + random.nextInt(bad.size - HEADER_SIZE - 2)
+                bad[i] = random.nextInt(256).toByte()
+            }
+            var crc = 0
+            for (i in 0 until bad.size - 2) crc = CRC.get16(crc, bad[i])
+            bad[bad.size - 2] = (crc and 0xFF).toByte()
+            bad[bad.size - 1] = (crc shr 8 and 0xFF).toByte()
+            // Must return a typed result, whatever the bytes are.
+            FitParser.parse(bad, 1)
+        }
+    }
+
     /** Documented budget (FitParser KDoc): a 2-hour 1 Hz run decodes in < 2 s on the JVM. */
     @Test
     fun twoHourRunWithinBudget() {
@@ -74,5 +133,9 @@ class FitParserTest {
         val decodedCommitted = (FitParser.parse(fixture("easy-run-30min.fit"), 1) as StrideResult.Ok).value
         val decodedGenerated = (FitParser.parse(generated, 1) as StrideResult.Ok).value
         assertEquals(decodedGenerated.streams, decodedCommitted.streams)
+    }
+
+    private companion object {
+        const val HEADER_SIZE = 14
     }
 }

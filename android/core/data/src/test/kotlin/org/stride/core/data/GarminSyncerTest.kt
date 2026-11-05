@@ -5,7 +5,10 @@ import java.time.ZoneOffset
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -138,5 +141,63 @@ class GarminSyncerTest {
         val client = FakeGarminClient(history)
         assertEquals(SyncOutcome.Success(0), env.syncer(client).sync())
         assertTrue(client.activityCalls.isEmpty())
+    }
+
+    /** AUD-026: an unexpected exception (not a typed Garmin error) still settles the status. */
+    @Test
+    fun unexpectedExceptionEndsInFailedWithReason() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val client = FakeGarminClient(history).apply { throwOnActivities = java.util.zip.ZipException("bad zip") }
+        assertEquals(SyncOutcome.Retry(SyncFailure.UNEXPECTED), env.syncer(client).sync())
+        assertEquals(SyncProgress.Failed(SyncFailure.UNEXPECTED), env.status.progress.value)
+        // The next sync is not blocked by the failed one.
+        assertIs<SyncOutcome.Success>(env.syncer(FakeGarminClient(history, wellness)).sync())
+    }
+
+    /** AUD-026: the daily job and "sync now" never interleave. */
+    @Test
+    fun concurrentSyncsRunSequentially() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val gate = CompletableDeferred<Unit>()
+        val client = FakeGarminClient(history.take(5), wellness).apply { this.gate = gate }
+        val first = async { env.syncer(client).sync() }
+        client.entered.await()
+        val second = async { env.syncer(client).sync() }
+        // The first sync is parked inside Garmin; the second waits on the lock without calling Garmin.
+        assertEquals(1, client.activityCalls.size)
+        gate.complete(Unit)
+        assertIs<SyncOutcome.Success>(first.await())
+        assertIs<SyncOutcome.Success>(second.await())
+        assertEquals(1, client.maxInFlight)
+        assertTrue(client.activityCalls.size > 1)
+    }
+
+    /** AUD-026: a cancelled sync (worker stopped) leaves Idle, not a spinner stuck on Running. */
+    @Test
+    fun cancelledSyncSettlesToIdle() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val client = FakeGarminClient(history, wellness).apply { gate = CompletableDeferred() }
+        val job = launch { env.syncer(client).sync() }
+        client.entered.await()
+        assertIs<SyncProgress.Running>(env.status.progress.value)
+        job.cancel()
+        job.join()
+        assertEquals(SyncProgress.Idle, env.status.progress.value)
+        // The lock was released: a fresh sync runs.
+        assertIs<SyncOutcome.Success>(env.syncer(FakeGarminClient(history, wellness)).sync())
+    }
+
+    /** AUD-029: a run recorded in another time zone keeps its local date, whatever the phone's zone. */
+    @Test
+    fun runAbroadKeepsItsLocalDate() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        // 07:00 on 31 Oct in Tokyo is 22:00 on 30 Oct UTC; the phone (clock) is in UTC.
+        val tokyo = history.first().copy(
+            id = 42,
+            startEpochSec = java.time.Instant.parse("2026-10-30T22:00:00Z").epochSecond,
+            timeZone = "+09:00"
+        )
+        env.syncer(FakeGarminClient(listOf(tokyo), wellness)).sync()
+        assertEquals("2026-10-31", env.db.activityDao().get(42)!!.localDate)
     }
 }

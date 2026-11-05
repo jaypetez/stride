@@ -7,6 +7,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -108,7 +109,7 @@ class ExportAndWipeTest {
             env.recomputer,
             dispatcher
         )
-        RoomDataEraser(env.context, env.holder, env.prefs, secrets, sync, plans, dispatcher).wipeEverything()
+        RoomDataEraser(env.context, env.holder, env.prefs, secrets, sync, plans, env.lock, dispatcher).wipeEverything()
         kotlin.test.assertNull(plans.plan.first())
 
         val db = env.db
@@ -126,6 +127,57 @@ class ExportAndWipeTest {
         assertNull(secrets.anthropicKey())
         assertNull(secrets.get())
         assertEquals(1, sync.cancelled)
+    }
+
+    /**
+     * AUD-026: Delete all data while a sync is mid-flight (and ignores cancellation) still ends
+     * with an empty database: the wipe waits for the sync lock, so the sync can't write rows back.
+     */
+    @Test
+    fun wipeDuringSyncLeavesEmptyDatabase() = runTest(UnconfinedTestDispatcher()) {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val env = TestEnv(this, dispatcher, tmp.root)
+        val secrets =
+            SecretStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "s.preferences_pb") }, ReversingCipher)
+        val plans = org.stride.core.data.plan.PlanRepository(
+            PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "plan3.preferences_pb") },
+            env.holder,
+            env.prefs,
+            env.clock,
+            env.recomputer,
+            dispatcher
+        )
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val run = org.stride.core.model.Activity(
+            id = 7,
+            name = "Run",
+            sport = org.stride.core.model.SportType.RUN,
+            startEpochSec = env.clock.now().epochSecond - 3600,
+            timeZone = "UTC",
+            durationSec = 1800.0,
+            movingTimeSec = 1800.0,
+            distanceM = 5000.0,
+            elevationGainM = null,
+            avgHr = 140.0,
+            maxHr = 160.0,
+            avgSpeedMps = 2.8,
+            maxSpeedMps = 3.2,
+            avgCadenceSpm = 170.0,
+            calories = null,
+            source = org.stride.core.model.DataSource.GARMIN
+        )
+        val client = FakeGarminClient(listOf(run)).apply { this.gate = gate }
+        val syncing = async { env.syncer(client).sync() }
+        client.entered.await()
+        val wiping = async { RoomDataEraser(env.context, env.holder, env.prefs, secrets, FakeSync(), plans, env.lock, dispatcher).wipeEverything() }
+        // The wipe is queued behind the sync; now let Garmin answer and the sync write its rows.
+        assertFalse(wiping.isCompleted)
+        gate.complete(Unit)
+        syncing.await()
+        wiping.await()
+        assertEquals(0, env.db.activityDao().count())
+        assertTrue(env.db.metricsDao().allActivityMetrics().isEmpty())
+        assertNull(env.db.syncStateDao().get())
     }
 
     @Test
@@ -151,6 +203,7 @@ class ExportAndWipeTest {
                 env.recomputer,
                 dispatcher
             ),
+            env.lock,
             dispatcher
         ).clearSyncedData()
 
