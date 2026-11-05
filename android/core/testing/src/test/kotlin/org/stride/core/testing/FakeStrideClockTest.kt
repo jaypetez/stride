@@ -2,8 +2,8 @@ package org.stride.core.testing
 
 import java.time.Instant
 import java.time.LocalDate
-import kotlin.test.Test
 import kotlin.test.assertEquals
+import org.junit.Test
 
 class FakeStrideClockTest {
     @Test
