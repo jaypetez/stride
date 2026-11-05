@@ -14,6 +14,24 @@ tests running on Robolectric native graphics — on the JVM, with no emulator
 
 Baselines live next to each module in `src/test/screenshots/` and are committed.
 
+## Writing a screenshot test
+Use `captureScreenshot(path) { … }` from `core:testing`, not Roborazzi's
+`captureRoboImage(path) { … }`. It renders on a **paused Compose clock** and
+advances 1 s before capturing: infinite animations (progress spinners,
+pull-to-refresh) would otherwise keep Compose from going idle and hang the
+test, and animated frames would differ between runs.
+
+```kotlin
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [ScreenshotDefaults.SDK], qualifiers = ScreenshotDefaults.PHONE)
+class TodayScreenshotTest {
+    @Test fun demo() = captureScreenshot("src/test/screenshots/today_demo.png") {
+        StrideTheme { TodayScreen(state = sample, onRefresh = {}) }
+    }
+}
+```
+
 ## Pinned rendering inputs
 Screenshots must be identical on every machine, so the inputs are pinned:
 - **Robolectric SDK:** `ScreenshotDefaults.SDK` (36), applied with `@Config(sdk = [...])`.

@@ -2,7 +2,6 @@ package org.stride.app
 
 import androidx.compose.material3.Text
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -16,6 +15,7 @@ import org.stride.core.navigation.PlanRoute
 import org.stride.core.navigation.SettingsRoute
 import org.stride.core.navigation.TodayRoute
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** The shell at compact (bar), medium and expanded (rail) widths (ANDF-010). */
 @RunWith(AndroidJUnit4::class)
@@ -42,7 +42,7 @@ class ShellScreenshotTest {
     @Config(qualifiers = ScreenshotDefaults.EXPANDED)
     fun expanded() = snap("expanded")
 
-    private fun snap(name: String) = captureRoboImage("src/test/screenshots/shell_$name.png") {
+    private fun snap(name: String) = captureScreenshot("src/test/screenshots/shell_$name.png") {
         StrideTheme(darkTheme = false) { StrideApp(installers = installers, demoMode = name == "compact") }
     }
 }

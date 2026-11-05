@@ -1,5 +1,6 @@
 package org.stride.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Icon
@@ -46,6 +47,12 @@ fun StrideApp(
     // each tab's saved state and ViewModels alive.
     val entriesByTab = TopLevelDestination.entries.associateWith { destination ->
         rememberDecoratedNavEntries(navigationState.stacks.getValue(destination), decorators, provider)
+    }
+
+    // NavDisplay only handles back while a tab has something to pop; at the root of
+    // any tab other than Today, back returns to Today before leaving the app.
+    BackHandler(enabled = navigationState.currentStack.size <= 1 && navigationState.selected != TopLevelDestination.Today) {
+        navigationState.goBack()
     }
 
     CompositionLocalProvider(LocalNavigator provides navigationState) {

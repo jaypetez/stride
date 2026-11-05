@@ -2,7 +2,6 @@ package org.stride.core.designsystem
 
 import androidx.compose.runtime.Composable
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -10,6 +9,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.stride.core.designsystem.component.ComponentShowcase
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.testing.ScreenshotDefaults
+import org.stride.core.testing.captureScreenshot
 
 /** Every design-system component in light and dark (ANDF-002 / ANDF-008). */
 @RunWith(AndroidJUnit4::class)
@@ -27,7 +27,7 @@ class DesignSystemScreenshotTest {
     private fun snap(name: String, content: @Composable () -> Unit) {
         for (dark in listOf(false, true)) {
             val theme = if (dark) "dark" else "light"
-            captureRoboImage("src/test/screenshots/designsystem_${name}_$theme.png") {
+            captureScreenshot("src/test/screenshots/designsystem_${name}_$theme.png") {
                 StrideTheme(darkTheme = dark) { content() }
             }
         }
