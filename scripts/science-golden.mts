@@ -1523,7 +1523,50 @@ export function generateGoldens(now: string = process.env.STRIDE_NOW ?? DEFAULT_
   return out;
 }
 
-/** Names of golden files in `dir` that differ from (or are missing vs) `generated`. */
+/**
+ * Relative tolerance for the staleness check. V8's `Math.pow`/`**` is not
+ * bit-stable across Node majors (e.g. `x ** 0.25` differs by 1 ULP between
+ * Node 22 and 24), so a byte-exact check would flap across the CI matrix. Any
+ * real behaviour change moves numbers far more than this, and it is still five
+ * orders of magnitude tighter than the 1e-6 Kotlin parity tolerance.
+ */
+export const CHECK_RELATIVE_TOLERANCE = 1e-12;
+
+function numbersClose(a: number, b: number): boolean {
+  if (a === b) return true;
+  const scale = Math.max(Math.abs(a), Math.abs(b));
+  return Math.abs(a - b) <= CHECK_RELATIVE_TOLERANCE * Math.max(scale, 1e-300);
+}
+
+/** Structural equality: exact for everything except numbers (see tolerance). */
+export function sameGolden(a: unknown, b: unknown): boolean {
+  if (typeof a === 'number' && typeof b === 'number') return numbersClose(a, b);
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return a === b;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((x, i) => sameGolden(x, b[i]));
+  }
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const ak = Object.keys(ao).sort();
+  const bk = Object.keys(bo).sort();
+  return ak.length === bk.length && ak.every((k, i) => k === bk[i] && sameGolden(ao[k], bo[k]));
+}
+
+function sameContent(onDisk: string, generated: string): boolean {
+  if (onDisk === generated) return true;
+  try {
+    return sameGolden(JSON.parse(onDisk), JSON.parse(generated));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Names of golden files in `dir` that differ from (or are missing vs)
+ * `generated`. Byte-identical files pass; otherwise the parsed JSON must match
+ * exactly except for numbers, which may differ by CHECK_RELATIVE_TOLERANCE.
+ */
 export function staleFiles(generated: Record<string, string>, dir: string = GOLDEN_DIR): string[] {
   const stale: string[] = [];
   for (const [name, content] of Object.entries(generated)) {
@@ -1532,7 +1575,7 @@ export function staleFiles(generated: Record<string, string>, dir: string = GOLD
     const onDisk = fs.existsSync(file)
       ? fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n')
       : null;
-    if (onDisk !== content) stale.push(name);
+    if (onDisk === null || !sameContent(onDisk, content)) stale.push(name);
   }
   const expected = new Set(Object.keys(generated));
   if (fs.existsSync(dir)) {

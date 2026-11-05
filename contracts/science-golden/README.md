@@ -76,7 +76,13 @@ shows exactly what behaviour changed, and the Kotlin port has to follow.
 - Strings such as workout titles, rationales, guardrail messages and red-flag
   messages are part of the contract and must match exactly.
 - Object keys are sorted recursively, every file ends with a newline, and the
-  output is byte-identical across runs (`scripts/science-golden.test.ts`).
+  output is byte-identical across runs on the same Node version
+  (`scripts/science-golden.test.ts`). V8's `Math.pow`/`**` can differ in the
+  last bit between Node majors (for example `x ** 0.25` on Node 22 vs 24). For
+  that reason `--check` passes byte-identical files straight away and otherwise
+  compares the parsed JSON: structure and strings must match exactly, and
+  numbers must agree within 1e-12 relative. Regenerate with Node 22 (the CI
+  baseline) to avoid churn in the last digit.
 
 ## Fixtures
 

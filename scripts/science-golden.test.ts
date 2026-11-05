@@ -6,6 +6,7 @@ import {
   DEFAULT_NOW,
   GOLDEN_DIR,
   generateGoldens,
+  sameGolden,
   stableStringify,
   staleFiles,
 } from './science-golden.mts';
@@ -41,6 +42,15 @@ describe('science goldens', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('check tolerates last-ULP float drift but not real changes', () => {
+    expect(sameGolden({ x: [2.9751673055987053] }, { x: [2.975167305598706] })).toBe(true);
+    expect(sameGolden({ x: 0 }, { x: 0 })).toBe(true);
+    expect(sameGolden({ x: 2.975167 }, { x: 2.975168 })).toBe(false);
+    expect(sameGolden({ x: 1 }, { x: '1' })).toBe(false);
+    expect(sameGolden({ x: 1 }, { x: 1, y: null })).toBe(false);
+    expect(sameGolden(['a', 'b'], ['a', 'c'])).toBe(false);
   });
 
   it('every file has meta + well-formed cases', () => {
