@@ -36,6 +36,7 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:model"))
     implementation(project(":core:navigation"))
@@ -51,6 +52,8 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.work.ktx)
+    implementation(libs.androidx.hilt.work)
 
     debugImplementation(libs.leakcanary.android)
 
