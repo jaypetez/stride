@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Activity, AthleteProfile, TrainingPlan, WorkoutSuggestion } from '../src/index';
+import { Activity, AthleteProfile, IsoDate, TrainingPlan, WorkoutSuggestion } from '../src/index';
 
 describe('@stride/schemas', () => {
   it('parses a minimal activity and applies defaults', () => {
@@ -54,5 +54,19 @@ describe('@stride/schemas', () => {
       rationale: 'Aerobic base; keep it easy after yesterday.',
     });
     expect(w.type).toBe('easy');
+  });
+});
+
+describe('IsoDate', () => {
+  it('accepts real calendar dates, including 29 February in a leap year', () => {
+    for (const d of ['2026-07-09', '2024-02-29', '2000-02-29']) {
+      expect(IsoDate.safeParse(d).success, d).toBe(true);
+    }
+  });
+
+  it('rejects impossible dates and other formats', () => {
+    for (const d of ['2026-02-30', '2025-02-29', '1900-02-29', '2026-13-01', '07/09/2026', 'x']) {
+      expect(IsoDate.safeParse(d).success, d).toBe(false);
+    }
   });
 });

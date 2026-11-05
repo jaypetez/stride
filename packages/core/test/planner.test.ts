@@ -15,6 +15,7 @@ import {
   makeSession,
   materializeProposal,
   proposeNextWorkout,
+  raceSession,
   repairPlan,
   rescaleSession,
   resolveRaceDistanceM,
@@ -117,6 +118,45 @@ describe('materializeProposal — duplicate proposal keys (AUD-004)', () => {
     const race = plan.weeks[1].days.find((d) => d.day === 7);
     expect(race?.date).toBe('2026-08-09');
     expect(race?.sessions[0].type).toBe('race');
+  });
+});
+
+describe('race-day edges', () => {
+  it('replaces an existing day-7 session with the race in a materialized plan', () => {
+    const plan = materializeProposal(
+      {
+        weeks: [
+          {
+            weekNumber: 1,
+            phase: 'taper',
+            days: [
+              { dayOfWeek: 1, workoutType: 'rest', emphasis: 'x', rationale: 'rest' },
+              { dayOfWeek: 7, workoutType: 'long', emphasis: 'x', rationale: 'long' },
+            ],
+          },
+        ],
+      },
+      {
+        profile: DEMO_PROFILE,
+        goal: RaceGoal.parse({ distance: '5k', date: '2026-07-19' }),
+        weeks: 1,
+        startDate: '2026-07-13',
+        planId: 'p',
+        createdAt: '2026-07-09T00:00:00Z',
+      },
+    );
+    const sundays = plan.weeks[0].days.filter((d) => d.day === 7);
+    expect(sundays).toHaveLength(1);
+    expect(sundays[0].sessions.map((s) => s.type)).toEqual(['race']);
+    expect(sundays[0].date).toBe('2026-07-19');
+  });
+
+  it('falls back to the default threshold pace when none is known', () => {
+    const race = raceSession(RaceGoal.parse({ distance: '10k' }), 0, '2026-08-09');
+    expect(race.type).toBe('race');
+    expect(race.date).toBe('2026-08-09');
+    expect(Number.isFinite(race.targetDurationSec)).toBe(true);
+    expect(race.targetDurationSec).toBeGreaterThan(0);
   });
 });
 

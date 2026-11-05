@@ -159,6 +159,19 @@ describe('MCP server over an in-memory transport', () => {
     await client.close();
   });
 
+  it('generate_plan runs live when demo is omitted and on demo data when asked', async () => {
+    const client = await connect(await liveState());
+    for (const args of [
+      { race: '10k', weeks: 4 },
+      { demo: true, weeks: 4 },
+    ]) {
+      const r = await client.callTool({ name: 'generate_plan', arguments: args });
+      expect(r.isError, JSON.stringify(args)).toBeFalsy();
+      expect((r.content as any[])[0].text, JSON.stringify(args)).toMatch(/4-week .*plan/);
+    }
+    await client.close();
+  });
+
   it('invalid arguments and unknown tools surface as isError: true', async () => {
     const client = await connect(await liveState());
     const bad = await client.callTool({ name: 'generate_plan', arguments: { weeks: 99 } });

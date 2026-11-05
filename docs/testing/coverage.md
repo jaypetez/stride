@@ -27,7 +27,7 @@ Each suite owns its thresholds in its own Vitest config, as literal numbers
 |---|---|---:|---:|---:|---:|
 | `@stride/core` | `packages/core/vitest.config.ts` | 92 | 89 | 88 | 79 |
 | `@stride/schemas` | `packages/schemas/vitest.config.ts` | 100 | 100 | 100 | 100 |
-| `@stride/api` | `apps/api/vitest.config.ts` | 89 | 90 | 92 | 94 |
+| `@stride/api` | `apps/api/vitest.config.ts` | 99 | 99 | 97 | 96 |
 | `@stride/cli` | `apps/cli/vitest.config.ts` | 40 | 37 | 43 | 30 |
 | `@stride/mcp` | `apps/mcp/vitest.config.ts` | 80 | 81 | 80 | 85 |
 | `@stride/web` | `apps/web/vitest.config.ts` | 64 | 62 | 52 | 64 |
