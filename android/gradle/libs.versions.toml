@@ -2,7 +2,7 @@
 # Versions are snapshots (see docs/android/best-practices.md); Dependabot keeps them fresh.
 [versions]
 agp = "9.5.0"
-kotlin = "2.3.21"
+kotlin = "2.4.21"
 ksp = "2.3.13"
 androidxActivity = "1.13.0"
 androidxBrowser = "1.10.0"
