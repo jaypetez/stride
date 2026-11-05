@@ -169,7 +169,8 @@ class ExportAndWipeTest {
         val client = FakeGarminClient(listOf(run)).apply { this.gate = gate }
         val syncing = async { env.syncer(client).sync() }
         client.entered.await()
-        val wiping = async { RoomDataEraser(env.context, env.holder, env.prefs, secrets, FakeSync(), plans, env.lock, dispatcher).wipeEverything() }
+        val eraser = RoomDataEraser(env.context, env.holder, env.prefs, secrets, FakeSync(), plans, env.lock, dispatcher)
+        val wiping = async { eraser.wipeEverything() }
         // The wipe is queued behind the sync; now let Garmin answer and the sync write its rows.
         assertFalse(wiping.isCompleted)
         gate.complete(Unit)

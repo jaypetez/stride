@@ -339,7 +339,8 @@ class OkHttpGarminClientTest {
         listOf(zipped.copyOf(zipped.size / 2), zipped.copyOf(10), byteArrayOf(0x50, 0x4B, 3, 4)).forEach { bad ->
             assertIs<StrideResult.Err<GarminError>>(OkHttpGarminClient.unzipFit(bad))
         }
-        assertEquals(StrideResult.Err(GarminError.Parse("download contained no .fit file")), OkHttpGarminClient.unzipFit(zip("readme.txt", byteArrayOf(1))))
+        val noFit = OkHttpGarminClient.unzipFit(zip("readme.txt", byteArrayOf(1)))
+        assertEquals(StrideResult.Err(GarminError.Parse("download contained no .fit file")), noFit)
     }
 
     /** AUD-028: a zip bomb is rejected once it inflates past the cap, without inflating it all. */
