@@ -64,6 +64,8 @@ data class ConnectUiState(
     val keyExpiry: LocalDate? = null,
     /** Garmin rejected the stored key during sync (MVP-008). */
     val keyRejected: Boolean = false,
+    /** Saved secrets could not be decrypted (Keystore reset) and must be re-entered (AUD-027). */
+    val keyLost: Boolean = false,
     val keyInput: String = "",
     val keyVisible: Boolean = false,
     val lifetime: KeyLifetime = KeyLifetime.DAYS_90,
@@ -124,7 +126,8 @@ class ConnectViewModel @Inject constructor(
                             today = clock.today(),
                             connected = connection.connected,
                             keyExpiry = connection.keyExpiry,
-                            keyRejected = rejected
+                            keyRejected = rejected,
+                            keyLost = connection.needsReentry
                         )
                     }
                 }

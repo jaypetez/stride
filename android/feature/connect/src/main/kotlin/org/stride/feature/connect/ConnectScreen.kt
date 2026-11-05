@@ -112,6 +112,7 @@ fun ConnectScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             if (state.keyRejected) RejectedBanner()
+            if (state.keyLost && !state.connected) KeyLostBanner()
             if (state.connected) ConnectedCard(state, onEvent, onBack)
             if (state.needsNewKey) {
                 SetupSteps(onOpenGarmin)
@@ -134,6 +135,19 @@ private fun RejectedBanner() {
     }) {
         Text(
             "Sync has stopped. The key may have expired or been deleted. Create a new key in Garmin Connect and paste it below.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+/** The Keystore lost the key that protected saved secrets (AUD-027). */
+@Composable
+private fun KeyLostBanner() {
+    StrideCard(title = "Re-enter your Garmin key", trailing = {
+        Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error)
+    }) {
+        Text(
+            "Stride could not unlock your saved key on this phone, so it was removed. Paste your Garmin key again to resume sync.",
             style = MaterialTheme.typography.bodyMedium
         )
     }
