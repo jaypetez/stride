@@ -28,7 +28,18 @@ export function warn(text: string): void {
   console.log(pc.yellow(`! ${text}`));
 }
 
+/**
+ * Print an error AND mark the process as failed (`process.exitCode = 1`), so a
+ * command that bails with `errorMsg(...); return;` exits non-zero for scripts
+ * and cron. Use {@link errorLine} for a red line that is not a failure.
+ */
 export function errorMsg(text: string): void {
+  console.error(pc.red(`✗ ${text}`));
+  process.exitCode = 1;
+}
+
+/** A red error-styled line that does NOT change the exit code. */
+export function errorLine(text: string): void {
   console.error(pc.red(`✗ ${text}`));
 }
 
@@ -92,7 +103,7 @@ export function printPlan(plan: TrainingPlan, validation: PlanValidation): void 
     console.log('');
     for (const v of validation.violations) {
       const line = `  guardrail[${v.rule}]: ${v.message}`;
-      if (v.severity === 'error') errorMsg(line);
+      if (v.severity === 'error') errorLine(line);
       else warn(line);
     }
   } else {

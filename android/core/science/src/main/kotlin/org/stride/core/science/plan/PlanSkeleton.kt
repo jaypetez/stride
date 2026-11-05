@@ -3,7 +3,10 @@ package org.stride.core.science.plan
 import kotlin.math.max
 import kotlin.math.min
 import kotlinx.serialization.Serializable
+import org.stride.core.science.coach.DEFAULT_THRESHOLD_MPS
+import org.stride.core.science.coach.QUALITY_TYPES
 import org.stride.core.science.coach.makeSession
+import org.stride.core.science.coach.resolveRaceDistanceM
 import org.stride.core.science.coach.thresholdOf
 import org.stride.core.science.model.AthleteProfile
 import org.stride.core.science.model.PlanDay
@@ -118,6 +121,53 @@ private fun weeklySessions(phase: PlanPhase, recovery: Boolean, longMin: Double,
     }
 }
 
+/** Where a plan sits on the calendar once aligned to the goal race. Mirrors planner.ts#RaceAlignment. */
+data class RaceAlignment(val startDate: String, val weeks: Int, val raceDate: String? = null)
+
+/**
+ * Aligns a plan so its last week ends on race day: keeps the requested length when the race is far enough
+ * away, else the whole weeks that fit (at least 1); the start is derived backwards from the race. No goal date
+ * (or one before the start) keeps the requested start and length. Mirrors planner.ts#alignToRace.
+ */
+fun alignToRace(startDate: String, weeks: Int, goal: RaceGoal): RaceAlignment {
+    val start = DateKeys.toDateKey(startDate)
+    val goalDate = goal.date ?: return RaceAlignment(start, weeks)
+    val race = DateKeys.toDateKey(goalDate)
+    val span = runCatching { DateKeys.daysBetween(start, race) + 1 }.getOrNull()
+    if (span == null || span < 1) return RaceAlignment(start, weeks)
+    val fit = max(1, min(weeks, span / 7))
+    return RaceAlignment(DateKeys.addDays(race, -(fit * 7 - 1)), fit, race)
+}
+
+/** The race session over the goal distance at threshold speed. Mirrors planner.ts#raceSession. */
+fun raceSession(goal: RaceGoal, thresholdSpeedMps: Double, date: String): WorkoutSuggestion {
+    val speed = if (thresholdSpeedMps > 0) thresholdSpeedMps else DEFAULT_THRESHOLD_MPS
+    val minutes = resolveRaceDistanceM(goal) / speed / 60
+    val name = goal.name ?: goal.distance.wire
+    return makeSession(
+        WorkoutType.RACE,
+        minutes,
+        speed,
+        date = date,
+        rationale = "Race day: the taper has you fresh, so trust your training.",
+        description = "Race day: $name. Warm up well, start controlled, and run your plan."
+    )
+}
+
+/** Race on day 7; a hard day 6 becomes an easy run of the same length. Mirrors planner.ts#withRaceDay. */
+private fun withRaceDay(days: List<PlanDay>, race: WorkoutSuggestion, threshold: Double): List<PlanDay> = days.map { d ->
+    when {
+        d.day == 7 -> d.copy(sessions = listOf(race.copy(date = d.date ?: race.date)))
+
+        d.day == 6 && d.sessions.any { it.type in QUALITY_TYPES } -> {
+            val min = (d.sessions.first().targetDurationSec ?: 0.0) / 60
+            d.copy(sessions = listOf(makeSession(WorkoutType.EASY, min, threshold, date = d.date)))
+        }
+
+        else -> d
+    }
+}
+
 private fun sessionsTotal(days: List<PlanDay>, field: (WorkoutSuggestion) -> Double?): Double =
     days.sumOf { d -> d.sessions.sumOf { field(it) ?: 0.0 } }
 
@@ -130,19 +180,24 @@ private fun sessionsTotal(days: List<PlanDay>, field: (WorkoutSuggestion) -> Dou
  */
 fun buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     val threshold = thresholdOf(params.profile)
-    val start = DateKeys.toDateKey(params.startDate)
+    val (start, weeks, raceDate) = alignToRace(params.startDate, params.weeks, params.goal)
     var longMin = 60.0
-    val planWeeks = (1..params.weeks).map { w ->
-        val phase = phaseForWeek(w, params.weeks)
+    val planWeeks = (1..weeks).map { w ->
+        val phase = phaseForWeek(w, weeks)
         val recovery = w % 4 == 0 && phase != PlanPhase.TAPER
         if (phase == PlanPhase.TAPER) {
             longMin = max(40.0, longMin * 0.6)
         } else if (!recovery) {
             longMin = min(140.0, longMin + 8)
         }
-        val days = weeklySessions(phase, recovery, longMin, threshold).map { d ->
+        val dated = weeklySessions(phase, recovery, longMin, threshold).map { d ->
             val date = DateKeys.addDays(start, (w - 1) * 7 + (d.day - 1))
             d.copy(date = date, sessions = d.sessions.map { it.copy(date = date) })
+        }
+        val days = if (raceDate != null && w == weeks) {
+            withRaceDay(dated, raceSession(params.goal, threshold, raceDate), threshold)
+        } else {
+            dated
         }
         PlanWeek(
             weekNumber = w,
@@ -159,8 +214,8 @@ fun buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
         createdAt = params.createdAt,
         goal = params.goal,
         startDate = start,
-        endDate = DateKeys.addDays(start, params.weeks * 7 - 1),
-        summary = "A ${params.weeks}-week $goalName plan: base → build → peak → taper, with a recovery week every 4th week.",
+        endDate = DateKeys.addDays(start, weeks * 7 - 1),
+        summary = "A $weeks-week $goalName plan: base → build → peak → taper, with a recovery week every 4th week.",
         weeks = planWeeks
     )
 }

@@ -223,4 +223,37 @@ class GuardrailTest {
         assertEquals("2026-07-09T00:00:00Z", merged.anchorsUpdatedAt)
         assertEquals(AthleteProfile(), applyEstimatedAnchors(AthleteProfile(), EstimatedAnchors()))
     }
+
+    // --- AUD-003 / AUD-004: race alignment, cross-week back-to-back, strict rest ---
+
+    @Test
+    fun hardDaysAcrossTheWeekBoundaryAreFlaggedAndRepaired() {
+        val w1 = week(1, PlanPhase.BUILD, 1 to WorkoutType.REST, 2 to WorkoutType.EASY, 5 to WorkoutType.REST, 7 to WorkoutType.INTERVAL)
+        val w2 = week(2, PlanPhase.BUILD, 1 to WorkoutType.THRESHOLD, 2 to WorkoutType.EASY, 4 to WorkoutType.REST, 7 to WorkoutType.LONG)
+        val bad = plan(w1, w2)
+        val v = validatePlan(bad)
+        assertTrue(v.violations.any { it.rule == "back_to_back_hard" && it.weekNumber == 2 })
+        val repaired = repairPlan(bad)
+        assertEquals(WorkoutType.EASY, repaired.plan.weeks[1].days.first { it.day == 1 }.sessions.first().type)
+        assertTrue(validatePlan(repaired.plan).violations.none { it.rule == "back_to_back_hard" })
+    }
+
+    @Test
+    fun recoveryRunsAreNotRest() {
+        val days = (1..7).map { it to WorkoutType.RECOVERY }.toTypedArray()
+        val v = validatePlan(plan(week(1, PlanPhase.RECOVERY, *days)))
+        assertTrue(v.violations.any { it.rule == "rest_minimum" })
+    }
+
+    @Test
+    fun skeletonWithAGoalDateEndsOnRaceDay() {
+        val goal = RaceGoal(distance = RaceDistance.MARATHON, date = "2026-11-01T08:00:00Z")
+        val p = buildPlanSkeleton(PlanSkeletonParams(profile, goal, 16, "2026-07-09", "p", "2026-07-09T00:00:00Z"))
+        assertEquals("2026-11-01", p.endDate)
+        val raceDay = p.weeks.last().days.first { it.day == 7 }
+        assertEquals("2026-11-01", raceDay.date)
+        assertEquals(WorkoutType.RACE, raceDay.sessions.first().type)
+        assertTrue(validatePlan(p).valid)
+        assertEquals(59, DateKeys.daysBetween("2026-07-09T23:00:00Z", "2026-09-06"))
+    }
 }

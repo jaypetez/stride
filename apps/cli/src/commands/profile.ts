@@ -4,6 +4,7 @@ import {
   formatPace,
   mpsToSecPerKm,
   PARQ_QUESTIONS,
+  ScreeningAnswers,
   screenReadiness,
 } from '@stride/core';
 import { AthleteProfile } from '@stride/schemas';
@@ -85,7 +86,8 @@ async function maybeScreen(
     answers.push(ans as boolean);
   }
 
-  const result = screenReadiness(answers);
+  // Same validation as the API: exactly one answer per PAR-Q question.
+  const result = screenReadiness(ScreeningAnswers.parse(answers));
   const updated = AthleteProfile.parse({
     ...profile,
     medicalClearance: result.cleared,

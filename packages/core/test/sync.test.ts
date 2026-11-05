@@ -457,6 +457,31 @@ describe('syncStrava — truncated incremental keeps the watermark', () => {
   });
 });
 
+describe('syncStrava — incremental stopped by the page budget (AUD-006)', () => {
+  it('does NOT advance the watermark past unseen activities when paging stops before the end', async () => {
+    const store = await seededStore();
+    const T0 = Date.parse('2026-07-08T00:00:00Z');
+    const raw = history(Date.parse('2026-07-06T06:00:00Z'), 6, 2);
+    const { fetchImpl } = mockStrava({ raw });
+    await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T0 }); // backfill completes
+    const priorWatermark = (await store.loadSyncState())?.lastSyncedAt;
+
+    // 250 new activities land: more than one 200-activity page.
+    for (let i = 0; i < 250; i++) raw.push(rawRun(20_000 + i, T0 + (i + 1) * 60_000));
+    const T1 = T0 + DAY;
+    const partial = await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T1, pages: 1 });
+    expect(partial.mode).toBe('incremental');
+    expect(partial.fetched).toBe(200); // a full page: the end was NOT reached
+    expect((await store.loadSyncState())?.lastSyncedAt).toBe(priorWatermark);
+
+    // With budget to finish, the next run reaches the end and advances.
+    const T2 = T1 + 3_600_000;
+    const full = await syncStrava({ ...baseParams(store, fetchImpl), nowMs: T2 });
+    expect(full.fetched).toBeGreaterThanOrEqual(250);
+    expect((await store.loadSyncState())?.lastSyncedAt).toBe(new Date(T2).toISOString());
+  });
+});
+
 describe('syncStrava — rebuild', () => {
   it('re-downloads and replaces the durable series wholesale', async () => {
     const store = await seededStore();

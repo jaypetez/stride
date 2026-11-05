@@ -1,4 +1,10 @@
-import type { Activity, ActivityStreams, AthleteProfile } from '@stride/schemas';
+import {
+  type Activity,
+  type ActivityStreams,
+  type AthleteProfile,
+  RaceGoal,
+} from '@stride/schemas';
+import { addDays, toDateKey } from './science/dates';
 
 /**
  * Deterministic synthetic data so `stride analyze --demo` and the test suite can
@@ -23,6 +29,35 @@ export const DEMO_PROFILE: AthleteProfile = {
   medicalClearance: true,
   healthFlags: [],
 };
+
+/**
+ * The demo's "today": the morning after the last bundled demo run (2026-07-08).
+ * Demo surfaces anchor their clock HERE (unless STRIDE_NOW pins another one)
+ * rather than to the wall clock, so the demo race is always in the future, the
+ * phase is defined and CTL has not decayed — whenever the demo is run.
+ */
+export const DEMO_NOW_ISO = '2026-07-09T00:00:00Z';
+
+/** Days from the demo "today" to the demo race (2026-07-09 → 2026-09-06: build phase). */
+export const DEMO_RACE_LEAD_DAYS = 59;
+
+/** The demo reference clock: an explicit pin (STRIDE_NOW / --now) wins, else {@link DEMO_NOW_ISO}. */
+export function demoNowIso(pinned?: string): string {
+  return pinned ?? DEMO_NOW_ISO;
+}
+
+/**
+ * The single demo goal race, {@link DEMO_RACE_LEAD_DAYS} after the demo
+ * "today" (`nowIso`, default {@link DEMO_NOW_ISO}). Every app's demo mode uses
+ * this; no app hard-codes a demo date.
+ */
+export function demoGoal(nowIso: string = DEMO_NOW_ISO): RaceGoal {
+  return RaceGoal.parse({
+    distance: '10k',
+    name: '10k',
+    date: addDays(toDateKey(nowIso), DEMO_RACE_LEAD_DAYS),
+  });
+}
 
 /**
  * Build a steady run with mild rolling hills. `intensityMps` sets the average

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import pc from 'picocolors';
+import pkg from '../package.json' with { type: 'json' };
 import { analyzeCommand } from './commands/analyze';
 import { connectCommand } from './commands/connect';
 import { doctorCommand } from './commands/doctor';
@@ -34,7 +35,7 @@ const program = new Command();
 program
   .name('stride')
   .description('Your Strava agentic coach — analyze workouts, get your next one, and build a plan.')
-  .version('0.1.0')
+  .version(pkg.version)
   .option(
     '--now <iso>',
     'pin the reference clock (ISO-8601) for reproducible output; also STRIDE_NOW',

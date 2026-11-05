@@ -45,8 +45,17 @@ export interface PmcOptions {
   /** Seed values (e.g. carried from a previous run). Default 0. */
   seedCtl?: number;
   seedAtl?: number;
-  /** Extend the series this many days past the last activity (for projections). */
+  /**
+   * End the series on this day key: extends past the last load (projection,
+   * filling 0 TSS) or truncates before it, so loads after the reference day
+   * never leak into an "as of" value.
+   */
   throughDate?: string;
+}
+
+/** Last day of a series: `throughDate` when given (extend OR truncate), else the last load. */
+export function seriesEnd(dailyLoads: DailyLoad[], throughDate?: string): string {
+  return throughDate ? toDateKey(throughDate) : dailyLoads[dailyLoads.length - 1].date;
 }
 
 /**
@@ -64,9 +73,7 @@ export function buildPmcSeries(dailyLoads: DailyLoad[], options: PmcOptions = {}
   for (const d of dailyLoads) tssByDate.set(d.date, d.tss);
 
   const start = dailyLoads[0].date;
-  const lastActivity = dailyLoads[dailyLoads.length - 1].date;
-  const end =
-    options.throughDate && options.throughDate > lastActivity ? options.throughDate : lastActivity;
+  const end = seriesEnd(dailyLoads, options.throughDate);
 
   let ctl = options.seedCtl ?? 0;
   let atl = options.seedAtl ?? 0;

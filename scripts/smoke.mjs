@@ -316,6 +316,19 @@ async function checkCli() {
       `len(a)=${a.out.length} len(b)=${b.out.length}`,
     );
   }
+
+  // Exit codes: a success exits 0, and a failing command (here an invalid plan
+  // date, rejected before planning) exits NON-zero so scripts/cron notice.
+  assert(analyze.code === 0, 'stride analyze --demo exits 0', `got exit ${analyze.code}`);
+  const bad = await runToExit(
+    spawnTs('apps/cli/src/index.ts', ['plan', '--demo', '--start', 'not-a-date']),
+    20000,
+  );
+  assert(
+    !bad.timedOut && bad.code !== 0 && bad.code !== null,
+    'stride plan --start <garbage> exits non-zero',
+    `got exit ${bad.code}${bad.timedOut ? ' (timed out)' : ''}`,
+  );
 }
 
 function cleanup() {

@@ -6,7 +6,9 @@ import {
   computeZones,
   DEMO_PROFILE,
   demoActivity,
+  demoGoal,
   demoHistory,
+  demoNowIso,
   generatePlan,
   resolveNowIso,
   runCoachTool,
@@ -24,6 +26,8 @@ import type { McpState } from './state';
 export interface ToolResult {
   text: string;
   data: unknown;
+  /** Reported to the MCP client as a tool error (`isError: true`). */
+  isError?: boolean;
 }
 
 interface Ctx {
@@ -34,12 +38,20 @@ interface Ctx {
   dailyLoads?: DailyLoad[];
 }
 
+/**
+ * The reference clock for a request: in demo mode the demo "today" (anchored to
+ * the bundled history unless STRIDE_NOW pins it), else STRIDE_NOW / real now.
+ */
+function refNowIso(state: McpState, demo: boolean): string {
+  return demo ? demoNowIso(state.config.now) : resolveNowIso(state.config);
+}
+
 async function loadCtx(state: McpState, demo: boolean): Promise<Ctx> {
   if (demo) {
     return {
       profile: DEMO_PROFILE,
       activities: [...demoHistory(), demoActivity()],
-      goal: RaceGoal.parse({ distance: '10k', date: '2026-09-06', name: '10k' }),
+      goal: demoGoal(refNowIso(state, true)),
     };
   }
   const { AthleteProfile } = await import('@stride/schemas');
@@ -67,7 +79,7 @@ export async function buildProvider(state: McpState, demo: boolean): Promise<Coa
     activities,
     profile,
     goal,
-    asOfDate: resolveNowIso(state.config),
+    asOfDate: refNowIso(state, demo),
     dailyLoads,
   });
   const zones = computeZones(profile);
@@ -102,7 +114,8 @@ export async function toolAnalyze(
     activities,
     profile,
     goal,
-    asOfDate: activity.startDate,
+    // The athlete's LOCAL day of the run (day keys use startDateLocal).
+    asOfDate: activity.startDateLocal ?? activity.startDate,
     dailyLoads,
   });
   const metrics = computeActivityMetrics(activity, profile);
@@ -116,7 +129,7 @@ export async function toolNext(state: McpState, demo: boolean, note?: string): P
     activities,
     profile,
     goal,
-    asOfDate: resolveNowIso(state.config),
+    asOfDate: refNowIso(state, demo),
     dailyLoads,
   });
   const workout = await suggestNextWorkout({ context, profile, note, deps: deps(state) });
@@ -142,8 +155,9 @@ export async function toolPlan(
     date: args.date ?? storedGoal?.date,
   });
   const weeks = args.weeks ?? 8;
-  const startDate = args.start ?? resolveNowIso(state.config).slice(0, 10);
-  const context = buildCoachContext({ activities, profile, goal, dailyLoads });
+  const asOfDate = refNowIso(state, args.demo);
+  const startDate = args.start ?? asOfDate.slice(0, 10);
+  const context = buildCoachContext({ activities, profile, goal, asOfDate, dailyLoads });
   const { plan, validation, disclaimer, flags } = await generatePlan({
     profile,
     goal,
@@ -153,8 +167,16 @@ export async function toolPlan(
     note: args.note,
     deps: deps(state),
   });
+  if (!validation.valid) {
+    // Never hand back a plan that still breaks a guardrail after repair.
+    return {
+      text: `Plan rejected: ${validation.violations.length} guardrail issue(s) remained after repair.`,
+      data: { validation, disclaimer, flags },
+      isError: true,
+    };
+  }
   return {
-    text: `${weeks}-week ${goal.name ?? goal.distance} plan (${validation.valid ? 'valid' : `${validation.violations.length} guardrail issues`}).`,
+    text: `${plan.weeks.length}-week ${goal.name ?? goal.distance} plan (valid).`,
     data: { plan, validation, disclaimer, flags },
   };
 }

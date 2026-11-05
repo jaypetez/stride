@@ -182,7 +182,7 @@ private fun PlanFormContent(state: PlanUiState, actions: PlanActions, modifier: 
         if (state.violations.isNotEmpty()) ViolationsCard(state.violations)
         StrideButton(text = "Create plan", onClick = actions.onCreate, loading = state.creating, modifier = Modifier.fillMaxWidth())
         Text(
-            text = "Plans start on Monday ${Format.day(state.earliestRaceDate)} and run 4–24 weeks.",
+            text = "Plans end on race day and run up to 24 weeks. Earliest race: ${Format.day(state.earliestRaceDate)}.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

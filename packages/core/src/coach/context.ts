@@ -33,7 +33,11 @@ export interface BuildContextParams {
   activities: Activity[];
   profile: AthleteProfile;
   goal?: RaceGoal;
-  /** Reference date (ISO). Defaults to the latest activity, else today. */
+  /**
+   * Reference date (ISO date or datetime). Defaults to the latest activity, else
+   * today. Pass the athlete's LOCAL date (`startDateLocal ?? startDate`) when
+   * analyzing an activity, and the pinned clock (`resolveNowIso`) otherwise.
+   */
   asOfDate?: string;
   /**
    * The durable daily-load series (GOAL.md §7 source of truth). Live callers
@@ -58,10 +62,10 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
   const asOf = params.asOfDate ? toDateKey(params.asOfDate) : latestDate;
   const weekStart = addDays(asOf, -6);
 
-  // Project the fitness/fatigue series forward to the reference day so that,
-  // after rest days, ATL has decayed and TSB has risen (fatigue is not frozen
-  // at the last activity date). `throughDate` is a no-op when asOf <= latest.
-  // Prefer the durable daily-load series when supplied (survives the 7-day raw
+  // End the fitness/fatigue series ON the reference day: project it forward
+  // after rest days (ATL decays, TSB rises) and truncate it when asOf is
+  // before the latest load, so analyzing an older activity reports CTL/ATL/TSB
+  // as of that activity, not today. Prefer the durable daily-load series when supplied (survives the 7-day raw
   // cache); otherwise derive it from the raw activities (demo/tests).
   const dailies = params.dailyLoads ?? toDailyLoads(activities, profile);
   const pmc = buildPmcSeries(dailies, { throughDate: asOf });
@@ -77,7 +81,10 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
   const weeklyDistribution = zoneDistribution(last7, profile);
   const weeklyVolumeKm = Number((last7.reduce((s, a) => s + a.distance, 0) / 1000).toFixed(1));
 
-  const recentActivities = [...sorted]
+  // Only activities on or before the reference day: nothing from "the future"
+  // relative to asOf may leak into the facts the coach reasons over.
+  const recentActivities = sorted
+    .filter((a) => toDateKey(a.startDateLocal ?? a.startDate) <= asOf)
     .reverse()
     .slice(0, 10)
     .map((a) => {

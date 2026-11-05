@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import pkg from '../package.json' with { type: 'json' };
 
 // Resolve paths relative to this test file (works in Vitest's ESM runtime).
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -82,6 +83,8 @@ describe('MCP stdio JSON-RPC transport', () => {
     const initRes = await waitForId(1, 20000);
     expect(initRes, `no initialize response; stderr:\n${stderr.slice(-600)}`).toBeDefined();
     expect(initRes.result.serverInfo.name).toBe('stride');
+    // The advertised version is the package version, not a hard-coded string.
+    expect(initRes.result.serverInfo.version).toBe(pkg.version);
 
     // 2) acknowledge, then list tools
     send({ jsonrpc: '2.0', method: 'notifications/initialized' });
@@ -100,5 +103,18 @@ describe('MCP stdio JSON-RPC transport', () => {
     const callRes = await waitForId(3, 10000);
     expect(callRes, `no tools/call response; stderr:\n${stderr.slice(-600)}`).toBeDefined();
     expect(callRes.result.content[0].text).toContain('CTL');
+
+    // 4) an invalid plan date is rejected before planning (an MCP error)
+    send({
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: { name: 'generate_plan', arguments: { demo: true, start: 'garbage' } },
+    });
+    const badRes = await waitForId(4, 10000);
+    expect(badRes, `no generate_plan response; stderr:\n${stderr.slice(-600)}`).toBeDefined();
+    const isError = Boolean(badRes.error) || badRes.result?.isError === true;
+    expect(isError).toBe(true);
+    expect(JSON.stringify(badRes)).toMatch(/YYYY-MM-DD/);
   }, 30000);
 });

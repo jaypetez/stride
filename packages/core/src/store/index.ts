@@ -9,12 +9,15 @@ import {
   SyncState,
   TrainingPlan,
 } from '@stride/schemas';
+import { createLogger } from '../log';
 import { StravaTokens } from '../strava/types';
 import { acquireSyncLock, type SyncLock } from './lock';
 
 export { type SyncLock, SyncLockError } from './lock';
 
 const MS_PER_DAY = 86_400_000;
+
+const log = createLogger('store');
 
 /**
  * Local-first, single-user JSON store under `dataDir` (default `.stride/`).
@@ -141,10 +144,35 @@ export class LocalStore {
     await this.writeJson('activities.json', activities);
   }
 
+  /**
+   * Load stored activities. One corrupt/invalid record must not take every
+   * read down with it: invalid records are skipped with a warn log and the
+   * rest are returned.
+   */
   async loadActivities(): Promise<Activity[]> {
     const raw = await this.readJson<unknown[]>('activities.json');
     if (!raw) return [];
-    return raw.map((a) => Activity.parse(a));
+    if (!Array.isArray(raw)) {
+      log.warn('activities.json is not an array; ignoring it', {
+        file: this.file('activities.json'),
+      });
+      return [];
+    }
+    const out: Activity[] = [];
+    raw.forEach((a, index) => {
+      const parsed = Activity.safeParse(a);
+      if (parsed.success) {
+        out.push(parsed.data);
+      } else {
+        const id = (a as { id?: unknown } | null)?.id;
+        log.warn('skipping invalid stored activity', {
+          index,
+          id: typeof id === 'string' ? id : undefined,
+          issues: parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.')}: ${i.message}`),
+        });
+      }
+    });
+    return out;
   }
 
   /**

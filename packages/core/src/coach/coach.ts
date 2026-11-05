@@ -47,6 +47,33 @@ function nowIso(deps?: CoachDeps): string {
 }
 
 /**
+ * True for LLM failures the USER must fix — a bad/revoked API key (401), a key
+ * without access (403) or an unknown model id (404) — as opposed to transient
+ * errors (timeouts, 5xx, overload) where a silent fallback is fine.
+ */
+export function isLlmConfigError(err: unknown): boolean {
+  const status = (err as { status?: unknown } | null)?.status;
+  if (status === 401 || status === 403 || status === 404) return true;
+  const name = (err as { name?: unknown } | null)?.name;
+  return typeof name === 'string' && /Authentication|PermissionDenied|NotFound/.test(name);
+}
+
+/**
+ * Every LLM call falls back to deterministic output on failure. Transient
+ * failures stay at debug, but auth/config failures log at WARN so a bad key is
+ * not silently invisible (the coach would otherwise just look "dumber").
+ */
+function logLlmFailure(msg: string, err: unknown): void {
+  if (isLlmConfigError(err)) {
+    log.warn(`${msg} — check ANTHROPIC_API_KEY and the STRIDE_MODEL_* settings`, {
+      err: String(err),
+    });
+  } else {
+    log.debug(msg, { err: String(err) });
+  }
+}
+
+/**
  * Optional Haiku second pass over free text. It ONLY appends WARNING-level flags
  * (mapped from classifier labels) — the deterministic keyword rules stay
  * authoritative for STOP, so safety never depends on model availability. No-op
@@ -67,9 +94,7 @@ async function augmentWithClassifier(
     });
     if (!res.refused) flags.push(...classifierWarnings(res.labels));
   } catch (err) {
-    log.debug('LLM classify augmentation failed; keeping keyword flags only', {
-      err: String(err),
-    });
+    logLlmFailure('LLM classify augmentation failed; keeping keyword flags only', err);
   }
 }
 
@@ -162,9 +187,7 @@ export async function analyzeWorkout(params: {
       // Discard refused/truncated output → keep the deterministic explanation.
       if (res.text && !res.refused && res.stopReason !== 'max_tokens') explanation = res.text;
     } catch (err) {
-      log.debug('LLM analysis enrichment failed; using deterministic explanation', {
-        err: String(err),
-      });
+      logLlmFailure('LLM analysis enrichment failed; using deterministic explanation', err);
     }
   }
 
@@ -215,9 +238,7 @@ export async function suggestNextWorkout(params: {
       if (res.text && !res.refused && res.stopReason !== 'max_tokens')
         suggestion.rationale = res.text;
     } catch (err) {
-      log.debug('LLM next-workout rationale failed; using deterministic rationale', {
-        err: String(err),
-      });
+      logLlmFailure('LLM next-workout rationale failed; using deterministic rationale', err);
     }
   }
   return { ...suggestion, disclaimer: DISCLAIMER, flags: redFlags.map((f) => f.message) };
@@ -352,7 +373,7 @@ export async function generatePlan(params: {
         }
       }
     } catch (err) {
-      log.debug('LLM structured plan failed; falling back to skeleton', { err: String(err) });
+      logLlmFailure('LLM structured plan failed; falling back to skeleton', err);
     }
   }
 
@@ -372,7 +393,7 @@ export async function generatePlan(params: {
         result = { plan: { ...result.plan, summary: res.text }, validation: result.validation };
       }
     } catch (err) {
-      log.debug('LLM plan summary failed; using deterministic summary', { err: String(err) });
+      logLlmFailure('LLM plan summary failed; using deterministic summary', err);
     }
   }
 

@@ -13,6 +13,7 @@ import type {
 } from '@stride/schemas';
 import {
   addDays,
+  daysBetween,
   mpsToSecPerKm,
   resolveThresholdSpeed,
   thresholdSpeedFromVdot,
@@ -320,6 +321,68 @@ function weeklySessions(
   }
 }
 
+/** Where a plan sits on the calendar once aligned to the goal race. */
+export interface RaceAlignment {
+  /** Plan start (YYYY-MM-DD): day 1 of week 1. */
+  startDate: string;
+  /** Number of plan weeks. */
+  weeks: number;
+  /** Race day (YYYY-MM-DD) = the last day of the last week, when aligned. */
+  raceDate?: string;
+}
+
+/**
+ * Align a plan to the goal race so its LAST week ends on race day. Without a
+ * goal date (or one before the start) the plan keeps the requested start and
+ * length. Otherwise it keeps the requested length when the race is far enough
+ * away (starting later if needed), or shrinks to the whole weeks that fit
+ * before the race (at least one), and the start is derived backwards from the
+ * race date.
+ */
+export function alignToRace(startDate: string, weeks: number, goal: RaceGoal): RaceAlignment {
+  const start = toDateKey(startDate);
+  if (!goal.date) return { startDate: start, weeks };
+  const race = toDateKey(goal.date);
+  const span = daysBetween(start, race) + 1; // days available, race day included
+  if (!Number.isFinite(span) || span < 1) return { startDate: start, weeks };
+  const fit = Math.max(1, Math.min(weeks, Math.floor(span / 7)));
+  return { startDate: addDays(race, -(fit * 7 - 1)), weeks: fit, raceDate: race };
+}
+
+/** The race itself: run at threshold-ish effort over the goal distance. */
+export function raceSession(
+  goal: RaceGoal,
+  thresholdSpeedMps: number,
+  date: string,
+): WorkoutSuggestion {
+  const speed = thresholdSpeedMps > 0 ? thresholdSpeedMps : DEFAULT_THRESHOLD_MPS;
+  const minutes = resolveRaceDistanceM(goal) / speed / 60;
+  return makeSession('race', minutes, speed, {
+    date,
+    description: `Race day: ${goal.name ?? goal.distance}. Warm up well, start controlled, and run your plan.`,
+    rationale: 'Race day: the taper has you fresh, so trust your training.',
+  });
+}
+
+/**
+ * Put the race on day 7 of the race week. A hard day 6 is eased to an easy run
+ * of the same length so the race never follows a quality session.
+ */
+function withRaceDay<D extends PlanDay>(
+  days: D[],
+  race: WorkoutSuggestion,
+  threshold: number,
+): D[] {
+  return days.map((d): D => {
+    if (d.day === 7) return { ...d, sessions: [{ ...race, date: d.date ?? race.date }] };
+    if (d.day === 6 && d.sessions.some((s) => QUALITY_TYPES.has(s.type))) {
+      const min = (d.sessions[0].targetDurationSec ?? 0) / 60;
+      return { ...d, sessions: [makeSession('easy', min, threshold, { date: d.date })] };
+    }
+    return d;
+  });
+}
+
 export interface PlanSkeletonParams {
   profile: AthleteProfile;
   goal: RaceGoal;
@@ -335,9 +398,10 @@ export interface PlanSkeletonParams {
  * then double-checks (and the LLM only enriches language, never numbers).
  */
 export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
-  const { profile, goal, weeks, planId, createdAt } = params;
+  const { profile, goal, planId, createdAt } = params;
   const threshold = thresholdOf(profile);
-  const start = toDateKey(params.startDate);
+  // With a goal date the last week ends on race day (start/length derived from it).
+  const { startDate: start, weeks, raceDate } = alignToRace(params.startDate, params.weeks, goal);
   const planWeeks: PlanWeek[] = [];
 
   let longMin = 60;
@@ -347,11 +411,14 @@ export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     if (phase === 'taper') longMin = Math.max(40, longMin * 0.6);
     else if (!recovery) longMin = Math.min(140, longMin + 8);
 
-    const days = weeklySessions(phase, recovery, longMin, threshold).map((d) => ({
+    let days = weeklySessions(phase, recovery, longMin, threshold).map((d) => ({
       ...d,
       date: addDays(start, (w - 1) * 7 + (d.day - 1)),
       sessions: d.sessions.map((s) => ({ ...s, date: addDays(start, (w - 1) * 7 + (d.day - 1)) })),
     }));
+    if (raceDate && w === weeks) {
+      days = withRaceDay(days, raceSession(goal, threshold, raceDate), threshold);
+    }
 
     const weekTss = days.reduce(
       (sum, d) => sum + d.sessions.reduce((s, x) => s + (x.targetTss ?? 0), 0),
@@ -410,22 +477,37 @@ function durationForType(type: WorkoutType, phase: PlanPhase): number {
  * `makeSession` from the athlete's anchors, so compute-in-code stays inviolable.
  * The result is handed to the guardrail (validate → repair → re-validate); an
  * unusable/empty proposal returns an empty-week plan the caller rejects.
+ *
+ * Duplicate keys are DEDUPED, first occurrence wins: a repeated `weekNumber`
+ * keeps the first week, a repeated `dayOfWeek` within a week keeps the first
+ * day. With a goal date the plan is aligned so the last week ends on race day,
+ * which gets a race session (see {@link alignToRace}).
  */
 export function materializeProposal(
   proposal: LlmPlanProposal,
   params: PlanSkeletonParams,
 ): TrainingPlan {
-  const { profile, goal, weeks, planId, createdAt } = params;
+  const { profile, goal, planId, createdAt } = params;
   const threshold = thresholdOf(profile);
-  const start = toDateKey(params.startDate);
+  const { startDate: start, weeks, raceDate } = alignToRace(params.startDate, params.weeks, goal);
 
   const planWeeks: PlanWeek[] = [];
+  const seenWeeks = new Set<number>();
+  // Stable sort: among duplicate week numbers the first proposed stays first.
   const sortedWeeks = [...proposal.weeks].sort((a, b) => a.weekNumber - b.weekNumber);
   for (const w of sortedWeeks) {
     if (w.weekNumber < 1 || w.weekNumber > weeks) continue; // clamp to the requested range
+    if (seenWeeks.has(w.weekNumber)) continue; // duplicate week: keep the first
+    seenWeeks.add(w.weekNumber);
     const phase = w.phase;
-    const days: PlanDay[] = [...w.days]
+    const seenDays = new Set<number>();
+    let days: PlanDay[] = [...w.days]
       .filter((d) => d.dayOfWeek >= 1 && d.dayOfWeek <= 7)
+      .filter((d) => {
+        if (seenDays.has(d.dayOfWeek)) return false; // duplicate day: keep the first
+        seenDays.add(d.dayOfWeek);
+        return true;
+      })
       .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
       .map((d) => {
         const date = addDays(start, (w.weekNumber - 1) * 7 + (d.dayOfWeek - 1));
@@ -437,6 +519,11 @@ export function materializeProposal(
         );
         return { day: d.dayOfWeek, date, sessions: [session] };
       });
+    if (raceDate && w.weekNumber === weeks) {
+      const raceDay: PlanDay = { day: 7, date: raceDate, sessions: [] };
+      const withDay7 = days.some((d) => d.day === 7) ? days : [...days, raceDay];
+      days = withRaceDay(withDay7, raceSession(goal, threshold, raceDate), threshold);
+    }
 
     const weekTss = days.reduce(
       (sum, d) => sum + d.sessions.reduce((s, x) => s + (x.targetTss ?? 0), 0),

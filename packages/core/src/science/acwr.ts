@@ -1,5 +1,6 @@
 import type { AcwrFlag, AcwrPoint, DailyLoad } from '@stride/schemas';
 import { eachDay } from './dates';
+import { seriesEnd } from './pmc';
 import { mean } from './util';
 
 function flagFor(acwr: number, chronic: number): AcwrFlag {
@@ -22,7 +23,7 @@ export interface AcwrOptions {
    * alarms. Defaults to `chronicDays`. TSB and CTL-ramp cover the early period.
    */
   warmupDays?: number;
-  /** Extend the series this many days past the last activity (for projections). */
+  /** End the series on this day key (extends past, or truncates before, the last load). */
   throughDate?: string;
 }
 
@@ -31,8 +32,8 @@ export interface AcwrOptions {
  * guardrail. lambda = 2/(N+1); acute N=7, chronic N=28. Sweet spot 0.8-1.3;
  * >1.5 is associated with elevated injury risk.
  *
- * Both EWMAs are seeded to the same short baseline (the mean of the first
- * `acuteDays` of load) so the ratio starts near 1 instead of spiking from a
+ * Both EWMAs are seeded to the same short baseline (the mean TSS of the first
+ * `acuteDays` calendar days, rest days as 0) so the ratio starts near 1 instead of spiking from a
  * zero seed, and flags are suppressed during the warm-up window (see
  * `warmupDays`). Together these remove the cold-start artifact that otherwise
  * flagged `very_high` for the first few weeks of any athlete's history.
@@ -49,17 +50,19 @@ export function buildAcwrSeries(dailyLoads: DailyLoad[], options: AcwrOptions = 
   for (const d of dailyLoads) tssByDate.set(d.date, d.tss);
 
   const start = dailyLoads[0].date;
-  const lastActivity = dailyLoads[dailyLoads.length - 1].date;
-  const end =
-    options.throughDate && options.throughDate > lastActivity ? options.throughDate : lastActivity;
+  const end = seriesEnd(dailyLoads, options.throughDate);
+  const days = eachDay(start, end);
+  if (days.length === 0) return [];
 
-  // Seed both EWMAs to a short baseline so early ratios are ~1, not inflated.
-  const seed = mean(dailyLoads.slice(0, acuteN).map((d) => d.tss));
+  // Seed both EWMAs to a short baseline so early ratios are ~1, not inflated:
+  // the mean TSS over the first `acuteDays` CALENDAR days (rest days count as
+  // 0), never reaching past the series end.
+  const seed = mean(days.slice(0, acuteN).map((date) => tssByDate.get(date) ?? 0));
   let acute = seed;
   let chronic = seed;
   let dayIndex = 0;
   const series: AcwrPoint[] = [];
-  for (const date of eachDay(start, end)) {
+  for (const date of days) {
     const tss = tssByDate.get(date) ?? 0;
     acute = tss * acuteLambda + (1 - acuteLambda) * acute;
     chronic = tss * chronicLambda + (1 - chronicLambda) * chronic;
