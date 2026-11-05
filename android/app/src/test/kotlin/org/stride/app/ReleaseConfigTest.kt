@@ -1,9 +1,9 @@
 package org.stride.app
 
-import org.junit.Test
 import java.io.File
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.junit.Test
 
 /** Release hardening that a JVM test can check without building an APK (ANDF-012). */
 class ReleaseConfigTest {
