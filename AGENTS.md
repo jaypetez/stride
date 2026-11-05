@@ -20,11 +20,12 @@ run/verify → observe — locally with **no secrets and no network**.
 
 | Command | What it does |
 |---|---|
-| `pnpm check` | **The gate.** lint → typecheck → test → build, fail-fast. Run before committing. |
+| `pnpm check` | **The gate.** lint → typecheck → test → script tests → build → verify, fail-fast. Run before committing. |
 | `pnpm verify` | **Runtime smoke** (`scripts/smoke.mjs`): boots the API on a real socket, drives the MCP stdio protocol, runs the CLI — all offline — and asserts. The deterministic verifier. |
 | `pnpm lint` / `pnpm format` | Biome check / autofix (whole repo, incl. CLI). |
 | `pnpm typecheck` | `tsc --noEmit` per package (Turbo). |
 | `pnpm test` | Vitest per package (Turbo). Covers schemas, core, cli, api, mcp, web. |
+| `pnpm test:scripts` | `node --test` for plain-Node repo scripts (`scripts/**/*.test.mjs`, e.g. the Garmin probe sanitizer). Runs in CI's lint job. |
 | `pnpm test:watch` | `turbo watch test` — re-runs on change. |
 | `pnpm test:affected` | Only packages changed vs `origin/main`. |
 | `pnpm coverage` | Vitest v8 coverage per package. |

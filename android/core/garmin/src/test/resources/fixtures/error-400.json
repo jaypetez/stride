@@ -1,0 +1,6 @@
+{
+  "error": "BadRequestException",
+  "clientMessage": "Date range exceeds the maximum of 28 days",
+  "message": null,
+  "errorId": "fake-error-0001"
+}
