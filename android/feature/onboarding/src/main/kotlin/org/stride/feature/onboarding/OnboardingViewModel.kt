@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation3.runtime.NavKey
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.stride.core.common.StrideClock
+import org.stride.core.common.StrideLog
 import org.stride.core.data.demo.DemoController
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.navigation.ConnectGarminRoute
@@ -141,14 +145,33 @@ class OnboardingViewModel @Inject constructor(
         val profile = current.profile.validate(clock.today()).profile ?: return
         state.update { it.copy(working = true, error = null) }
         viewModelScope.launch {
-            runCatching {
+            try {
                 // Load the demo first so the shell never shows an empty Today screen.
                 if (enterDemo) demo.enter()
+                // Persist before handing off, and finish even if the screen goes away, so the app
+                // never ends with demo on but onboarding incomplete (AUD-030).
+                withContext(NonCancellable) { persist(profile, parqFlagged = !current.screening.cleared, rollbackDemo = enterDemo) }
                 finished.send(if (enterDemo) TodayRoute else ConnectGarminRoute)
-                prefs.completeOnboarding(profile, parqFlagged = !current.screening.cleared)
-            }.onFailure {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                StrideLog.w(TAG, "onboarding could not finish", e)
                 state.update { s -> s.copy(working = false, error = "Couldn't finish setting up. Please try again.") }
             }
         }
+    }
+
+    /** Completes onboarding; if that fails after entering the demo, leaves demo mode again before rethrowing. */
+    private suspend fun persist(profile: org.stride.core.model.AthleteProfile, parqFlagged: Boolean, rollbackDemo: Boolean) {
+        try {
+            prefs.completeOnboarding(profile, parqFlagged = parqFlagged)
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            if (rollbackDemo) runCatching { demo.exit() }
+            throw e
+        }
+    }
+
+    private companion object {
+        const val TAG = "Onboarding"
     }
 }

@@ -44,6 +44,7 @@ class DemoMode @Inject constructor(
 
     override suspend fun enter() = withContext(io) {
         holder.switchTo(false)
+        holder.awaitRetired() // never delete a file under a connection that is still closing
         context.deleteDatabase(StrideDatabase.DEMO_NAME)
         holder.switchTo(true)
         load(holder.db)
@@ -52,8 +53,11 @@ class DemoMode @Inject constructor(
 
     override suspend fun exit() = withContext(io) {
         holder.switchTo(false)
-        context.deleteDatabase(StrideDatabase.DEMO_NAME)
         prefs.setDemoMode(false)
+        // The demo database closes after a grace period so in-flight queries finish (AUD-030); then delete it.
+        holder.awaitRetired()
+        context.deleteDatabase(StrideDatabase.DEMO_NAME)
+        Unit
     }
 
     /** Inserts the dataset and computes metrics; public for tests on an in-memory database. */

@@ -1,12 +1,15 @@
 package org.stride.feature.onboarding
 
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
 import app.cash.turbine.test
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -34,12 +37,27 @@ class OnboardingViewModelTest {
 
     private class FakeDemo : DemoController {
         var entered = 0
+        var exited = 0
+        val active get() = entered > exited
 
         override suspend fun enter() {
             entered++
         }
 
-        override suspend fun exit() = Unit
+        override suspend fun exit() {
+            exited++
+        }
+    }
+
+    /** A DataStore whose writes fail on demand (disk full, I/O error). */
+    private class FlakyStore(private val inner: DataStore<Preferences>) : DataStore<Preferences> {
+        var failWrites = false
+        override val data: Flow<Preferences> = inner.data
+
+        override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+            if (failWrites) throw java.io.IOException("disk full")
+            return inner.updateData(transform)
+        }
     }
 
     private fun TestScope.prefs() = UserPreferences(
@@ -119,5 +137,35 @@ class OnboardingViewModelTest {
         }
         assertEquals(1, demo.entered)
         assertFalse(prefs.settings.first { it.onboardingComplete }.parqFlagged)
+    }
+
+    /** AUD-030: onboarding is persisted before the hand-off, so the shell never opens half set up. */
+    @Test
+    fun handOffHappensAfterOnboardingIsPersisted() = runTest(main.testDispatcher) {
+        val prefs = prefs()
+        val vm = OnboardingViewModel(prefs, FakeDemo(), FakeStrideClock())
+        vm.walkToFinish()
+        vm.destinations.test {
+            vm.onEvent(OnboardingEvent.TryDemo)
+            assertEquals(TodayRoute, awaitItem())
+            assertTrue(prefs.current().onboardingComplete, "persisted before the hand-off")
+        }
+    }
+
+    /** AUD-030: if saving fails after the demo loaded, the demo is left again: never demo-on but onboarding-incomplete. */
+    @Test
+    fun failedSaveAfterDemoRollsBackAndShowsError() = runTest(main.testDispatcher) {
+        val store = FlakyStore(PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "f.preferences_pb") })
+        val prefs = UserPreferences(store)
+        val demo = FakeDemo()
+        val vm = OnboardingViewModel(prefs, demo, FakeStrideClock())
+        vm.walkToFinish()
+        store.failWrites = true
+        vm.onEvent(OnboardingEvent.TryDemo)
+        val state = vm.uiState.first { it.error != null }
+        assertFalse(state.working)
+        assertEquals(1, demo.entered)
+        assertFalse(demo.active, "demo mode is rolled back")
+        assertFalse(prefs.current().onboardingComplete)
     }
 }

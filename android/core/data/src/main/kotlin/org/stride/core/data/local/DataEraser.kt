@@ -47,9 +47,10 @@ class RoomDataEraser @Inject constructor(
         }
     }
 
-    private fun clearSyncedDataLocked() {
+    private suspend fun clearSyncedDataLocked() {
         if (holder.isDemo) {
-            // The real database is closed while demo mode is active: delete its file.
+            // The real database is closed (or closing) while demo mode is active: delete its file.
+            holder.awaitRetired()
             context.deleteDatabase(StrideDatabase.NAME)
         } else {
             holder.db.clearAllTables()
@@ -63,6 +64,7 @@ class RoomDataEraser @Inject constructor(
             withContext(io) {
                 holder.switchTo(false)
                 holder.db.clearAllTables()
+                holder.awaitRetired()
                 context.deleteDatabase(StrideDatabase.DEMO_NAME)
                 secrets.wipe()
                 plans.delete()

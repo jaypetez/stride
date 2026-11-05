@@ -114,6 +114,11 @@ fun ConnectScreen(
             if (state.keyRejected) RejectedBanner()
             if (state.keyLost && !state.connected) KeyLostBanner()
             if (state.connected) ConnectedCard(state, onEvent, onBack)
+            // The key form shows its own errors; otherwise (e.g. a failed disconnect) show it here.
+            val error = state.error
+            if (error != null && !state.needsNewKey) {
+                Text(error.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
             if (state.needsNewKey) {
                 SetupSteps(onOpenGarmin)
                 KeyForm(state, onEvent)

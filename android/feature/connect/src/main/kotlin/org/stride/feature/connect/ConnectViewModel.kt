@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.stride.core.common.StrideClock
+import org.stride.core.common.StrideLog
 import org.stride.core.common.StrideResult
 import org.stride.core.data.local.DataEraser
 import org.stride.core.data.sync.SyncScheduler
@@ -53,6 +55,11 @@ sealed interface ConnectError {
     }
 
     data class Other(override val message: String) : ConnectError
+
+    companion object {
+        /** Saving or deleting on the phone failed (e.g. the Keystore is unavailable). */
+        val SaveFailed = Other("Something went wrong on this phone. Please try again.")
+    }
 }
 
 const val EXPIRY_WARNING_DAYS = 14L
@@ -169,32 +176,55 @@ class ConnectViewModel @Inject constructor(
         }
         state.update { it.copy(connecting = true, error = null) }
         viewModelScope.launch {
-            // Validate the pasted key with Garmin before storing anything.
-            when (val result = garmin.exchangeToken(key)) {
-                is StrideResult.Ok -> {
-                    secrets.saveGarminKey(key, current.expiry)
-                    prefs.setGarminKeyRejected(false)
-                    sync.syncNow()
-                    sync.schedulePeriodic()
-                    state.update { it.copy(connecting = false, keyInput = "", keyVisible = false) }
-                }
+            // Every path clears the spinner, even an unexpected failure (AUD-030).
+            try {
+                // Validate the pasted key with Garmin before storing anything.
+                when (val result = garmin.exchangeToken(key)) {
+                    is StrideResult.Ok -> {
+                        secrets.saveGarminKey(key, current.expiry)
+                        prefs.setGarminKeyRejected(false)
+                        sync.syncNow()
+                        sync.schedulePeriodic()
+                        state.update { it.copy(keyInput = "", keyVisible = false) }
+                    }
 
-                is StrideResult.Err -> state.update { it.copy(connecting = false, error = result.error.toConnectError()) }
+                    is StrideResult.Err -> state.update { it.copy(error = result.error.toConnectError()) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                StrideLog.w(TAG, "connect failed", e)
+                state.update { it.copy(error = ConnectError.SaveFailed) }
+            } finally {
+                state.update { it.copy(connecting = false) }
             }
         }
     }
 
     private fun disconnect() {
         val deleteData = state.value.deleteSyncedData
-        state.update { it.copy(disconnecting = true) }
+        state.update { it.copy(disconnecting = true, error = null) }
         viewModelScope.launch {
-            sync.cancelAll()
-            secrets.clearGarminKey()
-            garmin.clearToken()
-            prefs.setGarminKeyRejected(false)
-            if (deleteData) eraser.clearSyncedData()
-            state.update { it.copy(disconnecting = false, showDisconnect = false, deleteSyncedData = false) }
+            try {
+                sync.cancelAll()
+                secrets.clearGarminKey()
+                garmin.clearToken()
+                prefs.setGarminKeyRejected(false)
+                if (deleteData) eraser.clearSyncedData()
+                state.update { it.copy(showDisconnect = false, deleteSyncedData = false) }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                StrideLog.w(TAG, "disconnect failed", e)
+                state.update { it.copy(showDisconnect = false, error = ConnectError.SaveFailed) }
+            } finally {
+                state.update { it.copy(disconnecting = false) }
+            }
         }
+    }
+
+    private companion object {
+        const val TAG = "Connect"
     }
 }
 

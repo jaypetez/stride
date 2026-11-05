@@ -20,8 +20,12 @@ class FakeGarminClient(var result: GarminResult<AccessToken> = StrideResult.Ok(A
     val exchanged = mutableListOf<String?>()
     var tokenCleared = 0
 
+    /** Thrown from exchangeToken: an unexpected failure rather than a typed error. */
+    var throwOnExchange: Throwable? = null
+
     override suspend fun exchangeToken(apiKey: String?): GarminResult<AccessToken> {
         exchanged += apiKey
+        throwOnExchange?.let { throw it }
         return result
     }
 
@@ -62,8 +66,10 @@ class FakeSync : SyncScheduler {
 class FakeEraser : DataEraser {
     var cleared = 0
     var wiped = 0
+    var throwOnClear: Throwable? = null
 
     override suspend fun clearSyncedData() {
+        throwOnClear?.let { throw it }
         cleared++
     }
 

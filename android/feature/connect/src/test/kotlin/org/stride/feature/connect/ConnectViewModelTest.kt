@@ -38,8 +38,8 @@ class ConnectViewModelTest {
         val garmin = FakeGarminClient()
         val sync = FakeSync()
         val eraser = FakeEraser()
-        val secrets =
-            SecretStore(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(tmp.root, "s.preferences_pb") }, TestCipher)
+        val secretsStore = PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(tmp.root, "s.preferences_pb") }
+        val secrets = SecretStore(secretsStore, TestCipher)
         val prefs = UserPreferences(PreferenceDataStoreFactory.create(scope = scope.backgroundScope) { File(tmp.root, "p.preferences_pb") })
 
         fun vm() = ConnectViewModel(garmin, secrets, prefs, sync, eraser, clock)
@@ -111,7 +111,7 @@ class ConnectViewModelTest {
         vm.onEvent(ConnectEvent.KeyChanged("good-key"))
         vm.onEvent(ConnectEvent.LifetimeChosen(KeyLifetime.DAYS_180))
         vm.onEvent(ConnectEvent.Connect)
-        val state = vm.uiState.first { it.connected }
+        val state = vm.uiState.first { it.connected && !it.connecting }
         assertEquals("good-key", env.secrets.apiKey())
         assertEquals(today.plusDays(180), state.keyExpiry)
         assertEquals("", state.keyInput, "the pasted key is dropped from UI state")
@@ -155,7 +155,7 @@ class ConnectViewModelTest {
         assertTrue(vm.uiState.value.showDisconnect)
         vm.onEvent(ConnectEvent.DeleteSyncedDataChanged(true))
         vm.onEvent(ConnectEvent.DisconnectConfirmed)
-        val state = vm.uiState.first { !it.connected }
+        val state = vm.uiState.first { !it.connected && !it.disconnecting }
         assertFalse(state.showDisconnect)
         assertNull(env.secrets.apiKey())
         assertEquals(1, env.sync.cancelCalls)
@@ -171,7 +171,54 @@ class ConnectViewModelTest {
         vm.uiState.first { it.connected }
         vm.onEvent(ConnectEvent.DisconnectClicked)
         vm.onEvent(ConnectEvent.DisconnectConfirmed)
-        vm.uiState.first { !it.connected }
+        vm.uiState.first { !it.connected && !it.disconnecting }
         assertEquals(0, env.eraser.cleared)
+    }
+
+    /** AUD-030: an unexpected failure while connecting shows an error and clears the spinner. */
+    @Test
+    fun connectFailureShowsErrorAndClearsSpinner() = runTest(main.testDispatcher) {
+        val env = Env(this)
+        env.garmin.throwOnExchange = IllegalStateException("boom")
+        val vm = env.vm()
+        vm.onEvent(ConnectEvent.KeyChanged("key"))
+        vm.onEvent(ConnectEvent.Connect)
+        val state = vm.uiState.first { it.error != null }
+        assertEquals(ConnectError.SaveFailed, state.error)
+        assertFalse(vm.uiState.first { !it.connecting }.connecting)
+        assertNull(env.secrets.apiKey())
+    }
+
+    /** AUD-030: a failed disconnect shows an error and clears the spinner. */
+    @Test
+    fun disconnectFailureShowsErrorAndClearsSpinner() = runTest(main.testDispatcher) {
+        val env = Env(this)
+        env.secrets.saveGarminKey("k", null)
+        env.eraser.throwOnClear = IllegalStateException("disk full")
+        val vm = env.vm()
+        vm.uiState.first { it.connected }
+        vm.onEvent(ConnectEvent.DisconnectClicked)
+        vm.onEvent(ConnectEvent.DeleteSyncedDataChanged(true))
+        vm.onEvent(ConnectEvent.DisconnectConfirmed)
+        val state = vm.uiState.first { it.error != null && !it.disconnecting }
+        assertEquals(ConnectError.SaveFailed, state.error)
+        assertFalse(state.showDisconnect)
+    }
+
+    /** AUD-027: a stored key that no longer decrypts asks the user to re-enter it. */
+    @Test
+    fun undecryptableKeyAsksForReentry() = runTest(main.testDispatcher) {
+        val env = Env(this)
+        env.secrets.saveGarminKey("k", null)
+        val broken = object : org.stride.core.datastore.SecretCipher {
+            override fun encrypt(plaintext: String, associatedData: String) = TestCipher.encrypt(plaintext, associatedData)
+
+            override fun decrypt(ciphertext: String, associatedData: String): String = throw java.security.GeneralSecurityException("tag")
+        }
+        val vm = ConnectViewModel(env.garmin, SecretStore(env.secretsStore, broken), env.prefs, env.sync, env.eraser, clock)
+        val state = vm.uiState.first { !it.loading }
+        assertFalse(state.connected)
+        assertTrue(state.keyLost)
+        assertTrue(state.needsNewKey)
     }
 }
