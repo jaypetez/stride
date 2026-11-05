@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.stride.core.data.sync.SyncManager
+import org.stride.core.data.sync.SyncPhase
 import org.stride.core.data.sync.SyncProgress
 import org.stride.core.data.sync.SyncStatus
 import org.stride.core.data.sync.SyncWorker
@@ -87,7 +88,7 @@ class SyncManagerTest {
     fun cancelAllCancelsBothJobsAndResetsProgress() {
         manager.schedulePeriodic()
         manager.syncNow()
-        status.update(SyncProgress.Running("activities", 1, 2))
+        status.update(SyncProgress.Running(SyncPhase.IMPORTING, 1, 2))
         manager.cancelAll()
         assertEquals(WorkInfo.State.CANCELLED, infos(SyncManager.PERIODIC).single().state)
         assertEquals(WorkInfo.State.CANCELLED, infos(SyncManager.NOW).single().state)
