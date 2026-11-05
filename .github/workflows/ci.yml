@@ -35,6 +35,10 @@ jobs:
       # Plain-Node tests for repo scripts (e.g. the Garmin probe's sanitizer).
       - name: Script tests
         run: pnpm test:scripts
+      # contracts/science-golden is the parity contract for the Kotlin engine
+      # port (ADR 0010); fail when packages/core changed without regenerating.
+      - name: Science goldens up to date
+        run: pnpm science:golden --check
 
   test:
     # Platform matrix: dev is Windows/Node 24, CI historically Ubuntu/Node 22.

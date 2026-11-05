@@ -1,0 +1,374 @@
+{
+  "cases": [
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 5000, "timeSec": 1200},
+      "name": "5k in 20:00",
+      "output": 49.806233428066335
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 5000, "timeSec": 1500},
+      "name": "5k in 25:00",
+      "output": 38.30936290766015
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 10000, "timeSec": 2400},
+      "name": "10k in 40:00",
+      "output": 51.9440826680247
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 10000, "timeSec": 3300},
+      "name": "10k in 55:00",
+      "output": 35.77443951715977
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 21097, "timeSec": 5400},
+      "name": "half in 1:30:00",
+      "output": 50.97541388526538
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 42195, "timeSec": 12600},
+      "name": "marathon in 3:30:00",
+      "output": 44.55353056213261
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 1609.34, "timeSec": 330},
+      "name": "mile in 5:30",
+      "output": 53.372374084099036
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 0, "timeSec": 1200},
+      "name": "zero distance -> 0",
+      "output": 0
+    },
+    {
+      "fn": "vdotFromEffort",
+      "input": {"distanceM": 5000, "timeSec": 0},
+      "name": "zero time -> 0",
+      "output": 0
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 30},
+      "name": "vdot 30 @ 1500 m",
+      "output": 509.5467165443365
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 30},
+      "name": "vdot 30 @ 5000 m",
+      "output": 1840.877537363339
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 30},
+      "name": "vdot 30 @ 10000 m",
+      "output": 3828.853225878819
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 30},
+      "name": "vdot 30 @ 21097 m",
+      "output": 8477.005934421482
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 30},
+      "name": "vdot 30 @ 42195 m",
+      "output": 17388.8617629539
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 40},
+      "name": "vdot 40 @ 1500 m",
+      "output": 395.0792730663495
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 40},
+      "name": "vdot 40 @ 5000 m",
+      "output": 1446.2189413106234
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 40},
+      "name": "vdot 40 @ 10000 m",
+      "output": 3000.7710868713775
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 40},
+      "name": "vdot 40 @ 21097 m",
+      "output": 6653.741125762732
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 40},
+      "name": "vdot 40 @ 42195 m",
+      "output": 13777.421299376485
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 45},
+      "name": "vdot 45 @ 1500 m",
+      "output": 355.65090769215226
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 45},
+      "name": "vdot 45 @ 5000 m",
+      "output": 1308.572888163767
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 45},
+      "name": "vdot 45 @ 10000 m",
+      "output": 2713.490975614626
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 45},
+      "name": "vdot 45 @ 21097 m",
+      "output": 6014.0607074107465
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 45},
+      "name": "vdot 45 @ 42195 m",
+      "output": 12495.704417681722
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 50},
+      "name": "vdot 50 @ 1500 m",
+      "output": 323.7175543616594
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 50},
+      "name": "vdot 50 @ 5000 m",
+      "output": 1196.0208243278526
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 50},
+      "name": "vdot 50 @ 10000 m",
+      "output": 2479.6036493371785
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 50},
+      "name": "vdot 50 @ 21097 m",
+      "output": 5491.057910683097
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 50},
+      "name": "vdot 50 @ 42195 m",
+      "output": 11439.741755151474
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 60},
+      "name": "vdot 60 @ 1500 m",
+      "output": 275.25858421560486
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 60},
+      "name": "vdot 60 @ 5000 m",
+      "output": 1022.7851224265264
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 60},
+      "name": "vdot 60 @ 10000 m",
+      "output": 2121.854975856172
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 60},
+      "name": "vdot 60 @ 21097 m",
+      "output": 4688.47590328759
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 60},
+      "name": "vdot 60 @ 42195 m",
+      "output": 9802.480501888374
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 1500, "vdot": 70},
+      "name": "vdot 70 @ 1500 m",
+      "output": 240.30017776170922
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 70},
+      "name": "vdot 70 @ 5000 m",
+      "output": 895.5236855676444
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 10000, "vdot": 70},
+      "name": "vdot 70 @ 10000 m",
+      "output": 1860.9502494800035
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 21097, "vdot": 70},
+      "name": "vdot 70 @ 21097 m",
+      "output": 4102.574301776785
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 42195, "vdot": 70},
+      "name": "vdot 70 @ 42195 m",
+      "output": 8592.72822465326
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 5000, "vdot": 0},
+      "name": "vdot 0 -> 0",
+      "output": 0
+    },
+    {
+      "fn": "predictRaceTimeSec",
+      "input": {"distanceM": 0, "vdot": 50},
+      "name": "distance 0 -> 0",
+      "output": 0
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 30},
+      "name": "vdot 30",
+      "output": {
+        "E": 2.178516391958957,
+        "I": 2.83414053954236,
+        "M": 2.5094684071156435,
+        "R": 3.107694627706057,
+        "T": 2.60285700321775
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 30},
+      "name": "vdot 30",
+      "output": 2.60285700321775
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 40},
+      "name": "vdot 40",
+      "output": {
+        "E": 2.726592333106726,
+        "I": 3.5691656496232245,
+        "M": 3.1528772623006884,
+        "R": 3.918539190672815,
+        "T": 3.2728060023139336
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 40},
+      "name": "vdot 40",
+      "output": 3.2728060023139336
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 50},
+      "name": "vdot 50",
+      "output": {
+        "E": 3.2578589458602645,
+        "I": 4.275596244280668,
+        "M": 3.7737740649974563,
+        "R": 4.695346879914859,
+        "T": 3.918539190672815
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 50},
+      "name": "vdot 50",
+      "output": 3.918539190672815
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 60},
+      "name": "vdot 60",
+      "output": {
+        "E": 3.7737740649974563,
+        "I": 4.95653064955913,
+        "M": 4.3743684578011734,
+        "R": 5.442074984848875,
+        "T": 4.5425068243452404
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 60},
+      "name": "vdot 60",
+      "output": 4.5425068243452404
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 70},
+      "name": "vdot 70",
+      "output": {
+        "E": 4.275596244280668,
+        "I": 5.614545064654714,
+        "M": 4.95653064955913,
+        "R": 6.161968673508094,
+        "T": 5.146771866739402
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 70},
+      "name": "vdot 70",
+      "output": 5.146771866739402
+    },
+    {
+      "fn": "trainingSpeeds",
+      "input": {"vdot": 85},
+      "name": "vdot 85",
+      "output": {
+        "E": 5.004263992511786,
+        "I": 6.56324764539406,
+        "M": 5.79865165731565,
+        "R": 7.197283322235133,
+        "T": 6.020000300454773
+      }
+    },
+    {
+      "fn": "thresholdSpeedFromVdot",
+      "input": {"vdot": 85},
+      "name": "vdot 85",
+      "output": 6.020000300454773
+    }
+  ],
+  "meta": {
+    "caseCount": 53,
+    "description": "Jack Daniels VDOT model: VDOT from an effort, race prediction, training speeds.",
+    "formatVersion": 1,
+    "functions": {
+      "predictRaceTimeSec": "packages/core/src/science/vdot.ts",
+      "thresholdSpeedFromVdot": "packages/core/src/science/vdot.ts",
+      "trainingSpeeds": "packages/core/src/science/vdot.ts",
+      "vdotFromEffort": "packages/core/src/science/vdot.ts"
+    },
+    "generator": "scripts/science-golden.mts",
+    "notes": ["predictRaceTimeSec bisects time in [60, 21600] s for exactly 60 iterations and returns the midpoint; it is bounded at 6 h.", "trainingSpeeds/thresholdSpeedFromVdot return m/s (velocity in m/min divided by 60); E/M/T/I/R = 70/84/88/98/110 % of VDOT.", "Nothing here is rounded."],
+    "now": "2026-07-09T00:00:00Z",
+    "regenerate": "pnpm science:golden",
+    "tolerance": {"relative": 0.000001}
+  }
+}

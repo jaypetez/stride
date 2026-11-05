@@ -17,8 +17,8 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
     "test:scripts": "node --test \"scripts/**/*.test.mjs\"",
+    "test": "turbo run test && vitest run",
     "test:watch": "turbo watch test",
     "test:affected": "turbo run test --filter=...[origin/main]",
     "coverage": "turbo run test -- --coverage",
@@ -31,7 +31,8 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "science:golden": "tsx scripts/science-golden.mts"
   },
   "lint-staged": {
     "*.{ts,tsx,js,json}": "biome check --write --no-errors-on-unmatched"

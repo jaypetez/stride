@@ -9,13 +9,15 @@
     "ignoreUnknown": true,
     "includes": [
       "**/*.ts",
+      "**/*.mts",
       "**/*.tsx",
       "**/*.js",
       "**/*.json",
       "!**/dist",
       "!**/.turbo",
       "!**/coverage",
-      "!**/*.tsbuildinfo"
+      "!**/*.tsbuildinfo",
+      "!contracts/science-golden"
     ]
   },
   "formatter": {
