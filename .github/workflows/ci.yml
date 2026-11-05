@@ -32,6 +32,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Lint & format check
         run: pnpm lint
+      # Plain-Node tests for repo scripts (e.g. the Garmin probe's sanitizer).
+      - name: Script tests
+        run: pnpm test:scripts
 
   test:
     # Platform matrix: dev is Windows/Node 24, CI historically Ubuntu/Node 22.

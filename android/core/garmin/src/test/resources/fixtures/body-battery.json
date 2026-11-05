@@ -1,0 +1,74 @@
+[
+  {
+    "date": "2026-11-04",
+    "charged": 61,
+    "drained": 58,
+    "startTimestampGMT": "2026-11-04T00:00:00.0",
+    "endTimestampGMT": "2026-11-04T23:59:59.0",
+    "startTimestampLocal": "2026-11-04T01:00:00.0",
+    "endTimestampLocal": "2026-11-04T00:59:59.0",
+    "bodyBatteryValuesArray": [
+      [1793750400000, 24],
+      [1793772000000, 85],
+      [1793793600000, 61],
+      [1793815200000, 42]
+    ],
+    "bodyBatteryValueDescriptorDTOList": [
+      {
+        "bodyBatteryValueDescriptorIndex": 0,
+        "bodyBatteryValueDescriptorKey": "timestamp"
+      },
+      {
+        "bodyBatteryValueDescriptorIndex": 1,
+        "bodyBatteryValueDescriptorKey": "bodyBatteryLevel"
+      }
+    ],
+    "bodyBatteryActivityEvent": [
+      {
+        "eventType": "SLEEP",
+        "eventStartTimeGmt": "2026-11-04T22:10:00.0",
+        "timezoneOffset": 3600000,
+        "durationInMilliseconds": 27000000,
+        "bodyBatteryImpact": 58,
+        "feedbackType": "NONE",
+        "shortFeedback": "NONE"
+      }
+    ]
+  },
+  {
+    "date": "2026-11-05",
+    "charged": 62,
+    "drained": 57,
+    "startTimestampGMT": "2026-11-05T00:00:00.0",
+    "endTimestampGMT": "2026-11-05T23:59:59.0",
+    "startTimestampLocal": "2026-11-05T01:00:00.0",
+    "endTimestampLocal": "2026-11-05T00:59:59.0",
+    "bodyBatteryValuesArray": [
+      [1793836800000, 25],
+      [1793858400000, 86],
+      [1793880000000, 61],
+      [1793901600000, 42]
+    ],
+    "bodyBatteryValueDescriptorDTOList": [
+      {
+        "bodyBatteryValueDescriptorIndex": 0,
+        "bodyBatteryValueDescriptorKey": "timestamp"
+      },
+      {
+        "bodyBatteryValueDescriptorIndex": 1,
+        "bodyBatteryValueDescriptorKey": "bodyBatteryLevel"
+      }
+    ],
+    "bodyBatteryActivityEvent": [
+      {
+        "eventType": "SLEEP",
+        "eventStartTimeGmt": "2026-11-05T22:10:00.0",
+        "timezoneOffset": 3600000,
+        "durationInMilliseconds": 27000000,
+        "bodyBatteryImpact": 58,
+        "feedbackType": "NONE",
+        "shortFeedback": "NONE"
+      }
+    ]
+  }
+]

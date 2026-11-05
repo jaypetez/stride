@@ -1,0 +1,138 @@
+{
+  "activityId": 900000006,
+  "activityUUID": {
+    "uuid": "00000000-0000-4000-8000-000000000006"
+  },
+  "activityName": "REDACTED",
+  "description": null,
+  "userProfileId": 900000100,
+  "isMultiSportParent": false,
+  "activityTypeDTO": {
+    "typeId": 1,
+    "typeKey": "running",
+    "parentTypeId": 17
+  },
+  "eventTypeDTO": {
+    "typeId": 9,
+    "typeKey": "training"
+  },
+  "accessControlRuleDTO": {
+    "typeId": 2,
+    "typeKey": "private"
+  },
+  "timeZoneUnitDTO": {
+    "unitId": 124,
+    "unitKey": "Europe/Berlin",
+    "timeZone": "Europe/Berlin"
+  },
+  "metadataDTO": {
+    "isOriginal": true,
+    "fileFormat": {
+      "formatId": 7,
+      "formatKey": "fit"
+    },
+    "lastUpdateDate": "2026-11-04T07:55:12.0",
+    "uploadedDate": "2026-11-04T07:54:58.0",
+    "userInfoDto": {
+      "userProfilePk": 900000100,
+      "displayname": "REDACTED",
+      "fullname": "REDACTED"
+    },
+    "childIds": [],
+    "childActivityTypes": [],
+    "sensors": [
+      {
+        "manufacturer": "GARMIN",
+        "serialNumber": 900000300,
+        "sku": "010-00000-00",
+        "sourceType": "ANTPLUS",
+        "antplusDeviceType": "HEART_RATE",
+        "productName": "HRM",
+        "batteryStatus": "GOOD"
+      }
+    ],
+    "manufacturer": "GARMIN",
+    "lapCount": 8,
+    "manualActivity": false,
+    "personalRecord": false,
+    "elevationCorrected": false,
+    "autoCalcCalories": false,
+    "favorite": false,
+    "trimmed": false,
+    "gcj02": false
+  },
+  "summaryDTO": {
+    "startTimeLocal": "2026-11-04T07:05:00.0",
+    "startTimeGMT": "2026-11-04T06:05:00.0",
+    "startLatitude": null,
+    "startLongitude": null,
+    "endLatitude": null,
+    "endLongitude": null,
+    "distance": 8012.3,
+    "duration": 2885.4,
+    "movingDuration": 2798.8,
+    "elapsedDuration": 2980.4,
+    "elevationGain": 41,
+    "elevationLoss": 41,
+    "maxElevation": 74.2,
+    "minElevation": 33,
+    "averageSpeed": 2.777,
+    "averageMovingSpeed": 2.863,
+    "maxSpeed": 3.749,
+    "avgGradeAdjustedSpeed": 2.805,
+    "calories": 529,
+    "bmrCalories": 58,
+    "averageHR": 151,
+    "maxHR": 172,
+    "minHR": 96,
+    "averageRunCadence": 172.4,
+    "maxRunCadence": 186,
+    "groundContactTime": 246.3,
+    "strideLength": 96.8,
+    "verticalOscillation": 8.7,
+    "verticalRatio": 8.9,
+    "trainingEffect": 2.5,
+    "anaerobicTrainingEffect": 0.4,
+    "aerobicTrainingEffectMessage": "IMPROVING_AEROBIC_FITNESS_2",
+    "anaerobicTrainingEffectMessage": "NO_ANAEROBIC_BENEFIT_0",
+    "trainingEffectLabel": "TEMPO",
+    "activityTrainingLoad": 98,
+    "recoveryHeartRate": 118,
+    "directWorkoutFeel": 50,
+    "directWorkoutRpe": 40,
+    "moderateIntensityMinutes": 29,
+    "vigorousIntensityMinutes": 14,
+    "steps": 8271,
+    "differenceBodyBattery": -12
+  },
+  "locationName": "REDACTED",
+  "splitSummaries": [
+    {
+      "noOfSplits": 1,
+      "splitType": "INTERVAL_WARMUP",
+      "distance": 1500,
+      "duration": 600.2,
+      "averageSpeed": 2.499,
+      "maxSpeed": 2.9,
+      "totalAscent": 6
+    },
+    {
+      "noOfSplits": 1,
+      "splitType": "INTERVAL_ACTIVE",
+      "distance": 5012.3,
+      "duration": 1685,
+      "averageSpeed": 2.975,
+      "maxSpeed": 3.6,
+      "totalAscent": 28
+    },
+    {
+      "noOfSplits": 1,
+      "splitType": "INTERVAL_COOLDOWN",
+      "distance": 1500,
+      "duration": 600.2,
+      "averageSpeed": 2.499,
+      "maxSpeed": 2.8,
+      "totalAscent": 7
+    }
+  ]
+}
