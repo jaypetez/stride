@@ -17,7 +17,8 @@
       "!**/.turbo",
       "!**/coverage",
       "!**/*.tsbuildinfo",
-      "!contracts/science-golden"
+      "!contracts/science-golden",
+      "!android/**/schemas"
     ]
   },
   "formatter": {
