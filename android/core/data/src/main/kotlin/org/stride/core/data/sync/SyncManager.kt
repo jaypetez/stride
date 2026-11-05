@@ -16,18 +16,34 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.StateFlow
 
+/** What screens need from sync: progress plus "sync now" (pull-to-refresh). Lets ViewModels be tested without WorkManager. */
+interface SyncController {
+    val progress: StateFlow<SyncProgress>
+
+    /** Pull-to-refresh / after connecting: run now. */
+    fun syncNow()
+}
+
+/** Scheduling on top of [SyncController]; [SyncManager] is the WorkManager-backed implementation (fakes in tests). */
+interface SyncScheduler : SyncController {
+    /** Idempotent: keeps an existing schedule. */
+    fun schedulePeriodic()
+
+    /** Cancels the periodic and one-off jobs (disconnect / delete all data). */
+    fun cancelAll()
+}
+
 /** Schedules Garmin sync: a daily periodic job plus expedited one-offs for pull-to-refresh. */
 @Singleton
 class SyncManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val status: SyncStatus
-) {
-    val progress: StateFlow<SyncProgress> = status.progress
+) : SyncScheduler {
+    override val progress: StateFlow<SyncProgress> = status.progress
 
     private val network = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-    /** Idempotent: keeps an existing schedule. */
-    fun schedulePeriodic() {
+    override fun schedulePeriodic() {
         val request = PeriodicWorkRequestBuilder<SyncWorker>(1, TimeUnit.DAYS)
             .setConstraints(network)
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SEC, TimeUnit.SECONDS)
@@ -35,8 +51,8 @@ class SyncManager @Inject constructor(
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
-    /** Pull-to-refresh / after connecting: run now (expedited when quota allows). */
-    fun syncNow() {
+    /** Expedited when quota allows. */
+    override fun syncNow() {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(network)
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -45,7 +61,7 @@ class SyncManager @Inject constructor(
         WorkManager.getInstance(context).enqueueUniqueWork(NOW, ExistingWorkPolicy.KEEP, request)
     }
 
-    fun cancelAll() {
+    override fun cancelAll() {
         WorkManager.getInstance(context).cancelUniqueWork(PERIODIC)
         WorkManager.getInstance(context).cancelUniqueWork(NOW)
         status.update(SyncProgress.Idle)
