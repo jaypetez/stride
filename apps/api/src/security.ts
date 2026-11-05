@@ -12,7 +12,7 @@
  *
  * Every rejection uses the standard `{ error, requestId }` envelope.
  */
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { isLoopbackHost, type StrideConfig } from '@stride/core';
 import type { Context, MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -87,21 +87,31 @@ export function hostGuard(
   };
 }
 
-function digest(value: string): Buffer {
-  return createHash('sha256').update(value).digest();
+/**
+ * Constant-time string comparison. Only the length can leak (the token's
+ * length is not secret material); on a length mismatch we still run a
+ * same-length compare so timing does not depend on the content.
+ */
+function safeEqual(actual: string, expected: Buffer): boolean {
+  const got = Buffer.from(actual, 'utf8');
+  if (got.length !== expected.length) {
+    timingSafeEqual(expected, expected);
+    return false;
+  }
+  return timingSafeEqual(got, expected);
 }
 
 /**
  * Optional bearer auth (`STRIDE_API_TOKEN`). A no-op when no token is
- * configured. Compared in constant time over SHA-256 digests (equal length).
+ * configured. Compared in constant time.
  */
 export function bearerToken(token: string | undefined): MiddlewareHandler {
   if (!token) return async (_c, next) => next();
-  const expected = digest(token);
+  const expected = Buffer.from(token, 'utf8');
   return async (c, next) => {
     const auth = c.req.header('authorization') ?? '';
     const match = /^Bearer\s+(.+)$/i.exec(auth);
-    if (!match || !timingSafeEqual(digest(match[1].trim()), expected)) {
+    if (!match || !safeEqual(match[1].trim(), expected)) {
       c.header('www-authenticate', 'Bearer realm="stride"');
       return reject(c, 401, 'Unauthorized');
     }
