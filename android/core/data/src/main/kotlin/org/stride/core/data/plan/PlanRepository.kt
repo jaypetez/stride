@@ -21,6 +21,7 @@ import org.stride.core.database.DatabaseHolder
 import org.stride.core.database.toModel
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.model.RaceGoal as AppRaceGoal
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.TrainingPlan
 import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanGuardrailContext
@@ -68,8 +69,8 @@ class PlanRepository @Inject constructor(
     }
 
     /**
-     * Generates, validates and (when it passes) saves a plan seeded from recent training; also records the race
-     * goal on the profile.
+     * Generates, validates and (when it passes) saves a plan seeded from recent training; a race plan also records
+     * the race goal on the profile (a build plan leaves it alone).
      */
     suspend fun create(request: PlanRequest): PlanResult = withContext(dispatcher) {
         val ctx = guardrailContext()
@@ -85,10 +86,13 @@ class PlanRepository @Inject constructor(
         )
         if (result is PlanResult.Created) {
             save(StoredPlan(result.plan, ctx))
-            val profile = prefs.current().profile
-            prefs.updateProfile(
-                profile.copy(raceGoal = AppRaceGoal(raceDistanceM(request.distance), request.raceDate.toString(), request.goalTimeSec))
-            )
+            val raceDate = request.raceDate
+            if (request.kind == PlanKind.RACE && raceDate != null) {
+                val profile = prefs.current().profile
+                prefs.updateProfile(
+                    profile.copy(raceGoal = AppRaceGoal(raceDistanceM(request.distance), raceDate.toString(), request.goalTimeSec))
+                )
+            }
         }
         result
     }

@@ -17,8 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -29,6 +31,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDatePickerState
@@ -42,8 +47,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -64,11 +73,15 @@ import org.stride.core.designsystem.component.StrideTopAppBar
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.science.model.GuardrailViolation
 import org.stride.core.science.model.PlanDay
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.PlanPhase
 import org.stride.core.science.model.PlanWeek
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.TrainingPlan
 import org.stride.core.science.model.WorkoutType
+import org.stride.core.science.plan.BUILD_MAX_WEEKS
+import org.stride.core.science.plan.BUILD_MIN_WEEKS
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.ui.Format
 import org.stride.core.ui.LocalUnitSystem
 import org.stride.core.ui.R as CoreUiR
@@ -84,6 +97,8 @@ fun PlanRoute(modifier: Modifier = Modifier, viewModel: PlanViewModel = hiltView
             onDistance = viewModel::setDistance,
             onRaceDate = viewModel::setRaceDate,
             onGoalTime = viewModel::setGoalTime,
+            onKind = viewModel::setKind,
+            onBuildWeeks = viewModel::setBuildWeeks,
             onCreate = viewModel::create,
             onDelete = viewModel::delete,
             onRetry = viewModel::retry
@@ -97,6 +112,8 @@ data class PlanActions(
     val onDistance: (RaceDistance) -> Unit = {},
     val onRaceDate: (LocalDate) -> Unit = {},
     val onGoalTime: (String) -> Unit = {},
+    val onKind: (PlanKind) -> Unit = {},
+    val onBuildWeeks: (Int) -> Unit = {},
     val onCreate: () -> Unit = {},
     val onDelete: () -> Unit = {},
     val onRetry: () -> Unit = {}
@@ -171,35 +188,17 @@ private fun PlanFormContent(state: PlanUiState, actions: PlanActions, modifier: 
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        val build = state.form.kind == PlanKind.BUILD
+        PlanKindToggle(selected = state.form.kind, onSelect = actions.onKind)
         Text(
-            text = stringResource(R.string.plan_intro),
+            text = stringResource(if (build) R.string.plan_build_intro else R.string.plan_intro),
             style = MaterialTheme.typography.bodyMedium
         )
-        Text(text = stringResource(R.string.plan_race_distance), style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RACE_DISTANCES.forEach { (distance, label) ->
-                FilterChip(selected = state.form.distance == distance, onClick = {
-                    actions.onDistance(distance)
-                }, label = { Text(stringResource(label)) })
-            }
+        if (build) {
+            BuildFields(weeks = state.form.buildWeeks, seed = state.seed, onWeeks = actions.onBuildWeeks)
+        } else {
+            RaceFields(state, actions, onPickDate = { pickDate = true })
         }
-        Text(text = stringResource(R.string.plan_race_date), style = MaterialTheme.typography.titleSmall)
-        val raceDateDescription = stringResource(R.string.plan_race_date_change, Format.day(state.form.raceDate))
-        StrideOutlinedButton(
-            text = Format.day(state.form.raceDate),
-            onClick = { pickDate = true },
-            leadingIcon = Icons.Outlined.CalendarMonth,
-            modifier = Modifier.semantics { contentDescription = raceDateDescription }
-        )
-        OutlinedTextField(
-            value = state.form.goalTime,
-            onValueChange = actions.onGoalTime,
-            label = { Text(stringResource(R.string.plan_goal_time)) },
-            placeholder = { Text(stringResource(R.string.plan_goal_time_placeholder)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
-        )
         state.error?.let { Text(text = it.resolve(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         if (state.violations.isNotEmpty()) ViolationsCard(state.violations)
         StrideButton(
@@ -209,11 +208,15 @@ private fun PlanFormContent(state: PlanUiState, actions: PlanActions, modifier: 
             modifier = Modifier.fillMaxWidth()
         )
         Text(
-            text = stringResource(R.string.plan_start_note, Format.day(state.earliestRaceDate)),
+            text = if (build) {
+                stringResource(R.string.plan_build_start_note)
+            } else {
+                stringResource(R.string.plan_start_note, Format.day(state.earliestRaceDate))
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        if (pickDate) {
+        if (pickDate && !build) {
             RaceDatePicker(
                 initial = state.form.raceDate,
                 earliest = state.earliestRaceDate,
@@ -226,6 +229,88 @@ private fun PlanFormContent(state: PlanUiState, actions: PlanActions, modifier: 
         }
     }
 }
+
+/** Race | Build fitness (MVP-026): a single-choice segmented row; TalkBack announces each option and whether it is selected. */
+@Composable
+private fun PlanKindToggle(selected: PlanKind, onSelect: (PlanKind) -> Unit, modifier: Modifier = Modifier) {
+    val options = listOf(PlanKind.RACE to R.string.plan_kind_race, PlanKind.BUILD to R.string.plan_kind_build)
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (kind, text) ->
+            SegmentedButton(
+                selected = selected == kind,
+                onClick = { onSelect(kind) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                label = { Text(stringResource(text)) }
+            )
+        }
+    }
+}
+
+/** The race-plan fields: distance, race date and an optional goal time. */
+@Composable
+private fun RaceFields(state: PlanUiState, actions: PlanActions, onPickDate: () -> Unit) {
+    Text(text = stringResource(R.string.plan_race_distance), style = MaterialTheme.typography.titleSmall)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RACE_DISTANCES.forEach { (distance, label) ->
+            FilterChip(selected = state.form.distance == distance, onClick = {
+                actions.onDistance(distance)
+            }, label = { Text(stringResource(label)) })
+        }
+    }
+    Text(text = stringResource(R.string.plan_race_date), style = MaterialTheme.typography.titleSmall)
+    val raceDateDescription = stringResource(R.string.plan_race_date_change, Format.day(state.form.raceDate))
+    StrideOutlinedButton(
+        text = Format.day(state.form.raceDate),
+        onClick = onPickDate,
+        leadingIcon = Icons.Outlined.CalendarMonth,
+        modifier = Modifier.semantics { contentDescription = raceDateDescription }
+    )
+    OutlinedTextField(
+        value = state.form.goalTime,
+        onValueChange = actions.onGoalTime,
+        label = { Text(stringResource(R.string.plan_goal_time)) },
+        placeholder = { Text(stringResource(R.string.plan_goal_time_placeholder)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+/** The build-plan fields (MVP-026): a 4-16 week stepper and what the plan starts from. */
+@Composable
+private fun BuildFields(weeks: Int, seed: FitnessSeed?, onWeeks: (Int) -> Unit) {
+    Text(
+        text = stringResource(R.string.plan_build_length),
+        style = MaterialTheme.typography.titleSmall,
+        modifier = Modifier.semantics { heading() }
+    )
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        IconButton(onClick = { onWeeks(weeks - 1) }, enabled = weeks > BUILD_MIN_WEEKS) {
+            Icon(imageVector = Icons.Outlined.Remove, contentDescription = stringResource(R.string.plan_build_fewer_weeks))
+        }
+        Text(
+            text = pluralStringResource(R.plurals.plan_build_weeks, weeks, weeks),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        IconButton(onClick = { onWeeks(weeks + 1) }, enabled = weeks < BUILD_MAX_WEEKS) {
+            Icon(imageVector = Icons.Outlined.Add, contentDescription = stringResource(R.string.plan_build_more_weeks))
+        }
+    }
+    Text(
+        text = seed?.let {
+            stringResource(
+                R.string.plan_build_seed,
+                Format.number(it.weeklyMinutes / MINUTES_PER_HOUR, 1),
+                Format.number(it.longestRunMin, 0)
+            )
+        } ?: stringResource(R.string.plan_build_no_seed),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+private const val MINUTES_PER_HOUR = 60.0
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -300,11 +385,20 @@ private fun PlanContent(plan: TrainingPlan, state: PlanUiState, onDelete: () -> 
 private fun PlanHeader(plan: TrainingPlan, repairs: List<GuardrailViolation>, modifier: Modifier = Modifier) {
     val goal = plan.goal
     val label = RACE_DISTANCES.firstOrNull { it.first == goal.distance }?.second?.let { stringResource(it) } ?: goal.distance.wire
+    val build = plan.kind == PlanKind.BUILD
+    val goalTime = goal.goalTimeSec
     StrideCard(
         modifier = modifier,
-        title = "$label · ${goal.date?.let { Format.day(it) }.orEmpty()}",
-        subtitle =
-            goal.goalTimeSec?.let { stringResource(R.string.plan_goal, Format.duration(it)) } ?: stringResource(R.string.plan_no_goal)
+        title = if (build) {
+            pluralStringResource(R.plurals.plan_build_title, plan.weeks.size, plan.weeks.size)
+        } else {
+            "$label · ${goal.date?.let { Format.day(it) }.orEmpty()}"
+        },
+        subtitle = when {
+            build -> stringResource(R.string.plan_build_subtitle)
+            goalTime != null -> stringResource(R.string.plan_goal, Format.duration(goalTime))
+            else -> stringResource(R.string.plan_no_goal)
+        }
     ) {
         plan.summary?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
         Text(
