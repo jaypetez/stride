@@ -4,6 +4,7 @@ import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import java.time.LocalDate
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
@@ -14,7 +15,12 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.stride.core.data.testing.DemoDataFixture
+import org.stride.core.database.entity.SyncStateEntity
+import org.stride.core.database.toEntity
+import org.stride.core.model.Activity
 import org.stride.core.model.DailyLoadPoint
+import org.stride.core.model.DataSource
+import org.stride.core.model.SportType
 import org.stride.core.testing.MainDispatcherRule
 
 @RunWith(RobolectricTestRunner::class)
@@ -74,6 +80,64 @@ class FitnessViewModelTest {
         val fx = DemoDataFixture(this, tmp.root)
         FitnessViewModel(fx.insights, fx.prefs).uiState.test {
             assertTrue(awaitWhere { !it.isLoading }.isEmpty)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** MVP-024: while the backfill runs, the PMC so far is shown with an "importing history" note. */
+    @Test
+    fun incompleteBackfillShowsThePmcWithAnImportingNote() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val vm = FitnessViewModel(fx.insights, fx.prefs)
+        vm.uiState.test {
+            val done = awaitWhere { !it.isLoading && !it.isEmpty }
+            assertFalse(done.showImportingNote)
+            fx.holder.db.syncStateDao().upsert(
+                SyncStateEntity(
+                    backfillTargetDate = "2026-05-06",
+                    backfillCursorDate = "2026-09-01",
+                    backfillComplete = false,
+                    lastSuccessEpochSec = null
+                )
+            )
+            val importing = awaitWhere { it.importingHistory }
+            assertTrue(importing.showImportingNote)
+            assertFalse(importing.isEmpty)
+            assertFalse(importing.isCalculating)
+            assertTrue(importing.window.isNotEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** MVP-024: runs stored but no daily loads yet (sync before its first recompute) is "calculating", not empty. */
+    @Test
+    fun runsWithoutDailyLoadsAreCalculatingNotEmpty() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        val run = Activity(
+            id = 1,
+            name = "Run",
+            sport = SportType.RUN,
+            startEpochSec = 1_793_000_000,
+            timeZone = "UTC",
+            durationSec = 3000.0,
+            movingTimeSec = 3000.0,
+            distanceM = 9000.0,
+            elevationGainM = null,
+            avgHr = 145.0,
+            maxHr = null,
+            avgSpeedMps = 3.0,
+            maxSpeedMps = null,
+            avgCadenceSpm = null,
+            calories = null,
+            source = DataSource.GARMIN
+        )
+        fx.holder.db.activityDao().upsert(listOf(run.toEntity()))
+        FitnessViewModel(fx.insights, fx.prefs).uiState.test {
+            val state = awaitWhere { !it.isLoading && it.hasActivities }
+            assertTrue(state.isCalculating)
+            assertFalse(state.isEmpty)
+            assertFalse(state.showImportingNote)
             cancelAndIgnoreRemainingEvents()
         }
     }

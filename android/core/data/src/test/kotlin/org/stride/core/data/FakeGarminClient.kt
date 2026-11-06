@@ -59,8 +59,16 @@ class FakeGarminClient(
 
     override suspend fun activityDetail(activityId: Long): GarminResult<Activity> = StrideResult.Err(GarminError.Http(404))
 
+    /** When set, every `fitFile` call suspends until it completes (a slow FIT download). */
+    var fitGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** Completes when the first `fitFile` call starts. */
+    val fitEntered = kotlinx.coroutines.CompletableDeferred<Unit>()
+
     override suspend fun fitFile(activityId: Long): GarminResult<ByteArray> {
         fitRequests += activityId
+        fitEntered.complete(Unit)
+        fitGate?.await()
         return StrideResult.Err(GarminError.Http(404))
     }
 

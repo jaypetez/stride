@@ -11,6 +11,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -98,6 +99,12 @@ data class FitnessInsights(
 )
 
 /**
+ * Where the Garmin import stands (MVP-024): whether any runs are stored yet, and whether
+ * the history backfill is still running, so Fitness can say "still importing" instead of "empty".
+ */
+data class ImportProgress(val hasActivities: Boolean, val backfillInProgress: Boolean)
+
+/**
  * Read-side insights for Today and Fitness, computed by core:science from what
  * the recompute pipeline stored. Re-evaluated whenever the daily series changes.
  */
@@ -130,6 +137,13 @@ class InsightsRepository @Inject constructor(
         val triggers = combine(db.metricsDao().observeLatestDailyLoad(), prefs.settings) { _, _ -> }
         settledRecompute(triggers, SETTLE_MS) { fitness(db) }
     }.flowOn(dispatcher)
+
+    /** Whether runs exist and the backfill is incomplete. No sync state (demo, never synced) is not importing. */
+    fun observeImportProgress(): Flow<ImportProgress> = holder.current.flatMapLatest { db ->
+        combine(db.activityDao().observeHasAny(), db.syncStateDao().observe()) { hasAny, state ->
+            ImportProgress(hasActivities = hasAny, backfillInProgress = state != null && !state.backfillComplete)
+        }
+    }.distinctUntilChanged().flowOn(dispatcher)
 
     private suspend fun dailyLoads(db: StrideDatabase): List<DailyLoad> = db.metricsDao().allDailyLoads()
         .filter { it.load > 0 }
