@@ -10,6 +10,7 @@ import org.stride.core.science.model.GuardrailViolation
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.RaceGoal
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanGuardrailContext
 import org.stride.core.science.plan.PlanSkeletonParams
 import org.stride.core.science.plan.buildPlanSkeleton
@@ -23,8 +24,11 @@ const val MAX_PLAN_WEEKS = 24
 data class PlanRequest(val distance: RaceDistance, val raceDate: LocalDate, val goalTimeSec: Double? = null)
 
 sealed interface PlanResult {
-    /** Passed validatePlan, possibly after repairPlan applied [repairs]. */
-    data class Created(val plan: TrainingPlan, val repairs: List<GuardrailViolation>) : PlanResult
+    /**
+     * Passed validatePlan, possibly after repairPlan applied [repairs]. [seed] is the recent training the plan
+     * was seeded from (MVP-025), null when there were fewer than 3 recent runs.
+     */
+    data class Created(val plan: TrainingPlan, val repairs: List<GuardrailViolation>, val seed: FitnessSeed? = null) : PlanResult
 
     /** Still violates the guardrails after repair; nothing is saved. */
     data class Rejected(val violations: List<GuardrailViolation>) : PlanResult
@@ -60,6 +64,9 @@ fun raceDistanceM(distance: RaceDistance): Double = resolveRaceDistanceM(RaceGoa
  * The skeleton is aligned to the race: its last week ends on race day with a race
  * session, so for a race that is not on a Sunday the first week starts a few days
  * after the Monday from [planStartDate].
+ *
+ * With a [seed] (MVP-025, from `fitnessSeed` over recent activities) the plan starts from the athlete's recent
+ * weekly volume and long run, and paces from their recent VDOT; without one it is the fixed-minute skeleton.
  */
 fun generatePlan(
     request: PlanRequest,
@@ -67,7 +74,8 @@ fun generatePlan(
     today: LocalDate,
     ctx: PlanGuardrailContext,
     planId: String,
-    createdAt: String
+    createdAt: String,
+    seed: FitnessSeed? = null
 ): PlanResult {
     val start = planStartDate(today)
     val earliest = earliestRaceDate(today)
@@ -82,11 +90,12 @@ fun generatePlan(
             weeks = planWeeks(start, request.raceDate),
             startDate = start.toString(),
             planId = planId,
-            createdAt = createdAt
+            createdAt = createdAt,
+            seed = seed
         )
     )
-    if (validatePlan(skeleton, ctx).valid) return PlanResult.Created(skeleton, emptyList())
+    if (validatePlan(skeleton, ctx).valid) return PlanResult.Created(skeleton, emptyList(), seed)
     val repaired = repairPlan(skeleton, ctx)
     val check = validatePlan(repaired.plan, ctx)
-    return if (check.valid) PlanResult.Created(repaired.plan, repaired.fixed) else PlanResult.Rejected(check.violations)
+    return if (check.valid) PlanResult.Created(repaired.plan, repaired.fixed, seed) else PlanResult.Rejected(check.violations)
 }

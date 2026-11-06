@@ -5,6 +5,24 @@ import { IntensityLabel, LoadMethod, PlanPhase, SportType, WorkoutType } from '.
 import { AcwrPoint, PmcPoint, ZoneDistribution } from './metrics';
 
 /**
+ * What the athlete has actually been doing lately, used to seed a new plan's
+ * starting volume, long run and paces (MVP-026 shows it in the UI). Computed in
+ * core by `fitnessSeed`: running only, the 28 days ending on the reference day
+ * (VDOT from the last 56 days). Absent when there are fewer than 3 runs.
+ */
+export const FitnessSeed = z.object({
+  /** Average running minutes per week over the last 28 days. */
+  weeklyMinutes: z.number(),
+  /** Longest single run (moving time, minutes) in the last 28 days. */
+  longestRunMin: z.number(),
+  /** Best VDOT from qualifying runs in the last 56 days; null when none qualify. */
+  vdot: z.number().nullable(),
+  /** Runs in the last 28 days. */
+  runCount: z.number().int(),
+});
+export type FitnessSeed = z.infer<typeof FitnessSeed>;
+
+/**
  * The pre-computed "facts" bundle handed to Claude. Every number here is
  * computed deterministically in core; the LLM only reasons over it.
  */
@@ -36,6 +54,8 @@ export const CoachContext = z.object({
   goal: RaceGoal.optional(),
   daysToRace: z.number().optional(),
   planPhase: PlanPhase.optional(),
+  /** Recent training that seeds a new plan (absent with fewer than 3 recent runs). */
+  fitnessSeed: FitnessSeed.optional(),
   notes: z.string().optional(),
 });
 export type CoachContext = z.infer<typeof CoachContext>;
@@ -175,6 +195,8 @@ export const PlanResult = z.object({
   validation: PlanValidation,
   disclaimer: z.string(),
   flags: z.array(z.string()).default([]),
+  /** The recent training the plan was seeded from; absent for an unseeded plan. */
+  seed: FitnessSeed.optional(),
 });
 export type PlanResult = z.infer<typeof PlanResult>;
 

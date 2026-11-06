@@ -12,6 +12,7 @@ import {
   buildPmcSeries,
   computeActivityLoad,
   daysBetween,
+  fitnessSeed,
   latestAcwr,
   latestPmc,
   mpsToSecPerKm,
@@ -107,6 +108,8 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
     });
 
   const daysToRace = goal?.date ? daysBetween(asOf, goal.date) : undefined;
+  // What the athlete has actually run in the last 4 weeks seeds a new plan (MVP-025).
+  const seed = fitnessSeed(activities, asOf);
 
   return {
     generatedAt: params.asOfDate ?? new Date().toISOString(),
@@ -120,5 +123,6 @@ export function buildCoachContext(params: BuildContextParams): CoachContext {
     goal,
     daysToRace,
     planPhase: derivePhase(daysToRace),
+    ...(seed ? { fitnessSeed: seed } : {}),
   };
 }

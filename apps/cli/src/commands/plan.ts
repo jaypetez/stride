@@ -75,7 +75,7 @@ export async function planCommand(opts: {
   const startDate = opts.start ?? asOfDate.slice(0, 10);
 
   const context = buildCoachContext({ activities, profile, goal, asOfDate, dailyLoads });
-  const { plan, validation, disclaimer, flags } = await generatePlan({
+  const { plan, validation, disclaimer, flags, seed } = await generatePlan({
     profile,
     goal,
     weeks,
@@ -99,7 +99,7 @@ export async function planCommand(opts: {
   }
 
   if (opts.json) {
-    console.log(JSON.stringify({ plan, validation, disclaimer, flags }, null, 2));
+    console.log(JSON.stringify({ plan, validation, disclaimer, flags, seed }, null, 2));
     return;
   }
 

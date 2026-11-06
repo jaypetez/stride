@@ -25,6 +25,8 @@ import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
 import org.stride.core.data.plan.StoredPlan
 import org.stride.core.science.model.RaceDistance
+import org.stride.core.science.plan.PlanSkeletonParams
+import org.stride.core.science.plan.buildPlanSkeleton
 import org.stride.core.science.plan.validatePlan
 
 /** MVP-018: plans are generated from the demo athlete, saved as JSON and only ever returned when valid. */
@@ -60,6 +62,39 @@ class PlanRepositoryTest {
 
         repo.delete()
         assertNull(repo.plan.first())
+    }
+
+    /** MVP-025: the plan starts from the demo athlete's last 4 weeks, not fixed minutes. */
+    @Test
+    fun createSeedsThePlanFromRecentActivities() = runTest(UnconfinedTestDispatcher()) {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val env = TestEnv(this, dispatcher, tmp.root)
+        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "seed.preferences_pb") }
+        val repo = PlanRepository(store, env.holder, env.prefs, env.clock, env.recomputer, dispatcher)
+        assertNull(repo.fitnessSeed(), "no history, no seed")
+        val unseeded = assertIs<PlanResult.Created>(repo.create(PlanRequest(RaceDistance.HALF, LocalDate.parse("2027-02-28"))))
+        assertNull(unseeded.seed)
+
+        DemoMode(env.context, env.holder, env.prefs, env.clock, env.recomputer, dispatcher).load(env.db)
+        val seed = assertNotNull(repo.fitnessSeed(), "the demo history has recent runs")
+        assertTrue(seed.runCount >= 3 && seed.weeklyMinutes > 0 && seed.longestRunMin > 0)
+        val created = assertIs<PlanResult.Created>(repo.create(PlanRequest(RaceDistance.HALF, LocalDate.parse("2027-02-28"))))
+        assertEquals(seed, created.seed)
+        val expected = buildPlanSkeleton(
+            PlanSkeletonParams(
+                profile = env.recomputer.resolvedProfile(),
+                goal = created.plan.goal,
+                weeks = created.plan.weeks.size,
+                startDate = created.plan.startDate,
+                planId = created.plan.id,
+                createdAt = created.plan.createdAt,
+                seed = seed
+            )
+        )
+        if (created.repairs.isEmpty()) assertEquals(expected, created.plan)
+        val firstWeekMin = created.plan.weeks.first().days.sumOf { d -> d.sessions.sumOf { (it.targetDurationSec ?: 0.0) / 60 } }
+        assertTrue(firstWeekMin <= maxOf(60.0, seed.weeklyMinutes) * 1.1, "week 1 starts at recent volume: $firstWeekMin vs $seed")
+        assertTrue(validatePlan(created.plan, repo.guardrailContext()).valid)
     }
 
     @Test

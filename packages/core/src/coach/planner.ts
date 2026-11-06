@@ -1,6 +1,7 @@
 import type {
   AthleteProfile,
   CoachContext,
+  FitnessSeed,
   IntensityLabel,
   LlmPlanProposal,
   PlanDay,
@@ -256,69 +257,168 @@ const FOCUS: Record<PlanPhase, string> = {
   recovery: 'Recovery week — reduced volume to absorb the last block.',
 };
 
+/** One slot of a weekly template: the day, the workout type and its minutes. */
+interface TemplateSlot {
+  day: number;
+  type: WorkoutType;
+  /** Template minutes; ignored for `long` (the progression sets it) and `rest`. */
+  min: number;
+}
+
+/** A template per phase; `recovery` is the recovery week, whatever its phase. */
+type TemplateKey = PlanPhase;
+
+/**
+ * The weekly templates. Unseeded plans use these minutes as-is; seeded plans
+ * (MVP-025) scale every non-long running session by one per-week factor.
+ */
+const TEMPLATES: Record<TemplateKey, TemplateSlot[]> = {
+  recovery: [
+    { day: 1, type: 'rest', min: 0 },
+    { day: 2, type: 'easy', min: 35 },
+    { day: 3, type: 'easy', min: 40 },
+    { day: 4, type: 'rest', min: 0 },
+    { day: 5, type: 'easy', min: 30 },
+    { day: 6, type: 'rest', min: 0 },
+    { day: 7, type: 'long', min: 0 },
+  ],
+  build: [
+    { day: 1, type: 'rest', min: 0 },
+    { day: 2, type: 'threshold', min: 50 },
+    { day: 3, type: 'easy', min: 45 },
+    { day: 4, type: 'easy', min: 40 },
+    { day: 5, type: 'rest', min: 0 },
+    { day: 6, type: 'tempo', min: 40 },
+    { day: 7, type: 'long', min: 0 },
+  ],
+  peak: [
+    { day: 1, type: 'rest', min: 0 },
+    { day: 2, type: 'interval', min: 50 },
+    { day: 3, type: 'easy', min: 40 },
+    { day: 4, type: 'tempo', min: 40 },
+    { day: 5, type: 'rest', min: 0 },
+    { day: 6, type: 'easy', min: 40 },
+    { day: 7, type: 'long', min: 0 },
+  ],
+  taper: [
+    { day: 1, type: 'rest', min: 0 },
+    { day: 2, type: 'threshold', min: 30 },
+    { day: 3, type: 'easy', min: 30 },
+    { day: 4, type: 'rest', min: 0 },
+    { day: 5, type: 'easy', min: 25 },
+    { day: 6, type: 'rest', min: 0 },
+    { day: 7, type: 'easy', min: 40 },
+  ],
+  base: [
+    { day: 1, type: 'rest', min: 0 },
+    { day: 2, type: 'easy', min: 45 },
+    { day: 3, type: 'easy', min: 50 },
+    { day: 4, type: 'easy', min: 40 },
+    { day: 5, type: 'rest', min: 0 },
+    { day: 6, type: 'easy', min: 40 },
+    { day: 7, type: 'long', min: 0 },
+  ],
+};
+
+/** Total template minutes of a week's non-long running sessions. */
+function templateNonLongMin(key: TemplateKey): number {
+  return TEMPLATES[key].reduce((sum, s) => (s.type === 'long' ? sum : sum + s.min), 0);
+}
+
+/**
+ * A week's sessions from its template: the long run lasts `longMin`, every other
+ * running session `min * scale` (scale is 1 for an unseeded plan).
+ */
 function weeklySessions(
-  phase: PlanPhase,
-  recovery: boolean,
+  key: TemplateKey,
   longMin: number,
   threshold: number,
+  scale: number,
 ): PlanDay[] {
-  const day = (d: number, s: WorkoutSuggestion): PlanDay => ({ day: d, sessions: [s] });
-  const rest = (d: number) => day(d, makeSession('rest', 0, threshold));
+  return TEMPLATES[key].map((slot) => {
+    const min = slot.type === 'long' ? longMin : slot.type === 'rest' ? 0 : slot.min * scale;
+    return { day: slot.day, sessions: [makeSession(slot.type, min, threshold)] };
+  });
+}
 
-  if (recovery) {
-    return [
-      rest(1),
-      day(2, makeSession('easy', 35, threshold)),
-      day(3, makeSession('easy', 40, threshold)),
-      rest(4),
-      day(5, makeSession('easy', 30, threshold)),
-      rest(6),
-      day(7, makeSession('long', Math.min(longMin, 60), threshold)),
-    ];
-  }
+/** Seeded plans never start below this many minutes per week. */
+export const SEED_MIN_WEEKLY_MIN = 60;
+/** Seeded long runs never start below this (unless the long-run share caps them). */
+export const SEED_LONG_FLOOR_MIN = 40;
+/** A seeded long run is at most this share of its week (the guardrail allows 45%). */
+export const SEED_LONG_SHARE = 0.4;
+/** Growth of volume and long run from one loading week to the next (at most +10%). */
+export const SEED_WEEKLY_GROWTH = 1.08;
+/** Seeded volume grows to at most this multiple of the starting volume... */
+export const SEED_MAX_GROWTH = 2;
+/** ...and never past this many minutes per week (unless the athlete already runs more). */
+export const SEED_MAX_WEEKLY_MIN = 600;
+/** A recovery week's volume as a share of the last loading week. */
+export const SEED_RECOVERY_FACTOR = 0.65;
+/** A taper week's volume as a share of the last loading week. */
+export const SEED_TAPER_FACTOR = 0.5;
+/** The long-run caps every plan shares: overall, and in a peak week. */
+const LONG_CAP_MIN = 140;
+const PEAK_LONG_CAP_MIN = 110;
 
-  switch (phase) {
-    case 'build':
-      return [
-        rest(1),
-        day(2, makeSession('threshold', 50, threshold)),
-        day(3, makeSession('easy', 45, threshold)),
-        day(4, makeSession('easy', 40, threshold)),
-        rest(5),
-        day(6, makeSession('tempo', 40, threshold)),
-        day(7, makeSession('long', longMin, threshold)),
-      ];
-    case 'peak':
-      return [
-        rest(1),
-        day(2, makeSession('interval', 50, threshold)),
-        day(3, makeSession('easy', 40, threshold)),
-        day(4, makeSession('tempo', 40, threshold)),
-        rest(5),
-        day(6, makeSession('easy', 40, threshold)),
-        day(7, makeSession('long', Math.min(longMin, 110), threshold)),
-      ];
-    case 'taper':
-      return [
-        rest(1),
-        day(2, makeSession('threshold', 30, threshold)),
-        day(3, makeSession('easy', 30, threshold)),
-        rest(4),
-        day(5, makeSession('easy', 25, threshold)),
-        rest(6),
-        day(7, makeSession('easy', 40, threshold)),
-      ];
-    default: // base
-      return [
-        rest(1),
-        day(2, makeSession('easy', 45, threshold)),
-        day(3, makeSession('easy', 50, threshold)),
-        day(4, makeSession('easy', 40, threshold)),
-        rest(5),
-        day(6, makeSession('easy', 40, threshold)),
-        day(7, makeSession('long', longMin, threshold)),
-      ];
+/** A week's long run (minutes) and the scale applied to its other sessions. */
+interface WeekShape {
+  longMin: number;
+  scale: number;
+}
+
+/**
+ * Week shapes for a seeded plan (MVP-025). Week 1 totals the athlete's recent
+ * weekly minutes (at least {@link SEED_MIN_WEEKLY_MIN}); its long run is their
+ * recent longest run, at least {@link SEED_LONG_FLOOR_MIN} and at most
+ * {@link SEED_LONG_SHARE} of the week and 140 min. A later loading week grows
+ * volume by {@link SEED_WEEKLY_GROWTH} over the last loading week when it stays
+ * in the same phase and holds it when the phase changes (intensity rises
+ * instead), up to max(start, min(start * 2, 600)); the long run grows by the
+ * same factor within the share and 140-min caps (110 in a peak week). A recovery
+ * week is 0.65 and a taper week 0.5 of the last loading week's volume. The
+ * weekly templates are the unseeded ones, scaled.
+ */
+function seededShapes(seed: FitnessSeed, weeks: number): WeekShape[] {
+  const start = Math.max(SEED_MIN_WEEKLY_MIN, seed.weeklyMinutes);
+  const cap = Math.max(start, Math.min(start * SEED_MAX_GROWTH, SEED_MAX_WEEKLY_MIN));
+  const shapes: WeekShape[] = [];
+  let loadVolume = start;
+  let loadLong = 0;
+  let loadPhase: PlanPhase | undefined;
+  for (let w = 1; w <= weeks; w++) {
+    const phase = phaseForWeek(w, weeks);
+    const recovery = w % 4 === 0 && phase !== 'taper';
+    const key: TemplateKey = recovery ? 'recovery' : phase;
+    let volume: number;
+    let longMin: number;
+    if (phase === 'taper') {
+      volume = loadVolume * SEED_TAPER_FACTOR;
+      longMin = 0;
+    } else if (recovery) {
+      volume = loadVolume * SEED_RECOVERY_FACTOR;
+      longMin = Math.min(loadLong, SEED_LONG_SHARE * volume);
+    } else {
+      if (loadPhase === undefined) {
+        volume = start;
+        longMin = Math.min(
+          Math.max(seed.longestRunMin, SEED_LONG_FLOOR_MIN),
+          LONG_CAP_MIN,
+          SEED_LONG_SHARE * volume,
+        );
+      } else {
+        const growth = phase === loadPhase ? SEED_WEEKLY_GROWTH : 1;
+        volume = Math.min(cap, loadVolume * growth);
+        longMin = Math.min(loadLong * SEED_WEEKLY_GROWTH, LONG_CAP_MIN, SEED_LONG_SHARE * volume);
+      }
+      if (phase === 'peak') longMin = Math.min(longMin, PEAK_LONG_CAP_MIN);
+      loadVolume = volume;
+      loadLong = longMin;
+      loadPhase = phase;
+    }
+    shapes.push({ longMin, scale: (volume - longMin) / templateNonLongMin(key) });
   }
+  return shapes;
 }
 
 /** Where a plan sits on the calendar once aligned to the goal race. */
@@ -390,6 +490,17 @@ export interface PlanSkeletonParams {
   startDate: string;
   planId: string;
   createdAt: string;
+  /**
+   * Recent training (MVP-025, see `fitnessSeed`). When present the plan starts
+   * from it (volume, long run and, with a VDOT, paces); when absent the plan is
+   * the fixed-minute skeleton.
+   */
+  seed?: FitnessSeed | null;
+}
+
+/** Threshold speed for a plan: from the seed's recent VDOT when known, else the profile's. */
+function planThreshold(profile: AthleteProfile, seed: FitnessSeed | null | undefined): number {
+  return seed?.vdot ? thresholdSpeedFromVdot(seed.vdot) : thresholdOf(profile);
 }
 
 /**
@@ -398,20 +509,31 @@ export interface PlanSkeletonParams {
  * then double-checks (and the LLM only enriches language, never numbers).
  */
 export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
-  const { profile, goal, planId, createdAt } = params;
-  const threshold = thresholdOf(profile);
+  const { profile, goal, planId, createdAt, seed } = params;
+  const threshold = planThreshold(profile, seed);
   // With a goal date the last week ends on race day (start/length derived from it).
   const { startDate: start, weeks, raceDate } = alignToRace(params.startDate, params.weeks, goal);
   const planWeeks: PlanWeek[] = [];
+  const shapes = seed ? seededShapes(seed, weeks) : undefined;
 
   let longMin = 60;
   for (let w = 1; w <= weeks; w++) {
     const phase = phaseForWeek(w, weeks);
     const recovery = w % 4 === 0 && phase !== 'taper';
+    const key: TemplateKey = recovery ? 'recovery' : phase;
     if (phase === 'taper') longMin = Math.max(40, longMin * 0.6);
-    else if (!recovery) longMin = Math.min(140, longMin + 8);
+    else if (!recovery) longMin = Math.min(LONG_CAP_MIN, longMin + 8);
+    const unseeded: WeekShape = {
+      longMin: recovery
+        ? Math.min(longMin, 60)
+        : phase === 'peak'
+          ? Math.min(longMin, PEAK_LONG_CAP_MIN)
+          : longMin,
+      scale: 1,
+    };
+    const shape = shapes?.[w - 1] ?? unseeded;
 
-    let days = weeklySessions(phase, recovery, longMin, threshold).map((d) => ({
+    let days = weeklySessions(key, shape.longMin, threshold, shape.scale).map((d) => ({
       ...d,
       date: addDays(start, (w - 1) * 7 + (d.day - 1)),
       sessions: d.sessions.map((s) => ({ ...s, date: addDays(start, (w - 1) * 7 + (d.day - 1)) })),
@@ -487,8 +609,8 @@ export function materializeProposal(
   proposal: LlmPlanProposal,
   params: PlanSkeletonParams,
 ): TrainingPlan {
-  const { profile, goal, planId, createdAt } = params;
-  const threshold = thresholdOf(profile);
+  const { profile, goal, planId, createdAt, seed } = params;
+  const threshold = planThreshold(profile, seed);
   const { startDate: start, weeks, raceDate } = alignToRace(params.startDate, params.weeks, goal);
 
   const planWeeks: PlanWeek[] = [];

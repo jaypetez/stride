@@ -43,6 +43,7 @@ import org.stride.core.science.model.WorkoutType
 import org.stride.core.science.plan.PlanGuardrailContext
 import org.stride.core.science.plan.PlanSkeletonParams
 import org.stride.core.science.plan.buildPlanSkeleton
+import org.stride.core.science.plan.fitnessSeed
 import org.stride.core.science.plan.repairPlan
 import org.stride.core.science.plan.validatePlan
 import org.stride.core.science.pmc.AcwrOptions
@@ -182,6 +183,16 @@ class GoldenParityTest {
                     )
                 },
                 "resolveRaceDistanceM" runs { c -> num(resolveRaceDistanceM(c.arg<RaceGoal>("goal"))) }
+            )
+        )
+    }
+
+    @Test
+    fun seed() {
+        runGoldenFile(
+            "seed.json",
+            mapOf(
+                "fitnessSeed" runs { c -> encode(fitnessSeed(c.arg<List<Activity>>("activities"), c.arg<String>("asOf"))) }
             )
         )
     }

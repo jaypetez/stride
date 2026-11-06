@@ -158,7 +158,7 @@ export async function toolPlan(
   const asOfDate = refNowIso(state, args.demo);
   const startDate = args.start ?? asOfDate.slice(0, 10);
   const context = buildCoachContext({ activities, profile, goal, asOfDate, dailyLoads });
-  const { plan, validation, disclaimer, flags } = await generatePlan({
+  const { plan, validation, disclaimer, flags, seed } = await generatePlan({
     profile,
     goal,
     weeks,
@@ -177,6 +177,6 @@ export async function toolPlan(
   }
   return {
     text: `${plan.weeks.length}-week ${goal.name ?? goal.distance} plan (valid).`,
-    data: { plan, validation, disclaimer, flags },
+    data: { plan, validation, disclaimer, flags, seed },
   };
 }

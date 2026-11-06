@@ -16,11 +16,15 @@ import org.stride.core.common.Dispatcher
 import org.stride.core.common.StrideClock
 import org.stride.core.common.StrideDispatchers
 import org.stride.core.data.metrics.ScienceMetricsRecomputer
+import org.stride.core.data.metrics.toScience
 import org.stride.core.database.DatabaseHolder
+import org.stride.core.database.toModel
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.model.RaceGoal as AppRaceGoal
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanGuardrailContext
+import org.stride.core.science.plan.fitnessSeed
 import org.stride.core.science.plan.validatePlan
 
 /** A saved plan plus the guardrail context it was validated against. */
@@ -57,7 +61,16 @@ class PlanRepository @Inject constructor(
         return PlanGuardrailContext(seedCtl = latest?.ctl, seedAtl = latest?.atl, experienceLevel = profile.experienceLevel)
     }
 
-    /** Generates, validates and (when it passes) saves a plan; also records the race goal on the profile. */
+    /** The last 4 weeks of running as of today (MVP-025); null with fewer than 3 runs. */
+    suspend fun fitnessSeed(): FitnessSeed? = withContext(dispatcher) {
+        val activities = holder.db.activityDao().allChronological().map { it.toModel().toScience(null, clock.zone()) }
+        fitnessSeed(activities, clock.today().toString())
+    }
+
+    /**
+     * Generates, validates and (when it passes) saves a plan seeded from recent training; also records the race
+     * goal on the profile.
+     */
     suspend fun create(request: PlanRequest): PlanResult = withContext(dispatcher) {
         val ctx = guardrailContext()
         val now = clock.now()
@@ -67,7 +80,8 @@ class PlanRepository @Inject constructor(
             today = clock.today(),
             ctx = ctx,
             planId = "plan-${now.epochSecond}",
-            createdAt = now.toString()
+            createdAt = now.toString(),
+            seed = fitnessSeed()
         )
         if (result is PlanResult.Created) {
             save(StoredPlan(result.plan, ctx))

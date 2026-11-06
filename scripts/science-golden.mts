@@ -49,6 +49,7 @@ import {
   ctlRampCap,
   efficiencyFactor,
   estimateAnchors,
+  fitnessSeed,
   gradeAdjustFactor,
   predictRaceTimeSec,
   rampRatePerWeek,
@@ -69,6 +70,7 @@ import {
   AthleteProfile,
   type CoachContext,
   type DailyLoad,
+  type FitnessSeed,
   type PlanPhase,
   type PlanWeek,
   RaceGoal,
@@ -1178,6 +1180,91 @@ function plannerFile(now: string): GoldenFile {
     run(cases, name, 'buildPlanSkeleton', { params }, (i) => buildPlanSkeleton(i.params));
   }
 
+  // MVP-025: plans seeded from the last 4 weeks of training (fitnessSeed).
+  const seedOf = (
+    weeklyMinutes: number,
+    longestRunMin: number,
+    vdot: number | null,
+    runCount = 12,
+  ): FitnessSeed => ({ weeklyMinutes, longestRunMin, vdot, runCount });
+  const seeded: Array<[string, AthleteProfile, RaceGoal, number, FitnessSeed | null]> = [
+    [
+      'seeded: low-volume beginner, 5k, 8 weeks',
+      PROFILES.beginner,
+      goal({ distance: '5k' }),
+      8,
+      seedOf(75, 30, null, 9),
+    ],
+    [
+      'seeded: below the 60 min/week floor, 10k, 6 weeks',
+      PROFILES.empty,
+      goal({ distance: '10k' }),
+      6,
+      seedOf(30, 15, null, 3),
+    ],
+    [
+      'seeded: medium volume with VDOT paces, 10k, 12 weeks',
+      P,
+      goal({ distance: '10k', name: 'Autumn 10k' }),
+      12,
+      seedOf(180, 60, 45),
+    ],
+    [
+      'seeded: medium volume, short long run (floor 40), half, 10 weeks',
+      PROFILES.vdotOnly,
+      goal({ distance: 'half' }),
+      10,
+      seedOf(240, 25, 48.3),
+    ],
+    [
+      'seeded: high volume, marathon, 16 weeks',
+      PROFILES.female,
+      goal({ distance: 'marathon' }),
+      16,
+      seedOf(420, 120, 55.1),
+    ],
+    [
+      'seeded: very high volume holds (cap), half with race date, 20 weeks',
+      PROFILES.male,
+      goal({ distance: 'half', date: addDays(start, 139) }),
+      20,
+      seedOf(700, 150, 62),
+    ],
+    [
+      'seeded: long run capped by its 40% share, 4 weeks',
+      P,
+      goal({ distance: '10k' }),
+      4,
+      seedOf(120, 110, 40),
+    ],
+    [
+      'seeded: from the demo history (fitnessSeed at the reference clock), 8 weeks',
+      P,
+      goal({ distance: '10k' }),
+      8,
+      fitnessSeed(HISTORY, now),
+    ],
+    [
+      'fallback: fewer than 3 recent runs -> seed null = the unseeded skeleton',
+      P,
+      goal({ distance: '10k' }),
+      8,
+      fitnessSeed(HISTORY.slice(0, 2), now),
+    ],
+  ];
+  for (const [name, prof, g, weeks, seed] of seeded) {
+    const params = {
+      profile: prof,
+      goal: g,
+      weeks,
+      startDate: now,
+      planId: `golden-seeded-${weeks}w`,
+      createdAt: now,
+      seed,
+    };
+    run(cases, name, 'buildPlanSkeleton', { params }, (i) => buildPlanSkeleton(i.params));
+  }
+
   const types: WorkoutType[] = [
     'easy',
     'long',
@@ -1246,6 +1333,107 @@ function plannerFile(now: string): GoldenFile {
       'Strings (titles, descriptions, rationales incl. interpolated numbers like "TSB -30") are part of the contract and must match exactly.',
       'makeSession: durationSec = Math.round(min*60); targetTss = toFixed(0) of IF^2*hours*100; pace = Math.round(1000/speed) s/km; distance = Math.round(speed*durationSec); pace is omitted (absent) when speed <= 0.',
       'proposeNextWorkout threshold: profile.thresholdSpeedMps, else from vdot, else 3.0 m/s.',
+      'buildPlanSkeleton params.seed (MVP-025, from fitnessSeed): absent/null = the fixed-minute skeleton. Present: paces from thresholdSpeedFromVdot(seed.vdot) when vdot is truthy; week volumes/long runs from seededShapes (start = max(60, weeklyMinutes); long = min(max(longestRunMin, 40), 140, 0.4*volume); same-phase loading weeks grow x1.08 up to max(start, min(2*start, 600)), a phase change holds volume; long x1.08 within 140 / 0.4*volume / 110 in peak; recovery 0.65x and taper 0.5x the last loading volume, recovery long = min(last long, 0.4*volume)); non-long sessions are template minutes x (volume - long) / template non-long minutes.',
+    ],
+    cases,
+  };
+}
+
+function seedFile(now: string): GoldenFile {
+  const cases: GoldenCase[] = [];
+  const asOf = now.slice(0, 10);
+  const day = (n: number, hour = '06:00:00') => `${addDays(asOf, n)}T${hour}Z`;
+  const r = (id: string, n: number, over: Partial<Activity> = {}) =>
+    summary(id, {
+      startDate: day(n),
+      distance: 8000,
+      movingTime: 2400,
+      elapsedTime: 2500,
+      ...over,
+    });
+  const window = [
+    r('today-30min', 0, { movingTime: 1800, distance: 6000 }),
+    r('first-day-in-window', -27, { movingTime: 5400, distance: 15000 }),
+    r('manual-counts-for-volume', -10, {
+      source: 'manual',
+      manual: true,
+      movingTime: 3000,
+      distance: 12000,
+    }),
+    r('treadmill-counts-for-volume', -5, {
+      sportType: 'treadmill_run',
+      trainer: true,
+      distance: 12000,
+      movingTime: 2700,
+    }),
+    r('trail-run', -3, { sportType: 'trail_run', distance: 10000, movingTime: 3600 }),
+    r('one-day-too-old', -28, { movingTime: 9000 }),
+    r('after-asOf', 1, { movingTime: 9000 }),
+    r('walk-ignored', -2, { sportType: 'walk', distance: 5000, movingTime: 3600 }),
+    r('hike-ignored', -4, { sportType: 'hike', distance: 9000, movingTime: 9000 }),
+  ];
+  const cases_: Array<[string, Activity[], string]> = [
+    ['demo history at the reference clock', HISTORY, now],
+    [
+      'demo history two weeks later (window partly empty)',
+      HISTORY,
+      `${addDays(asOf, 14)}T00:00:00Z`,
+    ],
+    ['window edges, manual/treadmill/trail runs count for volume, non-runs ignored', window, asOf],
+    [
+      'local start day wins over the UTC start',
+      [
+        r('late-local', -27, {
+          startDate: day(-28, '23:30:00'),
+          startDateLocal: `${addDays(asOf, -27)}T01:30:00Z`,
+        }),
+        r('a', 0),
+        r('b', -1),
+      ],
+      asOf,
+    ],
+    [
+      'VDOT from the last 56 days only; short / manual / treadmill / under-10-min efforts skipped',
+      [
+        r('a', 0, { distance: 2900, movingTime: 700 }), // < 3 km
+        r('b', -1, { distance: 4000, movingTime: 590 }), // < 10 min
+        r('c', -2, { distance: 9000, movingTime: 2400, manual: true }),
+        r('d', -3, { distance: 9000, movingTime: 2400, trainer: true }),
+        r('in-vdot-window', -55, { distance: 10000, movingTime: 2700 }),
+        r('too-old-for-vdot', -56, { distance: 10000, movingTime: 2000 }),
+      ],
+      asOf,
+    ],
+    [
+      'no qualifying VDOT run -> vdot null',
+      [
+        r('a', 0, { distance: 2000, movingTime: 900 }),
+        r('b', -1, { distance: 2000, movingTime: 900 }),
+        r('c', -2, { distance: 2500, movingTime: 900 }),
+      ],
+      asOf,
+    ],
+    ['exactly 3 runs -> seed', [r('a', 0), r('b', -7), r('c', -14)], asOf],
+    ['2 runs -> null', [r('a', 0), r('b', -7)], asOf],
+    ['2 runs + 1 outside the window -> null', [r('a', 0), r('b', -7), r('c', -28)], asOf],
+    ['no activities -> null', [], asOf],
+    ['asOf as a full ISO datetime', window, `${asOf}T18:45:00Z`],
+  ];
+  for (const [name, activities, at] of cases_) {
+    run(cases, name, 'fitnessSeed', { activities: [...activities], asOf: at }, (i) =>
+      fitnessSeed(i.activities, i.asOf),
+    );
+  }
+  return {
+    file: 'seed.json',
+    description:
+      'Fitness seed (MVP-025): recent running volume, long run and VDOT that seed a new plan.',
+    functions: { fitnessSeed: 'packages/core/src/science/seed.ts' },
+    notes: [
+      'Runs only (run, trail_run, treadmill_run), bucketed by the first 10 chars of startDateLocal ?? startDate; asOf is truncated to YYYY-MM-DD.',
+      'Volume window: the 28 days ending on asOf inclusive (asOf-27 .. asOf). weeklyMinutes = toFixed(sum(movingTime)/60/4, 1); longestRunMin = toFixed(max(movingTime)/60, 1); runCount = runs in the window. Manual and treadmill runs count for volume.',
+      'vdot = toFixed(best vdotFromEffort, 1) over asOf-55 .. asOf from runs that are not manual or trainer, movingTime >= 600 s and distance >= 3000 m; null when none.',
+      'Output is null when the volume window holds fewer than 3 runs.',
     ],
     cases,
   };
@@ -1603,6 +1791,7 @@ export function generateGoldens(now: string = process.env.STRIDE_NOW ?? DEFAULT_
     anchorsFile(),
     efficiencyFile(),
     plannerFile(now),
+    seedFile(now),
     guardrailFile(now),
     safetyFile(),
   ];

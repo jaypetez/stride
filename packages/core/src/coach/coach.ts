@@ -261,8 +261,10 @@ function runGuardrail(
 /**
  * Generate a periodized plan.
  *
- * - No LLM (all offline / golden tests): use `buildPlanSkeleton` EXACTLY as
- *   before, so golden snapshots stay byte-identical.
+ * - No LLM (all offline / golden tests): use `buildPlanSkeleton`, seeded with
+ *   `context.fitnessSeed` when the context has one (MVP-025); without a seed
+ *   it is the fixed-minute skeleton, so golden snapshots stay byte-identical.
+ *   The seed used is returned as `seed` on the result.
  * - LLM present: ask for a STRUCTURAL proposal (Option A) via structured
  *   outputs, materialize it into real numbers with `makeSession`, then run the
  *   hardened guardrail. Valid → return; repaired-to-valid → return (repaired:
@@ -281,6 +283,9 @@ export async function generatePlan(params: {
   const { profile, goal, weeks, startDate, context, note, deps } = params;
   const createdAt = nowIso(deps);
   const planId = `plan-${startDate}-${weeks}w`;
+  // MVP-025: start from what the athlete has actually run lately (absent with
+  // fewer than 3 runs in the last 4 weeks, or without a context).
+  const seed = context?.fitnessSeed;
   // GOAL §7 ramp cap uses CTL when we know current fitness; else cold-start TSS.
   const guardrailCtx: PlanGuardrailContext = {
     seedCtl: context?.fitness?.ctl,
@@ -336,7 +341,7 @@ export async function generatePlan(params: {
 
   const skeleton = () =>
     runGuardrail(
-      buildPlanSkeleton({ profile, goal, weeks, startDate, planId, createdAt }),
+      buildPlanSkeleton({ profile, goal, weeks, startDate, planId, createdAt, seed }),
       guardrailCtx,
     );
 
@@ -365,6 +370,7 @@ export async function generatePlan(params: {
           startDate,
           planId,
           createdAt,
+          seed,
         });
         if (materialized.weeks.length > 0) {
           const gr = runGuardrail(materialized, guardrailCtx);
@@ -402,5 +408,6 @@ export async function generatePlan(params: {
     validation: result.validation,
     disclaimer: DISCLAIMER,
     flags: flags.map((f) => f.message),
+    ...(seed ? { seed } : {}),
   };
 }
