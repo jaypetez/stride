@@ -45,6 +45,13 @@ export const backlog: WorkstreamBacklog = {
       summary:
         'Demo mode, settings and data controls, an end-to-end smoke flow and a signed v0.1-mvp APK with a friend install guide.',
     },
+    {
+      key: 'MVP-E6',
+      title: 'Training from your own history',
+      phase: 'MVP',
+      summary:
+        'Fitness appears as soon as runs import, and plans start from where you are: race plans seeded from the last 4 weeks, plus a no-race "build my fitness" mode. Science changes ship in TypeScript and Kotlin with golden parity.',
+    },
   ],
   issues: [
     // ── E1 Garmin Personal API ──────────────────────────────────────────────
@@ -604,6 +611,100 @@ export const backlog: WorkstreamBacklog = {
       ],
       files: ['docs/mvp/friends-guide.md'],
       dependsOn: ['REL-002', 'REL-008', 'MVP-014', 'MVP-015', 'MVP-016', 'MVP-020', 'MVP-021'],
+    },
+    // ── E6 Training from your own history ───────────────────────────────────
+    {
+      key: 'MVP-024',
+      epic: 'MVP-E6',
+      title: 'Show fitness as soon as runs import, not after the whole first sync',
+      phase: 'MVP',
+      priority: 'high',
+      size: 'S',
+      type: 'feature',
+      agent: true,
+      context:
+        "Real-key testing: runs appeared but Fitness stayed empty. `GarminSyncer.runSync()` computes CTL/ATL/TSB only once, after the incremental week, the whole 180-day backfill and every FIT download (`android/core/data/.../sync/GarminSyncer.kt`). Summary-level load (duration + HR) does not need FIT streams, and the Fitness tab already reacts to `daily_load` writes (`InsightsRepository.observeFitness`).\n\nFix: recompute after the incremental window and after each backfill window (summary metrics), then again after FIT downloads refine them. While the backfill is still running, Fitness shows the series so far plus a 'still importing history' note instead of the empty state.",
+      acceptance: [
+        'After the first backfill window completes, `daily_load` has rows through today and the Fitness tab renders.',
+        'A sync with many FIT downloads pending shows fitness before the downloads finish.',
+        'Fitness shows an "importing history" hint while the backfill is incomplete; no empty state when runs exist.',
+        'Recompute work stays bounded: at most one recompute per backfill window plus one at the end.',
+      ],
+      testPlan: [
+        '`./gradlew -p android :core:data:testDebugUnitTest` (GarminSyncerTest: metrics present after first window; recompute count)',
+        '`./gradlew -p android :feature:fitness:testDebugUnitTest`',
+      ],
+      files: [
+        'android/core/data/src/main/kotlin/org/stride/core/data/sync/GarminSyncer.kt',
+        'android/feature/fitness/src/**',
+      ],
+    },
+    {
+      key: 'MVP-025',
+      epic: 'MVP-E6',
+      title: 'Seed plans from the last 4 weeks of training (TS + Kotlin parity)',
+      phase: 'MVP',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        "Plans ignore current fitness: `buildPlanSkeleton` always starts from a 60-minute long run and fixed per-phase session minutes (`packages/core/src/coach/planner.ts`, mirrored in `android/core/science/.../plan/PlanSkeleton.kt`); CTL only caps plans down via the guardrail. Paces use the best-ever VDOT, not a recent one.\n\nAdd a pure, tested `fitnessSeed(activities, asOf)` in both engines: average weekly running minutes over the last 28 days, longest run in that window, and the best VDOT from the last 8 weeks. Add an optional `seed` to `PlanSkeletonParams`: week 1 volume matches the seed, weekly volume ramps at most 10% (recovery every 4th week), the long run starts from the recent longest run (capped by the guardrail long-run share), and paces come from the recent VDOT. With fewer than 3 runs in 28 days, or no seed, behaviour is exactly today's (golden cases unchanged). Wire the seed into Android `PlanRepository`/`generatePlan` and TS `coach.generatePlan` (context).",
+      acceptance: [
+        '`fitnessSeed` exists in TS and Kotlin with identical outputs, pinned by new golden cases in `contracts/science-golden/`.',
+        'Existing planner golden cases are byte-identical (seed absent → old behaviour).',
+        'A seeded plan: week-1 minutes within 10% of the 4-week average; no week-on-week rise above 10%; every plan passes `validatePlan`.',
+        'Fewer than 3 recent runs falls back to the template plan.',
+        'Android and CLI/API plans use the seed when history exists.',
+      ],
+      testPlan: [
+        '`pnpm --filter @stride/core exec vitest run planner seed`',
+        '`pnpm science:golden --check`',
+        '`./gradlew -p android :core:science:test :core:data:testDebugUnitTest`',
+      ],
+      files: [
+        'packages/core/src/coach/planner.ts',
+        'packages/core/src/science/seed.ts',
+        'android/core/science/src/main/kotlin/org/stride/core/science/plan/**',
+        'android/core/data/src/main/kotlin/org/stride/core/data/plan/**',
+        'scripts/science-golden.mts',
+        'contracts/science-golden/*.json',
+      ],
+    },
+    {
+      key: 'MVP-026',
+      epic: 'MVP-E6',
+      title: 'Add a no-race "build my fitness" plan mode on every surface',
+      phase: 'MVP',
+      priority: 'high',
+      size: 'M',
+      type: 'feature',
+      agent: true,
+      context:
+        "Android requires a race date (`PlanRequest.raceDate`, `PlanGeneration.kt`), and every plan is shaped base → build → peak → taper with a race session. Users without a race want a progressive plan from where they are.\n\nAdd a `build` plan kind in both engines: 4-16 weeks, base then build phases with a recovery week every 4th week, no peak/taper/race session, seeded by MVP-025. Expose it in the Android Plan tab (Race | Build fitness toggle; weeks picker instead of a race date; a 'Based on your last 4 weeks: X h/week, longest run Y' line), the CLI (`stride plan --build --weeks N`), the API (`POST /plan {kind: 'build'}`), MCP `plan_training`, and the web PlanCard.",
+      acceptance: [
+        'A build plan has no taper, peak or race session and passes `validatePlan` for 4-16 weeks.',
+        'Golden cases pin build-plan output in TS and Kotlin.',
+        'Android Plan tab offers Race and Build fitness; build mode needs no race date and shows the seed summary.',
+        'CLI, API, MCP and web can create a build plan; demo mode works offline.',
+        'Roborazzi baselines and web tests cover the new mode.',
+      ],
+      testPlan: [
+        '`pnpm check` and `pnpm science:golden --check`',
+        '`pnpm --filter @stride/web e2e`',
+        '`./gradlew -p android check`',
+      ],
+      files: [
+        'packages/core/src/coach/**',
+        'packages/schemas/src/**',
+        'apps/cli/src/commands/plan.ts',
+        'apps/api/src/app.ts',
+        'apps/mcp/src/**',
+        'apps/web/src/components/PlanCard.tsx',
+        'android/core/science/src/main/kotlin/org/stride/core/science/plan/**',
+        'android/feature/plan/src/**',
+      ],
+      dependsOn: ['MVP-025'],
     },
   ],
 };
