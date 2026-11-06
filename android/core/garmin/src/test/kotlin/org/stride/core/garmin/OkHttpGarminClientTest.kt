@@ -101,6 +101,61 @@ class OkHttpGarminClientTest {
         assertEquals("POST", req.method)
         assertEquals("ApiKey $apiKey", req.headers["Authorization"])
         assertTrue(req.url.encodedPath.endsWith(OkHttpGarminClient.TOKEN_PATH))
+        assertEquals("*/*", req.headers["Accept"])
+        assertEquals(GarminConfig.DEFAULT_USER_AGENT, req.headers["User-Agent"])
+    }
+
+    @Test
+    fun exchangeSucceedsAgainstAServerThatRejectsJsonAccept() = runTest {
+        // Regression: the real token endpoint returns the JWT as text and answers
+        // 406 NotAcceptableException when the client asks for application/json.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requests += request
+                return if (request.headers["Accept"] == "application/json") {
+                    MockResponse.Builder().code(406)
+                        .body("""{"error":"NotAcceptableException"}""").build()
+                } else {
+                    tokenResponse()
+                }
+            }
+        }
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        assertIs<StrideResult.Ok<AccessToken>>(c.exchangeToken(apiKey = apiKey))
+    }
+
+    @Test
+    fun failingOptionalWellnessEndpointsAreSkippedNotFatal() = runTest {
+        // Weight 404 (no scale), stress 500 after retries and an HRV shape we can't decode
+        // must not abort the sync; daily summaries and sleep still come through.
+        route("usersummary-service/v2/dailysummaries", ok("""{"data":[{"calendarDate":"2026-11-04","heartRate":{"restingValue":48}}]}"""))
+        route("sleep-service", ok("[]"))
+        route("hrv-service", ok("""{"hrvSummaries":"not-a-list"}"""))
+        route("usersummary-service/stats/stress", code(500))
+        route("weight-service", code(404))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.wellness(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        assertIs<StrideResult.Ok<List<org.stride.core.model.DailyWellness>>>(result)
+        assertEquals(48, result.value.single { it.date == "2026-11-04" }.restingHr)
+    }
+
+    @Test
+    fun rateLimitOnWellnessStillStopsTheSync() = runTest {
+        route("usersummary-service/v2/dailysummaries", code(429))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.wellness(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        assertIs<StrideResult.Err<GarminError>>(result)
+        assertIs<GarminError.RateLimited>(result.error)
+    }
+
+    @Test
+    fun dataRequestsSendUserAgent() = runTest {
+        route("activitylist-service", ok("[]"))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        c.activities(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        val data = requests.first { it.url.encodedPath.contains("activitylist-service") }
+        assertEquals(GarminConfig.DEFAULT_USER_AGENT, data.headers["User-Agent"])
+        assertEquals("application/json", data.headers["Accept"])
     }
 
     @Test

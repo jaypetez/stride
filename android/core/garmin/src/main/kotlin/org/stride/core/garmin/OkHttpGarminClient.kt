@@ -65,7 +65,10 @@ class OkHttpGarminClient(
         val request = Request.Builder()
             .url(url(TOKEN_PATH))
             .header("Authorization", "ApiKey $key")
-            .header("Accept", "application/json")
+            // The token endpoint returns the raw JWT as text and answers 406 Not Acceptable to
+            // `Accept: application/json` (docs/garmin/personal-api.md, "Token exchange").
+            .header("Accept", TOKEN_ACCEPT)
+            .header("User-Agent", config.userAgent)
             .post(ByteArray(0).toRequestBody(null))
             .build()
         return when (val result = execute(request, isTokenCall = true)) {
@@ -145,27 +148,40 @@ class OkHttpGarminClient(
             val s = w.start.toString()
             val e = w.end.toString()
             fun ranged(path: String) = url(path).newBuilder().addQueryParameter("startDate", s).addQueryParameter("endDate", e).build()
-            when (val r = getJson(ranged(DAILIES_PATH), DailiesEnvelope.serializer())) {
-                is StrideResult.Err -> return r
-                is StrideResult.Ok -> dailies += r.value?.data.orEmpty()
+
+            // Wellness is optional enrichment. One endpoint failing (a device that doesn't record it,
+            // an unconfirmed response shape, a 4xx/5xx on a range) must not abort the whole sync and
+            // lose the runs' fitness metrics. Auth, throttling and connectivity errors still stop it.
+            fun <T> optional(name: String, r: GarminResult<T?>, add: (T?) -> Unit): GarminError? = when (r) {
+                is StrideResult.Ok -> {
+                    add(r.value)
+                    null
+                }
+
+                is StrideResult.Err -> if (r.error.stopsSync()) {
+                    r.error
+                } else {
+                    StrideLog.w(TAG, "skipped optional wellness '$name' for $s..$e: ${r.error}")
+                    null
+                }
             }
-            when (val r = getJson(ranged(SLEEP_PATH), ListSerializer(SleepDto.serializer()))) {
-                is StrideResult.Err -> return r
-                is StrideResult.Ok -> sleeps += r.value.orEmpty()
-            }
-            when (val r = getJson(url("$HRV_PATH/$s/$e"), HrvEnvelope.serializer())) {
-                is StrideResult.Err -> return r
-                is StrideResult.Ok -> hrv += r.value?.hrvSummaries.orEmpty()
-            }
-            when (val r = getJson(url("$STRESS_PATH/$s/$e"), ListSerializer(StressDayDto.serializer()))) {
-                is StrideResult.Err -> return r
-                is StrideResult.Ok -> stress += r.value.orEmpty()
-            }
+
+            optional("daily summaries", getJson(ranged(DAILIES_PATH), DailiesEnvelope.serializer())) {
+                dailies += it?.data.orEmpty()
+            }?.let { return StrideResult.Err(it) }
+            optional("sleep", getJson(ranged(SLEEP_PATH), ListSerializer(SleepDto.serializer()))) {
+                sleeps += it.orEmpty()
+            }?.let { return StrideResult.Err(it) }
+            optional("hrv", getJson(url("$HRV_PATH/$s/$e"), HrvEnvelope.serializer())) {
+                hrv += it?.hrvSummaries.orEmpty()
+            }?.let { return StrideResult.Err(it) }
+            optional("stress", getJson(url("$STRESS_PATH/$s/$e"), ListSerializer(StressDayDto.serializer()))) {
+                stress += it.orEmpty()
+            }?.let { return StrideResult.Err(it) }
             val weightUrl = url("$WEIGHT_PATH/$s/$e").newBuilder().addQueryParameter("includeAll", "false").build()
-            when (val r = getJson(weightUrl, WeightEnvelope.serializer())) {
-                is StrideResult.Err -> return r
-                is StrideResult.Ok -> weights += r.value?.dailyWeightSummaries.orEmpty()
-            }
+            optional("weight", getJson(weightUrl, WeightEnvelope.serializer())) {
+                weights += it?.dailyWeightSummaries.orEmpty()
+            }?.let { return StrideResult.Err(it) }
         }
         return StrideResult.Ok(mergeWellness(dailies, sleeps, hrv, stress, weights))
     }
@@ -173,6 +189,10 @@ class OkHttpGarminClient(
     // Plumbing
 
     private fun url(path: String): HttpUrl = config.baseUrl.newBuilder().addPathSegments(path.trimStart('/')).build()
+
+    /** Errors that must stop a sync rather than be skipped: the key, throttling or connectivity. */
+    private fun GarminError.stopsSync(): Boolean =
+        this == GarminError.KeyInvalid || this == GarminError.KeyMissing || this is GarminError.RateLimited || this is GarminError.Network
 
     /** GET a JSON body; 204/empty → Ok(null). */
     private suspend fun <T> getJson(url: HttpUrl, strategy: DeserializationStrategy<T>): GarminResult<T?> {
@@ -188,7 +208,9 @@ class OkHttpGarminClient(
                     try {
                         StrideResult.Ok(json.decodeFromString(strategy, text))
                     } catch (e: IllegalArgumentException) {
-                        StrideResult.Err(GarminError.Parse(e::class.simpleName ?: "decode error"))
+                        // Include the decoder's message (field/path, truncated) so logcat says what didn't match.
+                        val detail = e.message?.lineSequence()?.firstOrNull()?.take(PARSE_DETAIL_MAX)
+                        StrideResult.Err(GarminError.Parse("${e::class.simpleName ?: "decode error"} at ${url.encodedPath}: $detail"))
                     }
                 }
             }
@@ -211,7 +233,7 @@ class OkHttpGarminClient(
     }
 
     private fun authorized(url: HttpUrl, accept: String): Request? =
-        Request.Builder().url(url).header("Accept", accept).get().build()
+        Request.Builder().url(url).header("Accept", accept).header("User-Agent", config.userAgent).get().build()
 
     /** Adds the bearer token; on 401 re-exchanges the key once, then reports KeyInvalid. */
     private suspend fun executeAuthorized(base: Request): GarminResult<ByteArray> {
@@ -287,6 +309,8 @@ class OkHttpGarminClient(
 
     companion object {
         const val TOKEN_PATH = "personalapitoken-service/personal-api/personal-api-key/token"
+        const val TOKEN_ACCEPT = "*/*"
+        private const val PARSE_DETAIL_MAX = 160
         const val ACTIVITIES_PATH = "activitylist-service/activities/search/activities"
         const val DETAIL_PATH = "activity-service/activity"
         const val FIT_PATH = "download-service/files/activity"
