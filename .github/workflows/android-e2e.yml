@@ -1,8 +1,10 @@
 name: Android E2E
 
-# Nightly Maestro smoke flow on an emulator (MVP-022). Also runs on PRs labelled
-# `e2e`. Builds the debug APK, boots an x86_64 emulator with KVM, runs
-# android/maestro/demo-smoke.yaml in demo mode (no secrets, no Garmin).
+# Nightly Maestro suite on an emulator (MVP-022, AUD-039). Also runs on PRs
+# labelled `e2e`. Builds the debug APK, boots an x86_64 emulator with KVM and runs
+# every flow in android/maestro/ in demo mode (no secrets, no Garmin): the demo
+# smoke, plan, wipe and rotation/process-death flows, then the dark-mode flow with
+# the system in night mode. The PR gate runs only the smoke flow (android.yml).
 on:
   schedule:
     - cron: "17 3 * * *"
@@ -61,15 +63,18 @@ jobs:
           script: |
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
-            maestro test android/maestro/demo-smoke.yaml --format junit --output maestro-report.xml --test-output-dir maestro-output
+            maestro test android/maestro/ --exclude-tags=dark --format junit --output maestro-report.xml --test-output-dir maestro-output
+            adb shell cmd uimode night yes
+            maestro test android/maestro/ --include-tags=dark --format junit --output maestro-report-dark.xml --test-output-dir maestro-output-dark
+            adb shell cmd uimode night no
       - name: Upload screenshots and logs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-results
           path: |
-            maestro-report.xml
-            maestro-output/
+            maestro-report*.xml
+            maestro-output*/
             ~/.maestro/tests/
           if-no-files-found: ignore
           retention-days: 14

@@ -2,7 +2,8 @@ name: Android
 
 # Reusable workflow called from ci.yml (so it reports into the required `build`
 # gate) when android/**, contracts/** or the workflows change (ANDF-005).
-# Ubuntu + JDK 21, no emulator, no secrets.
+# Ubuntu + JDK 21, no secrets. `check` runs without an emulator; `emulator-smoke`
+# boots one for the instrumented tests and the Maestro smoke flow (AUD-039).
 on:
   workflow_call:
   workflow_dispatch:
@@ -56,7 +57,22 @@ jobs:
             mode=record
             echo "::warning::No Roborazzi baselines committed yet; recording them (download the roborazzi-captured artifact)."
           fi
-          ./android/gradlew -p android check assembleDebug "-Proborazzi.test.${mode}=true" --continue
+          # :app:assembleRelease builds the R8-minified release (debug-signed: no secrets
+          # here) on every Android PR, not only in the release dry run (AUD-040).
+          ./android/gradlew -p android check assembleDebug :app:assembleRelease "-Proborazzi.test.${mode}=true" --continue
+      - name: Release APK is minified and not debuggable
+        if: ${{ !inputs.record-screenshots }}
+        run: |
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          mapping=android/app/build/outputs/mapping/release/mapping.txt
+          test -f "$apk" || { echo "::error::$apk was not built"; exit 1; }
+          test -s "$mapping" || { echo "::error::no R8 mapping: the release was not minified"; exit 1; }
+          aapt2="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)aapt2"
+          if "$aapt2" dump badging "$apk" | grep -q "application-debuggable"; then
+            echo "::error::the release APK is debuggable"
+            exit 1
+          fi
+          echo "release APK OK: $(du -h "$apk" | cut -f1), R8 mapping $(wc -l < "$mapping") lines"
       - name: Upload captured screenshots
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -84,5 +100,68 @@ jobs:
           path: |
             android/**/build/reports/**
             android/**/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # PR-gating emulator smoke (AUD-039): the on-device SecretStore test (real Android
+  # Keystore, Hilt graph) and the Maestro demo smoke flow, offline, in demo mode.
+  # Budget: 15 minutes. The full flow suite (plan, wipe, rotation, dark) runs
+  # nightly in android-e2e.yml.
+  emulator-smoke:
+    if: ${{ !inputs.record-screenshots }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MAESTRO_VERSION: "2.12.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup JDK 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@7296c772c13d12d9871528814b51fb2143c138ef # v6.4.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      # Build before the emulator boots so the emulator step only installs and runs.
+      - name: Build the app and the instrumented test APKs
+        run: ./android/gradlew -p android :app:assembleDebug :core:datastore:assembleDebugAndroidTest
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install Maestro
+        run: |
+          curl -fsSL "https://get.maestro.mobile.dev" -o install-maestro.sh
+          MAESTRO_VERSION="$MAESTRO_VERSION" bash install-maestro.sh
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Instrumented tests and Maestro smoke on an emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            ./android/gradlew -p android :core:datastore:connectedDebugAndroidTest
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
+            maestro test android/maestro/demo-smoke.yaml --format junit --output maestro-report.xml --test-output-dir maestro-output
+      - name: Upload emulator results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: emulator-smoke-results
+          path: |
+            maestro-report.xml
+            maestro-output/
+            ~/.maestro/tests/
+            android/core/datastore/build/outputs/androidTest-results/
+            android/core/datastore/build/reports/androidTests/
           if-no-files-found: ignore
           retention-days: 14

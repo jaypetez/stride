@@ -1,0 +1,38 @@
+# Dark mode (AUD-039): the demo journey with the system in night mode. Maestro
+# cannot switch the theme itself, so the runner does it around this flow:
+#   adb shell cmd uimode night yes
+#   maestro test --include-tags=dark android/maestro/
+#   adb shell cmd uimode night no
+# The other flows run with --exclude-tags=dark. Screenshots land in the test output.
+appId: org.stride.app.debug
+name: Dark mode
+tags:
+  - dark
+---
+- runFlow: common/onboard-demo.yaml
+- takeScreenshot: dark-today
+
+- tapOn: "Fitness tab"
+- extendedWaitUntil:
+    visible: "Fitness, fatigue & form"
+    timeout: 20000
+- takeScreenshot: dark-fitness
+
+- tapOn: "Plan tab"
+- extendedWaitUntil:
+    visible: "Training plan"
+    timeout: 10000
+- takeScreenshot: dark-plan
+
+- tapOn: "You tab"
+- scrollUntilVisible:
+    element: "Delete all data"
+- takeScreenshot: dark-settings
+
+# Dialogs use the dark scheme too.
+- tapOn: "Delete all data"
+- extendedWaitUntil:
+    visible: 'Delete all data\?'
+    timeout: 5000
+- takeScreenshot: dark-delete-dialog
+- tapOn: "Cancel"

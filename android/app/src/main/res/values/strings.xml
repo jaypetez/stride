@@ -7,4 +7,5 @@
     <string name="nav_plan">Plan</string>
     <string name="nav_you">You</string>
     <string name="nav_tab">%1$s tab</string>
+    <string name="demo_exit_failed">Couldn\'t leave demo mode. Please try again.</string>
 </resources>

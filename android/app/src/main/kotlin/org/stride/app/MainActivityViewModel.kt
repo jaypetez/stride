@@ -4,9 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.stride.core.data.demo.DemoController
@@ -29,8 +33,31 @@ class MainActivityViewModel @Inject constructor(prefs: UserPreferences, private 
     /** The system splash screen stays up while this is true (AUD-037). */
     val keepSplashOnScreen: Boolean get() = uiState.value == MainUiState.Loading
 
+    private val messageChannel = Channel<Int>(Channel.CONFLATED)
+
+    /** One-off messages (string resources) for the shell to show, such as a failed exit from demo mode. */
+    val messages: Flow<Int> = messageChannel.receiveAsFlow()
+
+    private var exiting = false
+
+    /**
+     * Leaves demo mode from the banner. A failure (the wipe or the DataStore write threw) must not
+     * crash the app: demo mode stays on, the banner stays visible, and the user is told to retry.
+     */
     fun exitDemo() {
-        viewModelScope.launch { demo.exit() }
+        if (exiting) return
+        exiting = true
+        viewModelScope.launch {
+            try {
+                demo.exit()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                messageChannel.send(R.string.demo_exit_failed)
+            } finally {
+                exiting = false
+            }
+        }
     }
 
     private companion object {

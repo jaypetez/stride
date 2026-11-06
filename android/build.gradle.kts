@@ -15,6 +15,8 @@ plugins {
 }
 
 // Aggregated coverage (ANDF-007): `./gradlew -p android koverVerify` / `koverHtmlReport`.
+// Each module also has its own floor (core 80%, feature 50%, app 60%, with ratchets):
+// see build-logic/convention/src/main/kotlin/stride/CoverageFloors.kt (AUD-038).
 dependencies {
     // Only real modules (not the `:core` / `:feature` folder projects).
     subprojects.filter { it.childProjects.isEmpty() }.forEach { kover(it) }

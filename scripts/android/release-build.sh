@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the signed release APK + AAB into dist/ with SHA256SUMS (REL-002).
+# Builds the signed release APK + AAB and the R8 mapping file into dist/ with SHA256SUMS (REL-002).
 # Usage: release-build.sh <asset-base-name>
 # Signing: if KEYSTORE_B64 is set, it is decoded into a temp file (real release);
 # otherwise a throwaway key is generated (PR dry run). The keystore is always deleted.
@@ -25,5 +25,7 @@ export STRIDE_KEYSTORE_PATH="$keystore"
 mkdir -p dist
 cp android/app/build/outputs/apk/release/app-release.apk "dist/${name}.apk"
 cp android/app/build/outputs/bundle/release/app-release.aab "dist/${name}.aab"
-(cd dist && sha256sum ./*.apk ./*.aab > SHA256SUMS)
+# The R8 mapping deobfuscates crash stack traces of this exact build; it ships with the release (AUD-040).
+cp android/app/build/outputs/mapping/release/mapping.txt "dist/${name}-mapping.txt"
+(cd dist && sha256sum ./*.apk ./*.aab ./*-mapping.txt > SHA256SUMS)
 cat dist/SHA256SUMS

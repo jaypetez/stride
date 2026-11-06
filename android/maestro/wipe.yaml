@@ -1,0 +1,44 @@
+# Delete all data (AUD-039): demo → You → "Delete all data" → cancel once, then
+# confirm → the app is back at onboarding, and stays there after a relaunch.
+# Run: maestro test android/maestro/wipe.yaml   (debug build installed, offline)
+appId: org.stride.app.debug
+name: Delete all data
+tags:
+  - offline
+---
+- runFlow: common/onboard-demo.yaml
+
+- tapOn: "You tab"
+- scrollUntilVisible:
+    element: "Delete all data"
+    centerElement: true
+
+# Cancel keeps everything.
+- tapOn: "Delete all data"
+- extendedWaitUntil:
+    visible: 'Delete all data\?'
+    timeout: 5000
+- tapOn: "Cancel"
+# Maestro matches text as a regex, so the "?" is escaped: an unescaped one also
+# matches the "Delete all data" row behind the dialog.
+- assertNotVisible: 'Delete all data\?'
+- assertVisible: "Delete all data"
+
+# Confirm wipes the databases, preferences and secrets.
+- tapOn: "Delete all data"
+- extendedWaitUntil:
+    visible: 'Delete all data\?'
+    timeout: 5000
+- tapOn: "Delete everything"
+- extendedWaitUntil:
+    visible: "Welcome to Stride"
+    timeout: 20000
+- takeScreenshot: wiped
+
+# Nothing comes back after the process restarts.
+- killApp
+- launchApp
+- extendedWaitUntil:
+    visible: "Welcome to Stride"
+    timeout: 20000
+- assertNotVisible: "Exit demo"

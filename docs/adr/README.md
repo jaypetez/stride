@@ -21,6 +21,7 @@ the source of truth** — please open a PR updating the ADR.
 | [0008](0008-auth.md) | Authentication for Stride Groups | Proposed |
 | [0009](0009-authorization-policy.md) | One authorization policy module, proven by a route × role matrix | Accepted |
 | [0010](0010-solo-garmin-mvp.md) | Solo Garmin MVP: a local-only Android app on the Garmin Personal API | Accepted |
+| [0011](0011-android-local-db-encryption.md) | Android local database: unencrypted at rest, kept on the device | Accepted |
 
 ## Template
 

@@ -3,13 +3,15 @@
 The Stride Android app (solo Garmin MVP, [ADR 0010](../adr/0010-solo-garmin-mvp.md))
 holds a long-lived Garmin Personal API key, health data (HR, HRV, sleep, weight)
 and optionally an Anthropic key. **MASVS v2 L1** is our baseline (SEC-003). Each
-control lists its status — **met**, **planned** or **n/a** — and the evidence
-that proves it. Update this table in the same PR that changes a control.
+control lists its status — **met**, **planned**, **accepted** (a gap we have
+decided to live with, recorded in an ADR with its residual risk and the triggers
+for revisiting it) or **n/a** — and the evidence that proves it. Update this
+table in the same PR that changes a control.
 
 | Control | Requirement (summary) | Status | Evidence |
 |---|---|---|---|
-| **MASVS-STORAGE-1** | Sensitive data is stored securely | met | Garmin key, cached token and Anthropic key are encrypted with Tink AES-256-GCM; the keyset is wrapped by an Android Keystore master key (`core/datastore/.../SecretCipher.kt`). `SecretStoreTest.keyRoundTripsAndIsEncryptedAtRest` asserts no plaintext on disk. Health data lives in the app-private Room DB. |
-| **MASVS-STORAGE-2** | No sensitive data leaks (backups, logs, shared storage) | met | `data_extraction_rules.xml` excludes everything from cloud backup and the secrets + keyset files from device transfer; `backup_rules.xml` excludes all for Android ≤ 11 (`ManifestSecurityTest`). No HTTP logging interceptor; `OkHttpGarminClientTest.keyAndTokenNeverAppearInErrorsLogsOrToString`. Export uses the system file picker (SAF) only on user request. |
+| **MASVS-STORAGE-1** | Sensitive data is stored securely | accepted | Secrets: met. Garmin key, cached token and Anthropic key are encrypted with Tink AES-256-GCM; the keyset is wrapped by an Android Keystore master key (`core/datastore/.../SecretCipher.kt`). `SecretStoreTest.keyRoundTripsAndIsEncryptedAtRest` asserts no plaintext on disk. Health data: accepted. It lives in the app-private Room DB, unencrypted by decision ([ADR 0011](../adr/0011-android-local-db-encryption.md)); the residual risk is a rooted or forensically imaged device, and ADR 0011 lists the triggers for adopting SQLCipher. |
+| **MASVS-STORAGE-2** | No sensitive data leaks (backups, logs, shared storage) | met | `allowBackup="false"`; `data_extraction_rules.xml` excludes everything from cloud backup and the database, secrets and keyset files from device transfer (ADR 0011); `backup_rules.xml` excludes all for Android ≤ 11 (`ManifestSecurityTest`). No HTTP logging interceptor; `OkHttpGarminClientTest.keyAndTokenNeverAppearInErrorsLogsOrToString`. Export uses the system file picker (SAF) only on user request. |
 | **MASVS-CRYPTO-1** | Strong, current cryptography | met | Tink `AES256_GCM` AEAD; no custom crypto. |
 | **MASVS-CRYPTO-2** | Key management per best practice | met | Master key in Android Keystore (`android-keystore://stride_master_key`), never exported; ciphertext bound to its preference name via associated data. |
 | **MASVS-AUTH-1** | Secure authentication/authorization protocols | met | Personal API key → 24 h bearer token exchange per Garmin's documented flow (`docs/garmin/personal-api.md`); token re-exchanged on expiry/401. |

@@ -41,7 +41,8 @@ before pinning, and re-check this page when you bump the toolchain.
 | Network | MockWebServer | Fakes in `core:testing` |
 | Static | Android Lint, Detekt, ktlint | |
 | Coverage | Kover | Threshold enforced in CI |
-| E2E | **Maestro** on an emulator (KVM) | Runs nightly or on the `e2e` label, against `wrangler dev` with seeded data |
+| Instrumented | AndroidX Test + Hilt in `src/androidTest` | Only what Robolectric can't do (e.g. the Android Keystore); runs in the PR emulator job |
+| E2E | **Maestro** on an emulator (KVM) | Offline demo-mode flows in `android/maestro/`: the smoke flow gates PRs, the full suite runs nightly or on the `e2e` label |
 
 We chose Roborazzi over Paparazzi, which can't interact with UI or run alongside Robolectric, and over Compose Preview Screenshot Testing, which is preview-only and less mature. (https://proandroiddev.com/screenshot-testing-in-compose-f8a7389a7e6)
 

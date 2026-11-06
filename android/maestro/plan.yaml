@@ -1,0 +1,46 @@
+# Plan creation (AUD-039): demo → Plan tab → create the default 10K plan → it
+# passes the guardrails and shows its weeks → delete it → the form is back.
+# Run: maestro test android/maestro/plan.yaml   (debug build installed, offline)
+appId: org.stride.app.debug
+name: Plan create and delete
+tags:
+  - offline
+---
+- runFlow: common/onboard-demo.yaml
+
+- tapOn: "Plan tab"
+- extendedWaitUntil:
+    visible: "Training plan"
+    timeout: 10000
+- scrollUntilVisible:
+    element: "Create plan"
+    centerElement: true
+- tapOn: "Create plan"
+
+# The generated plan is shown week by week; the form is gone.
+- extendedWaitUntil:
+    visible: "Week 1.*"
+    timeout: 30000
+- assertNotVisible: "Create plan"
+- takeScreenshot: plan
+
+# The plan survives leaving the tab.
+- tapOn: "Today tab"
+- extendedWaitUntil:
+    visible: "Next workout"
+    timeout: 10000
+- tapOn: "Plan tab"
+- extendedWaitUntil:
+    visible: "Week 1.*"
+    timeout: 10000
+
+# Delete it from the top bar.
+- tapOn: "Delete plan"
+- extendedWaitUntil:
+    visible: 'Delete plan\?'
+    timeout: 5000
+- tapOn: "Delete"
+- scrollUntilVisible:
+    element: "Create plan"
+    centerElement: true
+- assertVisible: "Create plan"
