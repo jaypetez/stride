@@ -100,6 +100,14 @@ export function formatContext(ctx: CoachContext): string {
     );
   }
   if (ctx.weeklyVolumeKm !== undefined) lines.push(`Last 7 days volume: ${ctx.weeklyVolumeKm} km.`);
+  if (ctx.fitnessSeed) {
+    const f = ctx.fitnessSeed;
+    lines.push(
+      `Last 4 weeks: ${f.runCount} runs, ~${f.weeklyMinutes} min/week, longest run ${f.longestRunMin} min${
+        f.vdot !== null ? `, recent VDOT ${f.vdot}` : ''
+      } (the plan starts from this volume).`,
+    );
+  }
   if (ctx.recentActivities.length) {
     lines.push('Recent activities (most recent first):');
     for (const a of ctx.recentActivities.slice(0, 6)) {

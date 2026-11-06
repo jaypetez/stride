@@ -28,6 +28,7 @@ shows exactly what behaviour changed, and the Kotlin port has to follow.
 | `anchors.json` | `estimateAnchors`, `resolveMaxHr`, `resolveLthr`, `resolveRestingHr`, `resolveThresholdSpeed` |
 | `efficiency.json` | `efficiencyFactor`, `aerobicDecoupling` |
 | `planner.json` | `proposeNextWorkout`, `buildPlanSkeleton`, `makeSession`, `resolveRaceDistanceM` |
+| `seed.json` | `fitnessSeed` |
 | `guardrail.json` | `validatePlan`, `repairPlan` |
 | `safety.json` | `PARQ_QUESTIONS`, `DISCLAIMER`, `detectRedFlags`, `shouldHalt`, `screenReadiness`, `classifierWarnings` |
 

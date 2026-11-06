@@ -337,6 +337,7 @@ export function buildApp(state: ApiState, options: ApiOptions = {}) {
         validation: result.validation,
         disclaimer: result.disclaimer,
         flags: result.flags,
+        ...(result.seed ? { seed: result.seed } : {}),
       });
     })
     .get('/plan', async (c) => {
