@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.16] - 2026-11-05
+
+The Quality Audit release. A whole-repo audit
+([Project](https://github.com/users/jaypetez/projects/28), issues #417–#465)
+was fixed across the TypeScript apps and the Android app. Per-package details
+are in each package's `CHANGELOG.md`.
+
+### Security
+
+- **Local API locked to the owner**: loopback bind by default with an optional
+  bearer token (`STRIDE_API_HOST`, `STRIDE_API_TOKEN`), a Host allowlist
+  against DNS rebinding, JSON-only writes against CSRF, secure headers, body and
+  rate limits, generic 5xx bodies and validated request ids.
+- **Android**: recovers from Keystore/Tink and DataStore corruption instead of
+  crashing at launch; FIT downloads are size-capped and malformed Garmin/FIT
+  input is skipped; backup is off so the local database stays on the device
+  (ADR 0011).
+
+### Fixed
+
+- **Safety**: PAR-Q screening requires a complete answer set before clearance;
+  wider STOP/WARN red-flag phrase coverage; the web dashboard now shows safety
+  flags and the disclaimer.
+- **Numbers**: as-of-correct dates, PMC and ACWR (ISO datetimes, local dates,
+  no future data); race-aligned plans that are never saved when invalid; the
+  guardrail catches cross-week back-to-back hard days and no longer counts
+  recovery runs as rest. Mirrored in the Kotlin engine with regenerated golden
+  contracts.
+- **CLI/sync**: failing commands exit non-zero; the sync lock outlives
+  rate-limit waits and the incremental watermark no longer stalls; demo dates
+  no longer go stale.
+- **Android**: sync always settles and runs one at a time, runs are dated where
+  they happened, error states are shown on every screen, onboarding survives
+  process death, strings are localisable with locale-aware dates, and TalkBack
+  semantics are fixed.
+
+### Changed
+
+- **Tests and CI**: per-package Vitest coverage thresholds and per-module Kover
+  floors; much broader unit tests (API routes, planner property tests, core
+  helpers, MCP live mode, Android ViewModels); Playwright with axe against the
+  real API; offline Maestro flows plus an emulator smoke job and a minified
+  release build on every PR; `.mjs` linting, script typechecking, Turbo
+  caching and osv-scanner.
+
 ## [0.2.15] - 2026-11-01
 
 A dependency maintenance release. Per-package details are in each package's
@@ -458,7 +503,9 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.14...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.16...HEAD
+[0.2.16]: https://github.com/jaypetez/stride/compare/v0.2.15...v0.2.16
+[0.2.15]: https://github.com/jaypetez/stride/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/jaypetez/stride/compare/v0.2.13...v0.2.14
 [0.2.13]: https://github.com/jaypetez/stride/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/jaypetez/stride/compare/v0.2.11...v0.2.12

@@ -1,5 +1,9 @@
 # @stride/schemas
 
+## 0.2.16
+
+No changes in this release.
+
 ## 0.2.15
 
 ### Patch Changes

@@ -1,5 +1,22 @@
 # @stride/api
 
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies [a3a80b9]
+- Updated dependencies [9121c6d]
+- Updated dependencies [8c3aef4]
+- Updated dependencies [a830b7e]
+- Updated dependencies [7151987]
+- Updated dependencies [2c5898e]
+- Updated dependencies [2f03757]
+- Updated dependencies [5dc2ba6]
+- Updated dependencies [2e2f2cb]
+- Updated dependencies [a830b7e]
+  - @stride/core@0.2.16
+  - @stride/schemas@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes

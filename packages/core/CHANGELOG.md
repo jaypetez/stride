@@ -1,5 +1,21 @@
 # @stride/core
 
+## 0.2.16
+
+### Patch Changes
+
+- a3a80b9: Android: settle and serialise sync, survive Keystore/DataStore corruption and hostile Garmin/FIT input, date runs by where they happened, harden coroutines, and refresh screens at midnight.
+- 9121c6d: Android: tests for Settings, profile edit, sync scheduling and migrations with per-module coverage floors, offline Maestro flows and a PR emulator smoke job, the minified release built and checked on every PR, and backup turned off so the unencrypted database stays on the device (ADR 0011).
+- 8c3aef4: Android: recoverable error states and a persisted last sync failure, onboarding that survives process death, localisable strings and locale-aware dates, TalkBack fixes with accessibility and font-scale/RTL screenshot checks, lazier startup and settled insights, a splash screen and a readable "model unavailable" coach error.
+- a830b7e: API rate limits can be raised with STRIDE_API_LLM_RATE_LIMIT / STRIDE_API_SYNC_RATE_LIMIT, which the web e2e suite uses so it is not throttled.
+- 7151987: Document that web e2e runs against the real API and needs ports 8720/5173 free.
+- 2c5898e: Audit E1: complete PAR-Q screening, as-of-correct dates/PMC/ACWR, race-aligned plans that are never saved invalid, hardened guardrail and safety keywords, lock heartbeat, non-zero CLI exit codes, wall-clock-free demo, and fail-fast config.
+- 2f03757: Close TypeScript test gaps (API routes and error mapping, planner property tests, core helpers, MCP live mode, factory gh client) and enforce per-package Vitest coverage thresholds in CI; the API now returns a 400 envelope for malformed JSON and a 404 envelope for unknown routes.
+- 5dc2ba6: Close silent gate gaps (lint `.mjs`, typecheck scripts and web e2e, no `passWithNoTests`), cache Turbo in CI, replace the retired `pnpm audit` with osv-scanner, and document e2e and `POST /plan` side effects in AGENTS.md.
+- 2e2f2cb: Harden the local API: loopback bind by default with an optional bearer token, Host allowlist, JSON-only writes, secure headers, body and rate limits, generic 5xx bodies, validated request ids, bounded notes, and a `stride connect` warning for missing Strava scopes.
+- a830b7e: Web dashboard: show safety flags and the disclaimer, surface real API errors, fix accessibility, and run Playwright with axe against the real API.
+- @stride/schemas@0.2.16
+
 ## 0.2.15
 
 ### Patch Changes
