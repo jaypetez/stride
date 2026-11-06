@@ -65,7 +65,10 @@ class OkHttpGarminClient(
         val request = Request.Builder()
             .url(url(TOKEN_PATH))
             .header("Authorization", "ApiKey $key")
-            .header("Accept", "application/json")
+            // The token endpoint returns the raw JWT as text and answers 406 Not Acceptable to
+            // `Accept: application/json` (docs/garmin/personal-api.md, "Token exchange").
+            .header("Accept", TOKEN_ACCEPT)
+            .header("User-Agent", config.userAgent)
             .post(ByteArray(0).toRequestBody(null))
             .build()
         return when (val result = execute(request, isTokenCall = true)) {
@@ -211,7 +214,7 @@ class OkHttpGarminClient(
     }
 
     private fun authorized(url: HttpUrl, accept: String): Request? =
-        Request.Builder().url(url).header("Accept", accept).get().build()
+        Request.Builder().url(url).header("Accept", accept).header("User-Agent", config.userAgent).get().build()
 
     /** Adds the bearer token; on 401 re-exchanges the key once, then reports KeyInvalid. */
     private suspend fun executeAuthorized(base: Request): GarminResult<ByteArray> {
@@ -287,6 +290,7 @@ class OkHttpGarminClient(
 
     companion object {
         const val TOKEN_PATH = "personalapitoken-service/personal-api/personal-api-key/token"
+        const val TOKEN_ACCEPT = "*/*"
         const val ACTIVITIES_PATH = "activitylist-service/activities/search/activities"
         const val DETAIL_PATH = "activity-service/activity"
         const val FIT_PATH = "download-service/files/activity"

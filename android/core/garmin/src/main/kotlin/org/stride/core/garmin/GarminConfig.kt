@@ -15,9 +15,12 @@ data class GarminConfig(
     val initialBackoffMs: Long = 1_000,
     val maxBackoffMs: Long = 30_000,
     /** Re-exchange the key this long before the token's `exp`. */
-    val tokenRefreshMarginSec: Long = 300
+    val tokenRefreshMarginSec: Long = 300,
+    /** Sent on every request so Garmin can identify the client (docs/garmin/personal-api.md). */
+    val userAgent: String = DEFAULT_USER_AGENT
 ) {
     companion object {
         const val DEFAULT_BASE_URL = "https://personal.connectapi.garmin.com"
+        const val DEFAULT_USER_AGENT = "Stride-Android"
     }
 }

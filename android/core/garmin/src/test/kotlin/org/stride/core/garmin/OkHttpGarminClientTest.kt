@@ -101,6 +101,37 @@ class OkHttpGarminClientTest {
         assertEquals("POST", req.method)
         assertEquals("ApiKey $apiKey", req.headers["Authorization"])
         assertTrue(req.url.encodedPath.endsWith(OkHttpGarminClient.TOKEN_PATH))
+        assertEquals("*/*", req.headers["Accept"])
+        assertEquals(GarminConfig.DEFAULT_USER_AGENT, req.headers["User-Agent"])
+    }
+
+    @Test
+    fun exchangeSucceedsAgainstAServerThatRejectsJsonAccept() = runTest {
+        // Regression: the real token endpoint returns the JWT as text and answers
+        // 406 NotAcceptableException when the client asks for application/json.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                requests += request
+                return if (request.headers["Accept"] == "application/json") {
+                    MockResponse.Builder().code(406)
+                        .body("""{"error":"NotAcceptableException"}""").build()
+                } else {
+                    tokenResponse()
+                }
+            }
+        }
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        assertIs<StrideResult.Ok<AccessToken>>(c.exchangeToken(apiKey = apiKey))
+    }
+
+    @Test
+    fun dataRequestsSendUserAgent() = runTest {
+        route("activitylist-service", ok("[]"))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        c.activities(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        val data = requests.first { it.url.encodedPath.contains("activitylist-service") }
+        assertEquals(GarminConfig.DEFAULT_USER_AGENT, data.headers["User-Agent"])
+        assertEquals("application/json", data.headers["Accept"])
     }
 
     @Test
