@@ -24,6 +24,7 @@ import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
 import org.stride.core.data.plan.StoredPlan
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.plan.PlanSkeletonParams
 import org.stride.core.science.plan.buildPlanSkeleton
@@ -111,5 +112,24 @@ class PlanRepositoryTest {
         )
         assertFailsWith<IllegalArgumentException> { repo.save(StoredPlan(broken, repo.guardrailContext())) }
         assertEquals(plan, repo.plan.first())
+    }
+
+    /** MVP-026: a build plan is seeded, saved and leaves the profile's race goal alone. */
+    @Test
+    fun createBuildPlanIsSeededAndKeepsTheRaceGoal() = runTest(UnconfinedTestDispatcher()) {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val env = TestEnv(this, dispatcher, tmp.root)
+        DemoMode(env.context, env.holder, env.prefs, env.clock, env.recomputer, dispatcher).load(env.db)
+        val store = PreferenceDataStoreFactory.create(scope = backgroundScope) { File(tmp.root, "build.preferences_pb") }
+        val repo = PlanRepository(store, env.holder, env.prefs, env.clock, env.recomputer, dispatcher)
+        val goalBefore = env.prefs.current().profile.raceGoal
+        val seed = assertNotNull(repo.fitnessSeed())
+
+        val created = assertIs<PlanResult.Created>(repo.create(PlanRequest.build(8)))
+        assertEquals(PlanKind.BUILD, created.plan.kind)
+        assertEquals(8, created.plan.weeks.size)
+        assertEquals(seed, created.seed)
+        assertEquals(created.plan, repo.plan.first())
+        assertEquals(goalBefore, env.prefs.current().profile.raceGoal)
     }
 }

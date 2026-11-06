@@ -45,6 +45,16 @@ for (const scheme of ['light', 'dark'] as const) {
       await expectNoSeriousViolations(page);
     });
 
+    test('generated build plan (Race | Build fitness toggle)', async ({ page }) => {
+      await page.goto('/');
+      const plan = card(page, 'Training plan');
+      await plan.getByRole('button', { name: 'Build fitness' }).click();
+      await plan.getByRole('button', { name: 'Generate build plan' }).click();
+      await expect(plan.locator('.seed-summary')).toBeVisible();
+      await expect(plan.locator('table tbody tr').first()).toBeVisible();
+      await expectNoSeriousViolations(page);
+    });
+
     test('safety flags (STOP and WARN)', async ({ page }) => {
       await page.goto('/');
       await page.getByRole('textbox', { name: /How do you feel today/ }).fill('chest pain');

@@ -15,8 +15,13 @@ import org.stride.core.data.plan.generatePlan
 import org.stride.core.data.plan.planStartDate
 import org.stride.core.data.plan.planWeeks
 import org.stride.core.science.model.AthleteProfile
+import org.stride.core.science.model.PlanKind
+import org.stride.core.science.model.PlanPhase
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.WorkoutType
+import org.stride.core.science.plan.BUILD_MAX_WEEKS
+import org.stride.core.science.plan.BUILD_MIN_WEEKS
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanGuardrailContext
 import org.stride.core.science.plan.validatePlan
 
@@ -120,5 +125,40 @@ class PlanGenerationTest {
         assertEquals(5400.0, plan.goal.goalTimeSec)
         assertEquals(RaceDistance.HALF, plan.goal.distance)
         assertEquals(12, plan.weeks.size)
+    }
+
+    /** MVP-026: a build plan needs no race date and has no peak, taper or race session. */
+    @Test
+    fun buildPlansNeedNoRaceDateAndHaveNoRace() {
+        val contexts = listOf(PlanGuardrailContext(), PlanGuardrailContext(seedCtl = 45.0, seedAtl = 50.0))
+        val seeds = listOf(null, FitnessSeed(75.0, 30.0, null, 9), FitnessSeed(240.0, 70.0, 48.0, 14))
+        for (ctx in contexts) {
+            for (seed in seeds) {
+                for (weeks in BUILD_MIN_WEEKS..BUILD_MAX_WEEKS) {
+                    val result = generatePlan(PlanRequest.build(weeks), AthleteProfile(), today, ctx, "p", "t", seed)
+                    val plan = assertIs<PlanResult.Created>(result, "$ctx $seed ${weeks}w").plan
+                    assertEquals(PlanKind.BUILD, plan.kind)
+                    assertEquals(weeks, plan.weeks.size)
+                    assertEquals(planStartDate(today).toString(), plan.startDate)
+                    assertTrue(plan.weeks.none { it.phase == PlanPhase.PEAK || it.phase == PlanPhase.TAPER })
+                    assertTrue(plan.weeks.flatMap { w -> w.days.flatMap { it.sessions } }.none { it.type == WorkoutType.RACE })
+                    assertTrue(validatePlan(plan, ctx).valid)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun buildPlanWeeksOutsideFourToSixteenAreInvalid() {
+        for (weeks in listOf(0, 3, 17, 24)) {
+            val result = generatePlan(PlanRequest.build(weeks), AthleteProfile(), today, PlanGuardrailContext(), "p", "t")
+            assertIs<PlanResult.Invalid>(result)
+        }
+    }
+
+    @Test
+    fun aRacePlanWithoutADateIsInvalid() {
+        val result = generatePlan(PlanRequest(RaceDistance.TEN_K, null), AthleteProfile(), today, PlanGuardrailContext(), "p", "t")
+        assertIs<PlanResult.Invalid>(result)
     }
 }

@@ -5,6 +5,7 @@ import type {
   CoachContext,
   NextWorkoutResult,
   PlanDay,
+  PlanKind,
   PlanResult,
   PlanValidation,
   RaceGoal,
@@ -17,7 +18,13 @@ import { createLogger } from '../log';
 import { addDays, computeActivityMetrics, formatPace, toDateKey } from '../science/index';
 import type { CoachLLM } from './anthropic';
 import { type PlanGuardrailContext, repairPlan, validatePlan } from './guardrail';
-import { buildPlanSkeleton, makeSession, materializeProposal, proposeNextWorkout } from './planner';
+import {
+  buildPlanSkeleton,
+  clampBuildWeeks,
+  makeSession,
+  materializeProposal,
+  proposeNextWorkout,
+} from './planner';
 import {
   buildAnalyzePrompt,
   buildClassifyPrompt,
@@ -270,19 +277,28 @@ function runGuardrail(
  *   hardened guardrail. Valid → return; repaired-to-valid → return (repaired:
  *   true, violations recorded); unrepairable/refused/empty → reject and fall
  *   back to the always-valid skeleton.
+ * - `kind: 'build'` (MVP-026): a no-race fitness block of 4-16 weeks (clamped)
+ *   from `buildPlanSkeleton`. The structural LLM proposal is skipped (it is
+ *   race-shaped) so a build plan never gains a peak, taper or race session;
+ *   the LLM may still write the prose summary.
  */
 export async function generatePlan(params: {
   profile: AthleteProfile;
   goal: RaceGoal;
   weeks: number;
+  /** Plan kind (MVP-026); default `race`. */
+  kind?: PlanKind;
   startDate: string;
   context?: CoachContext;
   note?: string;
   deps?: CoachDeps;
 }): Promise<PlanResult> {
-  const { profile, goal, weeks, startDate, context, note, deps } = params;
+  const { profile, goal, startDate, context, note, deps } = params;
+  const kind: PlanKind = params.kind ?? 'race';
+  const weeks = kind === 'build' ? clampBuildWeeks(params.weeks) : params.weeks;
   const createdAt = nowIso(deps);
-  const planId = `plan-${startDate}-${weeks}w`;
+  const planId =
+    kind === 'build' ? `plan-${startDate}-${weeks}w-build` : `plan-${startDate}-${weeks}w`;
   // MVP-025: start from what the athlete has actually run lately (absent with
   // fewer than 3 runs in the last 4 weeks, or without a context).
   const seed = context?.fitnessSeed;
@@ -341,7 +357,16 @@ export async function generatePlan(params: {
 
   const skeleton = () =>
     runGuardrail(
-      buildPlanSkeleton({ profile, goal, weeks, startDate, planId, createdAt, seed }),
+      buildPlanSkeleton({
+        profile,
+        goal,
+        weeks,
+        startDate,
+        planId,
+        createdAt,
+        seed,
+        ...(kind === 'build' ? { kind } : {}),
+      }),
       guardrailCtx,
     );
 
@@ -350,7 +375,7 @@ export async function generatePlan(params: {
 
   // Structured proposal→materialize→repair→reject loop runs ONLY when an LLM is
   // present (and no STOP flag). The no-key path never enters here.
-  if (!shouldHalt(flags) && llm && context) {
+  if (!shouldHalt(flags) && llm && context && kind === 'race') {
     try {
       const proposal = await llm.parse(
         {

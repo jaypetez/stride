@@ -5,8 +5,10 @@ import java.time.LocalDate
 import org.stride.core.designsystem.component.ThemePreviews
 import org.stride.core.designsystem.theme.StrideTheme
 import org.stride.core.science.model.AthleteProfile
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.RaceGoal
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanSkeletonParams
 import org.stride.core.science.plan.buildPlanSkeleton
 
@@ -49,6 +51,23 @@ private fun PlanFormPreview() {
                 today = "2026-11-05",
                 form = PlanForm(raceDate = LocalDate.parse("2027-01-31"), goalTime = "1:45:00"),
                 earliestRaceDate = LocalDate.parse("2026-11-15")
+            ),
+            actions = PlanActions()
+        )
+    }
+}
+
+@ThemePreviews
+@Composable
+private fun PlanBuildFormPreview() {
+    StrideTheme {
+        PlanScreen(
+            state = PlanUiState(
+                isLoading = false,
+                today = "2026-11-05",
+                form = PlanForm(raceDate = LocalDate.parse("2027-01-31"), kind = PlanKind.BUILD, buildWeeks = 8),
+                earliestRaceDate = LocalDate.parse("2026-11-15"),
+                seed = FitnessSeed(weeklyMinutes = 210.0, longestRunMin = 75.0, vdot = 45.0, runCount = 14)
             ),
             actions = PlanActions()
         )

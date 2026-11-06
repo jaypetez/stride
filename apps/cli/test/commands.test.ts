@@ -102,6 +102,33 @@ describe('nextCommand', () => {
 });
 
 describe('planCommand', () => {
+  it('builds a no-race fitness plan with --build --weeks (demo, --json)', async () => {
+    await planCommand({ demo: true, build: true, weeks: '8', json: true });
+    const out = lastJson();
+    expect(out.plan.kind).toBe('build');
+    expect(out.plan.weeks).toHaveLength(8);
+    expect(out.validation.valid).toBe(true);
+    expect(out.seed).toBeDefined();
+    const phases = out.plan.weeks.map((w: { phase: string }) => w.phase);
+    expect(phases).not.toContain('taper');
+  });
+
+  it('prints the seed summary line for a human --build plan', async () => {
+    await planCommand({ demo: true, build: true, weeks: '6' });
+    const text = output();
+    expect(text).toMatch(/Based on your last 4 weeks: \d+\.\d h\/week, longest run \d+ min/);
+    expect(text).toContain('6-week fitness build');
+  });
+
+  it('rejects --build with out-of-range weeks or a race', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await planCommand({ demo: true, build: true, weeks: '20', json: true });
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+    await planCommand({ demo: true, build: true, race: '10k', json: true });
+    expect(process.exitCode).toBe(1);
+  });
+
   it('prints a valid 6-week plan in demo mode', async () => {
     await planCommand({ demo: true, race: '10k', weeks: '6', json: true });
     const out = lastJson();

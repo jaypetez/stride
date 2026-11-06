@@ -17,7 +17,9 @@ import org.robolectric.annotation.Config
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.testing.DemoDataFixture
 import org.stride.core.model.RaceGoal
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.RaceDistance
+import org.stride.core.science.model.WorkoutType
 import org.stride.core.science.plan.validatePlan
 import org.stride.core.testing.MainDispatcherRule
 
@@ -118,6 +120,52 @@ class PlanViewModelTest {
             val state = awaitWhere { it.form.distance == RaceDistance.MARATHON }
             assertEquals(LocalDate.parse("2027-04-18"), state.form.raceDate)
             assertEquals("3:30:00", state.form.goalTime)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** MVP-026: build mode needs no race date, shows the seed and creates a no-race fitness build. */
+    @Test
+    fun buildModeCreatesASeededFitnessBuild() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        fx.loadDemo()
+        val goalBefore = fx.prefs.current().profile.raceGoal
+        val vm = fx.viewModel()
+        vm.uiState.test {
+            val seeded = awaitWhere { !it.isLoading && it.seed != null }
+            assertEquals(fx.plans.fitnessSeed(), seeded.seed)
+
+            vm.setKind(PlanKind.BUILD)
+            vm.setBuildWeeks(2)
+            assertEquals(4, awaitWhere { it.form.kind == PlanKind.BUILD && it.form.buildWeeks == 4 }.form.buildWeeks)
+            vm.setBuildWeeks(40)
+            awaitWhere { it.form.buildWeeks == 16 }
+            vm.setBuildWeeks(6)
+            awaitWhere { it.form.buildWeeks == 6 }
+            vm.setGoalTime("not a time") // ignored in build mode
+            vm.create()
+            val shown = awaitWhere { it.plan != null }
+            val plan = assertNotNull(shown.plan)
+            assertEquals(PlanKind.BUILD, plan.kind)
+            assertEquals(6, plan.weeks.size)
+            assertEquals("2026-11-02", plan.startDate)
+            assertTrue(plan.weeks.flatMap { w -> w.days.flatMap { it.sessions } }.none { it.type == WorkoutType.RACE })
+            assertTrue(validatePlan(plan, fx.plans.guardrailContext()).valid)
+            assertNull(shown.error)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(goalBefore, fx.prefs.current().profile.raceGoal, "a build plan leaves the race goal alone")
+    }
+
+    @Test
+    fun noRecentRunsMeansNoSeed() = runTest {
+        val fx = DemoDataFixture(this, tmp.root)
+        val vm = fx.viewModel()
+        vm.uiState.test {
+            val state = awaitWhere { !it.isLoading }
+            assertNull(state.seed)
+            vm.setKind(PlanKind.BUILD)
+            assertEquals(PlanKind.BUILD, awaitWhere { it.form.kind == PlanKind.BUILD }.form.kind)
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -49,6 +49,24 @@ test('generates a demo plan with a week table', async ({ page }) => {
   await expect(plan.locator('.disclaimer')).toBeVisible();
 });
 
+test('generates a no-race build plan seeded from recent training (MVP-026)', async ({ page }) => {
+  await page.goto('/');
+  const plan = card(page, 'Training plan');
+  await plan.getByRole('button', { name: 'Build fitness' }).click();
+  await expect(plan.getByRole('button', { name: 'Build fitness' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(plan.getByRole('combobox', { name: 'Race' })).toHaveCount(0);
+  await plan.getByRole('spinbutton', { name: 'Weeks' }).fill('8');
+  await plan.getByRole('button', { name: 'Generate build plan' }).click();
+
+  await expect(plan.locator('table tbody tr')).toHaveCount(8);
+  await expect(plan.getByText(/Based on your last 4 weeks: [\d.]+ h\/week/)).toBeVisible();
+  await expect(plan.getByText('taper', { exact: true })).toHaveCount(0);
+  await expect(plan.getByText(/Passes all guardrails/)).toBeVisible();
+});
+
 test('rejects an empty weeks field without calling the API', async ({ page }) => {
   await page.goto('/');
   const plan = card(page, 'Training plan');

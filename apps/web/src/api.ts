@@ -11,6 +11,8 @@ const base = import.meta.env.VITE_API_BASE ?? '/api';
 const client = hc<AppType>(base);
 
 export type RaceOption = '5k' | '10k' | 'half' | 'marathon';
+/** MVP-026: a race plan, or a no-race "build my fitness" block (4–16 weeks). */
+export type PlanKindOption = 'race' | 'build';
 
 const demoQuery = (demo: boolean) => (demo ? { demo: 'true' } : {});
 /** Only send a `note` when the athlete actually typed one. */
@@ -26,6 +28,7 @@ export const api = {
   next: (demo: boolean, note?: string) =>
     parseResponse(client.next.$get({ query: { ...demoQuery(demo), ...noteQuery(note) } })),
   plan: (body: {
+    kind?: PlanKindOption;
     race?: RaceOption;
     weeks?: number;
     start?: string;

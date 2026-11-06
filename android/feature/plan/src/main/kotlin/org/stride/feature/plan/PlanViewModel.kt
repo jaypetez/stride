@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import org.stride.core.common.Retryable
 import org.stride.core.common.StrideClock
 import org.stride.core.data.insights.dates
+import org.stride.core.data.plan.DEFAULT_BUILD_WEEKS
 import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
@@ -25,13 +26,26 @@ import org.stride.core.data.plan.earliestRaceDate
 import org.stride.core.datastore.UserPreferences
 import org.stride.core.model.UnitSystem
 import org.stride.core.science.model.GuardrailViolation
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.science.plan.BUILD_MAX_WEEKS
+import org.stride.core.science.plan.BUILD_MIN_WEEKS
+import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.ui.UiText
 
-/** The "create a plan" form. */
+/**
+ * The "create a plan" form. [kind] picks a race plan (distance, date, goal time) or a no-race fitness build
+ * of [buildWeeks] weeks (MVP-026).
+ */
 @Immutable
-data class PlanForm(val distance: RaceDistance = RaceDistance.TEN_K, val raceDate: LocalDate, val goalTime: String = "")
+data class PlanForm(
+    val distance: RaceDistance = RaceDistance.TEN_K,
+    val raceDate: LocalDate,
+    val goalTime: String = "",
+    val kind: PlanKind = PlanKind.RACE,
+    val buildWeeks: Int = DEFAULT_BUILD_WEEKS
+)
 
 @Immutable
 data class PlanUiState(
@@ -52,7 +66,9 @@ data class PlanUiState(
     val error: UiText? = null,
     val units: UnitSystem = UnitSystem.METRIC,
     /** The plan or settings could not be read; the screen shows an error with "Try again" (AUD-032). */
-    val loadFailed: Boolean = false
+    val loadFailed: Boolean = false,
+    /** The last 4 weeks of running a new plan starts from (MVP-025); null with fewer than 3 recent runs. */
+    val seed: FitnessSeed? = null
 )
 
 private data class Transient(
@@ -71,9 +87,12 @@ class PlanViewModel @Inject constructor(
     private val today = clock.today()
     private val form = MutableStateFlow(PlanForm(raceDate = today.plusWeeks(DEFAULT_WEEKS_OUT)))
     private val transient = MutableStateFlow(Transient())
+    private val seed = MutableStateFlow<FitnessSeed?>(null)
     private val initial = PlanUiState(today = today.toString(), form = form.value, earliestRaceDate = earliestRaceDate(today))
 
     init {
+        // The seed summary on the form is best effort: without it the form says it starts from a gentle default.
+        viewModelScope.launch { seed.value = runCatching { plans.fitnessSeed() }.getOrNull() }
         viewModelScope.launch {
             // A settings read error is shown by uiState (loadFailed); prefilling is best effort.
             val goal = runCatching { prefs.settings.first().profile.raceGoal }.getOrNull()
@@ -94,7 +113,8 @@ class PlanViewModel @Inject constructor(
 
     // The date ticker moves "today" and the current week on at midnight while the screen is open (AUD-031).
     val uiState: StateFlow<PlanUiState> = retryable.flow(onError = { initial.copy(isLoading = false, loadFailed = true) }) {
-        combine(plans.plan, prefs.settings, form, transient, clock.dates()) { plan, settings, f, t, day ->
+        val formAndSeed = combine(form, seed, ::Pair)
+        combine(plans.plan, prefs.settings, formAndSeed, transient, clock.dates()) { plan, settings, (f, s), t, day ->
             val todayKey = day.toString()
             initial.copy(
                 isLoading = false,
@@ -107,7 +127,8 @@ class PlanViewModel @Inject constructor(
                 violations = t.violations,
                 repairs = t.repairs,
                 error = t.error,
-                units = settings.unitSystem
+                units = settings.unitSystem,
+                seed = s
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
@@ -120,16 +141,33 @@ class PlanViewModel @Inject constructor(
 
     fun setGoalTime(text: String) = form.update { it.copy(goalTime = text) }
 
+    /** Race plan or no-race fitness build (MVP-026); clears a stale error or rejection. */
+    fun setKind(kind: PlanKind) {
+        form.update { it.copy(kind = kind) }
+        transient.value = Transient()
+    }
+
+    /** Build-plan length, kept within 4..16 weeks. */
+    fun setBuildWeeks(weeks: Int) = form.update { it.copy(buildWeeks = weeks.coerceIn(BUILD_MIN_WEEKS, BUILD_MAX_WEEKS)) }
+
     fun create() {
         val f = form.value
+        if (f.kind == PlanKind.BUILD) {
+            submit(PlanRequest.build(f.buildWeeks))
+            return
+        }
         val goal = if (f.goalTime.isBlank()) null else parseGoalTime(f.goalTime)
         if (f.goalTime.isNotBlank() && goal == null) {
             transient.value = Transient(error = UiText(R.string.plan_error_goal_time))
             return
         }
+        submit(PlanRequest(f.distance, f.raceDate, goal))
+    }
+
+    private fun submit(request: PlanRequest) {
         viewModelScope.launch {
             transient.value = Transient(creating = true)
-            transient.value = when (val result = plans.create(PlanRequest(f.distance, f.raceDate, goal))) {
+            transient.value = when (val result = plans.create(request)) {
                 is PlanResult.Created -> Transient(repairs = result.repairs)
                 is PlanResult.Rejected -> Transient(violations = result.violations)
                 is PlanResult.Invalid -> Transient(error = UiText(R.string.plan_error_invalid, result.message))

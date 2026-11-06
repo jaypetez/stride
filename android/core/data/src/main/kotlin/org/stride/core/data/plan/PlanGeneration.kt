@@ -7,9 +7,12 @@ import java.time.temporal.TemporalAdjusters
 import org.stride.core.science.coach.resolveRaceDistanceM
 import org.stride.core.science.model.AthleteProfile
 import org.stride.core.science.model.GuardrailViolation
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.RaceDistance
 import org.stride.core.science.model.RaceGoal
 import org.stride.core.science.model.TrainingPlan
+import org.stride.core.science.plan.BUILD_MAX_WEEKS
+import org.stride.core.science.plan.BUILD_MIN_WEEKS
 import org.stride.core.science.plan.FitnessSeed
 import org.stride.core.science.plan.PlanGuardrailContext
 import org.stride.core.science.plan.PlanSkeletonParams
@@ -20,8 +23,25 @@ import org.stride.core.science.plan.validatePlan
 const val MIN_PLAN_WEEKS = 4
 const val MAX_PLAN_WEEKS = 24
 
-/** What the plan form collects (MVP-018). */
-data class PlanRequest(val distance: RaceDistance, val raceDate: LocalDate, val goalTimeSec: Double? = null)
+/** The build-plan length the form starts at (MVP-026). */
+const val DEFAULT_BUILD_WEEKS = 8
+
+/**
+ * What the plan form collects (MVP-018). A [PlanKind.RACE] plan needs a [raceDate]; a [PlanKind.BUILD] plan
+ * (MVP-026, no race) ignores the race fields and lasts [weeks] ([BUILD_MIN_WEEKS]..[BUILD_MAX_WEEKS]).
+ */
+data class PlanRequest(
+    val distance: RaceDistance,
+    val raceDate: LocalDate?,
+    val goalTimeSec: Double? = null,
+    val kind: PlanKind = PlanKind.RACE,
+    val weeks: Int = DEFAULT_BUILD_WEEKS
+) {
+    companion object {
+        /** A no-race "build my fitness" request of [weeks] weeks. */
+        fun build(weeks: Int): PlanRequest = PlanRequest(RaceDistance.TEN_K, raceDate = null, kind = PlanKind.BUILD, weeks = weeks)
+    }
+}
 
 sealed interface PlanResult {
     /**
@@ -67,6 +87,9 @@ fun raceDistanceM(distance: RaceDistance): Double = resolveRaceDistanceM(RaceGoa
  *
  * With a [seed] (MVP-025, from `fitnessSeed` over recent activities) the plan starts from the athlete's recent
  * weekly volume and long run, and paces from their recent VDOT; without one it is the fixed-minute skeleton.
+ *
+ * A [PlanKind.BUILD] request (MVP-026) needs no race date: it starts on [planStartDate], lasts
+ * [PlanRequest.weeks] (4..16, else [PlanResult.Invalid]) and has base then build phases with no race session.
  */
 fun generatePlan(
     request: PlanRequest,
@@ -77,25 +100,54 @@ fun generatePlan(
     createdAt: String,
     seed: FitnessSeed? = null
 ): PlanResult {
+    requestProblem(request, today)?.let { return PlanResult.Invalid(it) }
     val start = planStartDate(today)
-    val earliest = earliestRaceDate(today)
-    if (request.raceDate.isBefore(earliest)) {
-        return PlanResult.Invalid("Pick a race date on or after $earliest, so the plan has at least one full week.")
-    }
-    if (request.goalTimeSec != null && request.goalTimeSec <= 0) return PlanResult.Invalid("Goal time must be positive.")
-    val skeleton = buildPlanSkeleton(
+    val raceDate = request.raceDate
+    val params = if (request.kind == PlanKind.BUILD || raceDate == null) {
         PlanSkeletonParams(
             profile = profile,
-            goal = RaceGoal(distance = request.distance, date = request.raceDate.toString(), goalTimeSec = request.goalTimeSec),
-            weeks = planWeeks(start, request.raceDate),
+            goal = RaceGoal(distance = request.distance),
+            weeks = request.weeks,
+            startDate = start.toString(),
+            planId = planId,
+            createdAt = createdAt,
+            seed = seed,
+            kind = PlanKind.BUILD
+        )
+    } else {
+        PlanSkeletonParams(
+            profile = profile,
+            goal = RaceGoal(distance = request.distance, date = raceDate.toString(), goalTimeSec = request.goalTimeSec),
+            weeks = planWeeks(start, raceDate),
             startDate = start.toString(),
             planId = planId,
             createdAt = createdAt,
             seed = seed
         )
-    )
+    }
+    val skeleton = buildPlanSkeleton(params)
     if (validatePlan(skeleton, ctx).valid) return PlanResult.Created(skeleton, emptyList(), seed)
     val repaired = repairPlan(skeleton, ctx)
     val check = validatePlan(repaired.plan, ctx)
     return if (check.valid) PlanResult.Created(repaired.plan, repaired.fixed, seed) else PlanResult.Rejected(check.violations)
+}
+
+/** Why [request] cannot become a plan as of [today], or null when it can. */
+private fun requestProblem(request: PlanRequest, today: LocalDate): String? {
+    val earliest = earliestRaceDate(today)
+    val raceDate = request.raceDate
+    return when {
+        request.kind == PlanKind.BUILD -> if (request.weeks in BUILD_MIN_WEEKS..BUILD_MAX_WEEKS) {
+            null
+        } else {
+            "A fitness build lasts $BUILD_MIN_WEEKS to $BUILD_MAX_WEEKS weeks."
+        }
+
+        raceDate == null || raceDate.isBefore(earliest) ->
+            "Pick a race date on or after $earliest, so the plan has at least one full week."
+
+        request.goalTimeSec != null && request.goalTimeSec <= 0 -> "Goal time must be positive."
+
+        else -> null
+    }
 }

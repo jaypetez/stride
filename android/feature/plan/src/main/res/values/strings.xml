@@ -36,4 +36,22 @@
     <string name="plan_phase_peak">Peak</string>
     <string name="plan_phase_taper">Taper</string>
     <string name="plan_phase_recovery">Recovery</string>
+    <string name="plan_kind_race">Race</string>
+    <string name="plan_kind_build">Build fitness</string>
+    <string name="plan_build_intro">No race? Stride builds your fitness from where you are — base then build, with a recovery week every 4th week and no taper — and checks it against the same safety guardrails.</string>
+    <string name="plan_build_length">Plan length</string>
+    <plurals name="plan_build_weeks">
+        <item quantity="one">%1$d week</item>
+        <item quantity="other">%1$d weeks</item>
+    </plurals>
+    <string name="plan_build_fewer_weeks">Fewer weeks</string>
+    <string name="plan_build_more_weeks">More weeks</string>
+    <string name="plan_build_seed">Based on your last 4 weeks: %1$s h/week · longest run %2$s min</string>
+    <string name="plan_build_no_seed">Not enough recent runs — starting from a gentle default</string>
+    <string name="plan_build_start_note">Fitness builds start next Monday and run 4 to 16 weeks.</string>
+    <plurals name="plan_build_title">
+        <item quantity="one">%1$d-week fitness build</item>
+        <item quantity="other">%1$d-week fitness build</item>
+    </plurals>
+    <string name="plan_build_subtitle">No race · base and build</string>
 </resources>

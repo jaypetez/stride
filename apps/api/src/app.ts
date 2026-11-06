@@ -1,6 +1,8 @@
 import { zValidator } from '@hono/zod-validator';
 import {
   analyzeWorkout,
+  BUILD_MAX_WEEKS,
+  BUILD_MIN_WEEKS,
   buildAcwrSeries,
   buildCoachContext,
   buildPmcSeries,
@@ -27,7 +29,14 @@ import {
   syncStrava,
   toDailyLoads,
 } from '@stride/core';
-import { type Activity, AthleteProfile, type DailyLoad, IsoDate, RaceGoal } from '@stride/schemas';
+import {
+  type Activity,
+  AthleteProfile,
+  type DailyLoad,
+  IsoDate,
+  PlanKind,
+  RaceGoal,
+} from '@stride/schemas';
 import { type Context, Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
@@ -61,16 +70,32 @@ declare module 'hono' {
 /** Free-text note: forwarded to the LLM and the red-flag screen, so bounded. */
 const Note = z.string().max(MAX_NOTE_LENGTH);
 
-const PlanBody = z.object({
-  race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
-  weeks: z.number().int().positive().max(52).optional(),
-  /** Plan start, YYYY-MM-DD (validated before planning). */
-  start: IsoDate.optional(),
-  /** Goal race date, YYYY-MM-DD (validated before planning). */
-  date: IsoDate.optional(),
-  note: Note.optional(),
-  demo: z.boolean().optional(),
-});
+const PlanBody = z
+  .object({
+    /**
+     * Plan kind (MVP-026): `race` (default) periodizes toward the goal race;
+     * `build` is a no-race fitness block of 4-16 weeks (race/date ignored).
+     */
+    kind: PlanKind.optional(),
+    race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
+    weeks: z.number().int().positive().max(52).optional(),
+    /** Plan start, YYYY-MM-DD (validated before planning). */
+    start: IsoDate.optional(),
+    /** Goal race date, YYYY-MM-DD (validated before planning). */
+    date: IsoDate.optional(),
+    note: Note.optional(),
+    demo: z.boolean().optional(),
+  })
+  .refine(
+    (b) =>
+      b.kind !== 'build' ||
+      b.weeks === undefined ||
+      (b.weeks >= BUILD_MIN_WEEKS && b.weeks <= BUILD_MAX_WEEKS),
+    {
+      message: `A build plan lasts ${BUILD_MIN_WEEKS}-${BUILD_MAX_WEEKS} weeks.`,
+      path: ['weeks'],
+    },
+  );
 
 const ScreeningBody = z.object({
   /**
@@ -296,11 +321,15 @@ export function buildApp(state: ApiState, options: ApiOptions = {}) {
       const profile = demo ? DEMO_PROFILE : await loadProfile();
       const activities = demo ? demoHistory() : await store.loadActivities();
       const storedGoal = demo ? null : await store.loadGoal();
+      const kind = body.kind ?? 'race';
+      const build = kind === 'build';
       const distance = body.race ?? storedGoal?.distance ?? '10k';
+      // A build plan has no race: the stored goal's date is not used (and the
+      // stored goal is left untouched below).
       const goal = RaceGoal.parse({
         distance,
         name: storedGoal?.name ?? distance,
-        date: body.date ?? storedGoal?.date,
+        date: build ? undefined : (body.date ?? storedGoal?.date),
       });
       const weeks = body.weeks ?? 8;
       const asOfDate = demo ? demoNow() : nowIso();
@@ -311,6 +340,7 @@ export function buildApp(state: ApiState, options: ApiOptions = {}) {
         profile,
         goal,
         weeks,
+        kind,
         startDate,
         context,
         note: body.note,
@@ -330,7 +360,7 @@ export function buildApp(state: ApiState, options: ApiOptions = {}) {
       }
       if (!demo) {
         await store.savePlan(result.plan);
-        await store.saveGoal(goal);
+        if (!build) await store.saveGoal(goal);
       }
       return c.json({
         plan: result.plan,

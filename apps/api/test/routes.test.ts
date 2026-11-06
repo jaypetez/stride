@@ -327,6 +327,25 @@ const ROUTE_TESTS: Record<
         expect((await store.loadPlan())?.id).toBe(body.plan.id);
         expect(await store.loadGoal()).toMatchObject({ distance: 'half', date: '2026-10-04' });
       },
+      'live build: persists the plan but never overwrites the race goal (MVP-026)': async () => {
+        const { app, store } = await seededApp();
+        await app.request('/plan', json({ race: 'half', date: '2026-10-04' }));
+        const res = await app.request('/plan', json({ kind: 'build', weeks: 6 }));
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.plan.kind).toBe('build');
+        expect((await store.loadPlan())?.id).toBe(body.plan.id);
+        // The race goal from the earlier race plan is left untouched.
+        expect(await store.loadGoal()).toMatchObject({ distance: 'half', date: '2026-10-04' });
+      },
+      'live with no recent runs: omits the seed and falls back to the template': async () => {
+        const app = await emptyApp();
+        const res = await app.request('/plan', json({ kind: 'build', weeks: 4 }));
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as any;
+        expect(body.plan.kind).toBe('build');
+        expect(body.seed).toBeUndefined();
+      },
     },
     failure: {
       'invalid bodies are 400 envelopes': async () => {

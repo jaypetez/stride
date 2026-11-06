@@ -48,6 +48,47 @@ describe('Stride API', () => {
     expect(body.validation.valid).toBe(true);
   });
 
+  it('POST /plan {kind: build} (demo) returns a seeded no-race fitness block', async () => {
+    const res = await app.request('/plan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ demo: true, kind: 'build', weeks: 8 }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.plan.kind).toBe('build');
+    expect(body.plan.weeks).toHaveLength(8);
+    expect(body.validation.valid).toBe(true);
+    expect(body.seed).toBeDefined();
+    const phases = body.plan.weeks.map((w: any) => w.phase);
+    expect(phases).not.toContain('taper');
+    expect(phases).not.toContain('peak');
+    const types = body.plan.weeks.flatMap((w: any) =>
+      w.days.flatMap((d: any) => d.sessions.map((s: any) => s.type)),
+    );
+    expect(types).not.toContain('race');
+  });
+
+  it('POST /plan {kind: build} rejects weeks outside 4-16 with a 400 envelope', async () => {
+    for (const weeks of [3, 17]) {
+      const res = await app.request('/plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ demo: true, kind: 'build', weeks }),
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as any;
+      expect(typeof body.error).toBe('string');
+      expect(typeof body.requestId).toBe('string');
+    }
+    const bad = await app.request('/plan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ demo: true, kind: 'marathon-ish' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+
   it('GET /analyze/demo includes the safety disclaimer', async () => {
     const res = await app.request('/analyze/demo');
     expect(res.status).toBe(200);

@@ -1265,6 +1265,39 @@ function plannerFile(now: string): GoldenFile {
     run(cases, name, 'buildPlanSkeleton', { params }, (i) => buildPlanSkeleton(i.params));
   }
 
+  // MVP-026: no-race "build my fitness" plans (kind: 'build').
+  const builds: Array<[string, AthleteProfile, number, FitnessSeed | null]> = [
+    ['build: unseeded template fallback, 4 weeks', P, 4, null],
+    ['build: unseeded template fallback, 16 weeks (long-run cap)', P, 16, null],
+    ['build: low-volume beginner, 6 weeks', PROFILES.ageOnly, 6, seedOf(75, 30, null, 9)],
+    ['build: below the 60 min/week floor, 5 weeks', P, 5, seedOf(30, 15, null, 3)],
+    ['build: medium volume with VDOT paces, 8 weeks', PROFILES.vdotOnly, 8, seedOf(180, 60, 45)],
+    ['build: high volume, 12 weeks', P, 12, seedOf(420, 120, 55.1)],
+    ['build: very high volume holds (cap), 16 weeks', P, 16, seedOf(700, 150, 62)],
+    [
+      'build: from the demo history (fitnessSeed at the reference clock), 10 weeks',
+      P,
+      10,
+      fitnessSeed(HISTORY, now),
+    ],
+    ['build: requested 2 weeks clamps to 4', P, 2, seedOf(120, 45, 40)],
+    ['build: requested 30 weeks clamps to 16', P, 30, seedOf(150, 50, 42)],
+  ];
+  for (const [name, prof, weeks, seed] of builds) {
+    const params = {
+      profile: prof,
+      // A race date on a build plan is ignored (no alignment, no race session).
+      goal: goal({ distance: '10k', date: '2026-09-20' }),
+      weeks,
+      startDate: now,
+      planId: `golden-build-${weeks}w`,
+      createdAt: now,
+      seed,
+      kind: 'build' as const,
+    };
+    run(cases, name, 'buildPlanSkeleton', { params }, (i) => buildPlanSkeleton(i.params));
+  }
+
   const types: WorkoutType[] = [
     'easy',
     'long',
@@ -1334,6 +1367,7 @@ function plannerFile(now: string): GoldenFile {
       'makeSession: durationSec = Math.round(min*60); targetTss = toFixed(0) of IF^2*hours*100; pace = Math.round(1000/speed) s/km; distance = Math.round(speed*durationSec); pace is omitted (absent) when speed <= 0.',
       'proposeNextWorkout threshold: profile.thresholdSpeedMps, else from vdot, else 3.0 m/s.',
       'buildPlanSkeleton params.seed (MVP-025, from fitnessSeed): absent/null = the fixed-minute skeleton. Present: paces from thresholdSpeedFromVdot(seed.vdot) when vdot is truthy; week volumes/long runs from seededShapes (start = max(60, weeklyMinutes); long = min(max(longestRunMin, 40), 140, 0.4*volume); same-phase loading weeks grow x1.08 up to max(start, min(2*start, 600)), a phase change holds volume; long x1.08 within 140 / 0.4*volume / 110 in peak; recovery 0.65x and taper 0.5x the last loading volume, recovery long = min(last long, 0.4*volume)); non-long sessions are template minutes x (volume - long) / template non-long minutes.',
+      "buildPlanSkeleton params.kind (MVP-026): absent/'race' = the race plan above. 'build' = weeks clamped to 4..16 (Math.round, NaN -> 4); no alignToRace (goal.date ignored), start = the startDate key; phases base for week <= max(1, round(0.4*weeks)) else build (no peak, no taper); every 4th week recovery; no race session; seededShapes and the unseeded long-run progression use these phases unchanged; the plan gets kind 'build' and summary buildPlanSummary(weeks).",
     ],
     cases,
   };

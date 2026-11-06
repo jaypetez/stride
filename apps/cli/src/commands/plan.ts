@@ -1,4 +1,12 @@
-import { buildCoachContext, DEMO_PROFILE, demoHistory, generatePlan } from '@stride/core';
+import {
+  BUILD_MAX_WEEKS,
+  BUILD_MIN_WEEKS,
+  buildCoachContext,
+  DEMO_PROFILE,
+  demoHistory,
+  generatePlan,
+  seedSummary,
+} from '@stride/core';
 import {
   type Activity,
   type AthleteProfile,
@@ -14,6 +22,8 @@ const RACE_CHOICES = ['5k', '10k', 'half', 'marathon'];
 
 export async function planCommand(opts: {
   demo?: boolean;
+  /** MVP-026: a no-race "build my fitness" plan (4-16 weeks). */
+  build?: boolean;
   race?: string;
   weeks?: string;
   start?: string;
@@ -33,6 +43,12 @@ export async function planCommand(opts: {
       errorMsg(`Invalid ${flag} "${value}"; expected a real date in YYYY-MM-DD format.`);
       return;
     }
+  }
+
+  const build = opts.build === true;
+  if (build && (opts.race !== undefined || opts.date !== undefined)) {
+    errorMsg('A --build plan has no race; drop --race/--date (or omit --build for a race plan).');
+    return;
   }
 
   let profile: AthleteProfile = DEMO_PROFILE;
@@ -58,10 +74,12 @@ export async function planCommand(opts: {
   const goal = RaceGoal.parse({
     distance,
     name: storedGoal?.name ?? distance,
-    date: opts.date ?? storedGoal?.date,
+    // A build plan has no race, so the stored race date is not used.
+    date: build ? undefined : (opts.date ?? storedGoal?.date),
   });
   // Guard the numeric --weeks input against NaN (e.g. `--weeks abc`) before it
-  // reaches the plan engine; clamp valid values to the supported 1–52 range.
+  // reaches the plan engine; clamp valid values to the supported 1–52 range
+  // (a build plan must be 4–16 weeks).
   let weeks = 8;
   if (opts.weeks !== undefined) {
     const n = Number(opts.weeks);
@@ -70,6 +88,12 @@ export async function planCommand(opts: {
       return;
     }
     weeks = Math.max(1, Math.min(52, Math.round(n)));
+    if (build && (weeks < BUILD_MIN_WEEKS || weeks > BUILD_MAX_WEEKS)) {
+      errorMsg(
+        `Invalid --weeks "${opts.weeks}" for --build; a build plan lasts ${BUILD_MIN_WEEKS}-${BUILD_MAX_WEEKS} weeks.`,
+      );
+      return;
+    }
   }
   const asOfDate = refNowIso(app.config, opts.demo);
   const startDate = opts.start ?? asOfDate.slice(0, 10);
@@ -79,6 +103,7 @@ export async function planCommand(opts: {
     profile,
     goal,
     weeks,
+    kind: build ? 'build' : 'race',
     startDate,
     context,
     note: opts.note,
@@ -95,7 +120,7 @@ export async function planCommand(opts: {
 
   if (!opts.demo) {
     await app.store.savePlan(plan);
-    await app.store.saveGoal(goal);
+    if (!build) await app.store.saveGoal(goal);
   }
 
   if (opts.json) {
@@ -106,6 +131,13 @@ export async function planCommand(opts: {
   if (!opts.demo) success(`Saved plan to ${app.store.dir}`);
   // Safety flags (esp. a STOP) go first so they can't be missed.
   printFlags(flags);
+  if (build) {
+    console.log(
+      seed
+        ? `  ${seedSummary(seed)}.`
+        : '  Not enough recent runs — starting from a gentle default.',
+    );
+  }
   printPlan(plan, validation);
   printDisclaimer(disclaimer);
   if (!app.llm) dim('\n  (Set ANTHROPIC_API_KEY for an LLM-written plan overview.)');
