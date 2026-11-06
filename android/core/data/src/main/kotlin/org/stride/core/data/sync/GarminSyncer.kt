@@ -69,10 +69,13 @@ class GarminSyncer @Inject constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (abort: Abort) {
+                StrideLog.w(TAG, "sync stopped: ${abort.error}")
+                recomputeWhatWasImported()
                 failure(abort.error)
             } catch (e: Exception) {
                 // Zip, Room, date-parse… failures: report them instead of spinning forever.
                 StrideLog.w(TAG, "sync failed unexpectedly", e)
+                recomputeWhatWasImported()
                 // Persist the reason (AUD-032) so it survives process death; a broken store must not mask the failure.
                 runCatching { prefs.setLastSyncFailure(SyncFailure.UNEXPECTED.name) }
                 status.update(SyncProgress.Failed(SyncFailure.UNEXPECTED))
@@ -195,6 +198,22 @@ class GarminSyncer @Inject constructor(
         }
         newIds += activities.map { it.id }.filterNot { it in existing }
         noteChanged(activities)
+    }
+
+    /**
+     * A sync that stops partway has already saved some runs. Compute their metrics anyway so
+     * Today and Fitness reflect them instead of staying empty until a fully clean sync.
+     */
+    @Suppress("TooGenericExceptionCaught") // best effort: never mask the original failure
+    private suspend fun recomputeWhatWasImported() {
+        if (holder.isDemo) return
+        try {
+            recomputer.recompute(changedActivityIds = null, fromDate = null)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (e: Exception) {
+            StrideLog.w(TAG, "recompute after a failed sync also failed", e)
+        }
     }
 
     private suspend fun failure(error: GarminError): SyncOutcome {

@@ -86,6 +86,23 @@ class GarminSyncerTest {
     }
 
     @Test
+    fun failedSyncStillComputesMetricsForTheRunsItImported() = runTest(UnconfinedTestDispatcher()) {
+        // Regression: a sync that stopped partway left runs in Runs but Fitness/Today empty,
+        // because metrics were only computed after a fully clean sync.
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val failing = FakeGarminClient(history, wellness).apply {
+            failActivitiesOnCall = 4
+            failWith = GarminError.Http(400)
+        }
+        assertEquals(SyncOutcome.Retry(SyncFailure.UNEXPECTED), env.syncer(failing).sync())
+        val imported = env.db.activityDao().count()
+        assertTrue(imported > 0)
+        assertEquals(imported, env.db.metricsDao().allActivityMetrics().size)
+        assertTrue(env.db.metricsDao().allDailyLoads().isNotEmpty())
+        assertIs<SyncProgress.Failed>(env.status.progress.value)
+    }
+
+    @Test
     fun interruptedBackfillResumesFromCursor() = runTest(UnconfinedTestDispatcher()) {
         val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
         val failing = FakeGarminClient(history, wellness).apply { failActivitiesOnCall = 4 }

@@ -125,6 +125,30 @@ class OkHttpGarminClientTest {
     }
 
     @Test
+    fun failingOptionalWellnessEndpointsAreSkippedNotFatal() = runTest {
+        // Weight 404 (no scale), stress 500 after retries and an HRV shape we can't decode
+        // must not abort the sync; daily summaries and sleep still come through.
+        route("usersummary-service/v2/dailysummaries", ok("""{"data":[{"calendarDate":"2026-11-04","heartRate":{"restingValue":48}}]}"""))
+        route("sleep-service", ok("[]"))
+        route("hrv-service", ok("""{"hrvSummaries":"not-a-list"}"""))
+        route("usersummary-service/stats/stress", code(500))
+        route("weight-service", code(404))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.wellness(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        assertIs<StrideResult.Ok<List<org.stride.core.model.DailyWellness>>>(result)
+        assertEquals(48, result.value.single { it.date == "2026-11-04" }.restingHr)
+    }
+
+    @Test
+    fun rateLimitOnWellnessStillStopsTheSync() = runTest {
+        route("usersummary-service/v2/dailysummaries", code(429))
+        val c = client(dispatcher = StandardTestDispatcher(testScheduler))
+        val result = c.wellness(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-05"))
+        assertIs<StrideResult.Err<GarminError>>(result)
+        assertIs<GarminError.RateLimited>(result.error)
+    }
+
+    @Test
     fun dataRequestsSendUserAgent() = runTest {
         route("activitylist-service", ok("[]"))
         val c = client(dispatcher = StandardTestDispatcher(testScheduler))
