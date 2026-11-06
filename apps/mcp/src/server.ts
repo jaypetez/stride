@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { findCoachTool, MAX_NOTE_LENGTH } from '@stride/core';
-import { IsoDate } from '@stride/schemas';
+import { IsoDate, PlanKind } from '@stride/schemas';
 import { z } from 'zod';
 import pkg from '../package.json' with { type: 'json' };
 import type { McpState } from './state';
@@ -92,9 +92,13 @@ export function buildServer(state: McpState): McpServer {
     'generate_plan',
     {
       title: 'Generate a training plan',
-      description: 'Generate a periodized, guardrail-validated training plan toward a goal race.',
+      description:
+        'Generate a periodized, guardrail-validated training plan: toward a goal race (kind "race", the default) or a no-race "build my fitness" block of 4-16 weeks seeded from recent training (kind "build").',
       inputSchema: {
         demo: z.boolean().optional(),
+        kind: PlanKind.optional().describe(
+          'race (default): periodize toward the goal race; build: no-race fitness block, 4-16 weeks (race/date ignored)',
+        ),
         race: z.enum(['5k', '10k', 'half', 'marathon']).optional(),
         weeks: z.number().int().min(1).max(52).optional(),
         start: IsoDate.optional().describe('Plan start date (YYYY-MM-DD)'),
@@ -102,8 +106,10 @@ export function buildServer(state: McpState): McpServer {
         note: noteSchema(),
       },
     },
-    async ({ demo, race, weeks, start, date, note }) =>
-      toContent(await toolPlan(state, { demo: demo ?? false, race, weeks, start, date, note })),
+    async ({ demo, kind, race, weeks, start, date, note }) =>
+      toContent(
+        await toolPlan(state, { demo: demo ?? false, kind, race, weeks, start, date, note }),
+      ),
   );
 
   return server;

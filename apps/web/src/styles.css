@@ -517,3 +517,12 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* MVP-026: the Race | Build fitness toggle on the plan card. */
+.plan-kind {
+  margin-bottom: 12px;
+}
+
+.seed-summary {
+  font-weight: 600;
+}

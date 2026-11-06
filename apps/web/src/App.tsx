@@ -1,11 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
-import { api, errorMessage, errorStatus, type RaceOption } from './api';
+import { api, errorStatus } from './api';
+import { ErrorText } from './components/ErrorText';
+import { PlanCard } from './components/PlanCard';
 import { PmcChart } from './components/PmcChart';
 import { PoweredByStrava } from './components/PoweredByStrava';
 import { Disclaimer, SafetyFlags } from './components/SafetyFlags';
 import { formatDuration, formatKm, formatPace } from './format';
-import { parseWeeks } from './validate';
 
 type Mode = 'demo' | 'live';
 
@@ -115,14 +116,6 @@ function Loading() {
 }
 
 /** Error line using the API's own `error` message when it sent one. */
-function ErrorText({ error, fallback }: { error: unknown; fallback?: string }) {
-  return (
-    <p className="error" role="status">
-      {errorMessage(error, fallback)}
-    </p>
-  );
-}
-
 function FormCard({ demo }: { demo: boolean }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['pmc', demo],
@@ -281,125 +274,6 @@ function ActivitiesCard({ demo }: { demo: boolean }) {
             ))}
           </tbody>
         </table>
-      )}
-    </section>
-  );
-}
-
-function PlanCard({ demo, note }: { demo: boolean; note: string }) {
-  const [race, setRace] = useState<RaceOption>('10k');
-  // Kept as the raw input text so an empty field is caught here (see parseWeeks).
-  const [weeksText, setWeeksText] = useState('8');
-  const [formError, setFormError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: (weeks: number) => api.plan({ demo, race, weeks, note: note || undefined }),
-  });
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const parsed = parseWeeks(weeksText);
-    if ('error' in parsed) {
-      setFormError(parsed.error);
-      return;
-    }
-    setFormError(null);
-    mutation.mutate(parsed.weeks);
-  };
-
-  const violations = mutation.data?.validation.violations ?? [];
-
-  return (
-    <section className="card wide" aria-busy={mutation.isPending}>
-      <h2>Training plan</h2>
-      <form className="plan-form" onSubmit={submit} noValidate>
-        <label>
-          Race
-          <select value={race} onChange={(e) => setRace(e.target.value as RaceOption)}>
-            <option value="5k">5k</option>
-            <option value="10k">10k</option>
-            <option value="half">Half</option>
-            <option value="marathon">Marathon</option>
-          </select>
-        </label>
-        <label>
-          Weeks
-          <input
-            type="number"
-            min={1}
-            max={52}
-            step={1}
-            value={weeksText}
-            aria-invalid={formError ? true : undefined}
-            aria-describedby={formError ? 'plan-weeks-error' : undefined}
-            onChange={(e) => setWeeksText(e.target.value)}
-          />
-        </label>
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Generating…' : 'Generate plan'}
-        </button>
-      </form>
-      {formError && (
-        <p id="plan-weeks-error" className="error" role="alert">
-          {formError}
-        </p>
-      )}
-      {mutation.isError && (
-        <ErrorText
-          error={mutation.error}
-          fallback="Could not generate a plan (is the API running?)."
-        />
-      )}
-      {mutation.data && (
-        <>
-          <SafetyFlags flags={mutation.data.flags} />
-          <p className="muted">{mutation.data.plan.summary}</p>
-          {mutation.data.validation.valid ? (
-            <p className="ok">✓ Passes all guardrails.</p>
-          ) : (
-            <div className="warn">
-              <p>Guardrail issues: {violations.length}</p>
-              <ul className="violations">
-                {violations.map((v) => (
-                  <li key={`${v.rule}-${v.weekNumber ?? ''}-${v.message}`}>
-                    {v.weekNumber !== undefined ? `Week ${v.weekNumber}: ` : ''}
-                    {v.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Week</th>
-                <th>Phase</th>
-                <th>TSS</th>
-                <th>km</th>
-                <th>Sessions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mutation.data.plan.weeks.map((w) => (
-                <tr key={w.weekNumber}>
-                  <td>{w.weekNumber}</td>
-                  <td>
-                    <span className="chip">{w.phase}</span>
-                  </td>
-                  <td>{w.targetTss}</td>
-                  <td>{w.targetDistanceKm}</td>
-                  <td className="muted">
-                    {w.days
-                      .flatMap((d) => d.sessions)
-                      .filter((s) => s.type !== 'rest')
-                      .map((s) => s.title.replace(/\s*\(.*\)$/, ''))
-                      .join(' · ')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Disclaimer text={mutation.data.disclaimer} />
-        </>
       )}
     </section>
   );

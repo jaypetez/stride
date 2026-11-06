@@ -76,3 +76,12 @@ export function fitnessSeed(activities: Activity[], asOf: string): FitnessSeed |
     runCount,
   };
 }
+
+/**
+ * One human line describing a seed (MVP-026), shown by the CLI and web when a
+ * plan was seeded: "Based on your last 4 weeks: 3.2 h/week, longest run 75 min".
+ */
+export function seedSummary(seed: FitnessSeed): string {
+  const hours = (seed.weeklyMinutes / 60).toFixed(1);
+  return `Based on your last 4 weeks: ${hours} h/week, longest run ${Math.round(seed.longestRunMin)} min`;
+}

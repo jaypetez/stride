@@ -86,7 +86,11 @@ export function printWorkout(w: WorkoutSuggestion): void {
 }
 
 export function printPlan(plan: TrainingPlan, validation: PlanValidation): void {
-  heading(`${plan.weeks.length}-week plan → ${plan.goal.name ?? plan.goal.distance}`);
+  heading(
+    plan.kind === 'build'
+      ? `${plan.weeks.length}-week fitness build (no race)`
+      : `${plan.weeks.length}-week plan → ${plan.goal.name ?? plan.goal.distance}`,
+  );
   if (plan.summary) console.log(`  ${plan.summary}\n`);
   for (const week of plan.weeks) {
     const tag = pc.bold(`Week ${week.weekNumber}`);

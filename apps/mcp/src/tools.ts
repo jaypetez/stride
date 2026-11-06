@@ -12,12 +12,14 @@ import {
   generatePlan,
   resolveNowIso,
   runCoachTool,
+  seedSummary,
   suggestNextWorkout,
 } from '@stride/core';
 import {
   type Activity,
   type AthleteProfile,
   type DailyLoad,
+  type PlanKind,
   RaceGoal,
   type RaceGoal as RaceGoalType,
 } from '@stride/schemas';
@@ -140,6 +142,8 @@ export async function toolPlan(
   state: McpState,
   args: {
     demo: boolean;
+    /** MVP-026: `build` = a no-race fitness block (4-16 weeks, clamped). */
+    kind?: PlanKind;
     race?: string;
     weeks?: number;
     start?: string;
@@ -148,11 +152,14 @@ export async function toolPlan(
   },
 ): Promise<ToolResult> {
   const { profile, activities, goal: storedGoal, dailyLoads } = await loadCtx(state, args.demo);
+  const kind: PlanKind = args.kind ?? 'race';
+  const build = kind === 'build';
   const distance = args.race ?? storedGoal?.distance ?? '10k';
   const goal = RaceGoal.parse({
     distance,
     name: storedGoal?.name ?? distance,
-    date: args.date ?? storedGoal?.date,
+    // A build plan has no race, so no race date.
+    date: build ? undefined : (args.date ?? storedGoal?.date),
   });
   const weeks = args.weeks ?? 8;
   const asOfDate = refNowIso(state, args.demo);
@@ -162,6 +169,7 @@ export async function toolPlan(
     profile,
     goal,
     weeks,
+    kind,
     startDate,
     context,
     note: args.note,
@@ -176,7 +184,9 @@ export async function toolPlan(
     };
   }
   return {
-    text: `${plan.weeks.length}-week ${goal.name ?? goal.distance} plan (valid).`,
+    text: build
+      ? `${plan.weeks.length}-week fitness build (valid${seed ? `; ${seedSummary(seed)}` : ''}).`
+      : `${plan.weeks.length}-week ${goal.name ?? goal.distance} plan (valid).`,
     data: { plan, validation, disclaimer, flags, seed },
   };
 }

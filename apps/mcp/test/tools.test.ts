@@ -79,6 +79,24 @@ describe('MCP action tools (demo) carry the disclaimer', () => {
   });
 });
 
+describe('MCP generate_plan kind build (MVP-026)', () => {
+  it('returns a seeded no-race fitness block', async () => {
+    const r = await toolPlan(makeState(), { demo: true, kind: 'build', weeks: 8 });
+    const { plan, validation, seed } = r.data as any;
+    expect(validation.valid).toBe(true);
+    expect(plan.kind).toBe('build');
+    expect(plan.weeks).toHaveLength(8);
+    expect(seed).toBeDefined();
+    expect(r.text).toMatch(/^8-week fitness build \(valid; Based on your last 4 weeks/);
+    expect(plan.weeks.map((w: any) => w.phase)).not.toContain('taper');
+  });
+
+  it('clamps a build plan to 16 weeks', async () => {
+    const r = await toolPlan(makeState(), { demo: true, kind: 'build', weeks: 40 });
+    expect((r.data as any).plan.weeks).toHaveLength(16);
+  });
+});
+
 describe('MCP demo anchoring and plan rejection (AUD-003/AUD-008)', () => {
   it('demo facts use the demo goal and today, not the wall clock', async () => {
     const unpinned: McpState = {

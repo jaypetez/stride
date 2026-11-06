@@ -18,4 +18,12 @@ describe('parseWeeks', () => {
       expect(parseWeeks(raw)).toHaveProperty('error');
     }
   });
+
+  it('checks a custom range (build plans are 4–16 weeks)', () => {
+    const range = { min: 4, max: 16 };
+    expect(parseWeeks('8', range)).toEqual({ weeks: 8 });
+    expect(parseWeeks('3', range)).toEqual({ error: 'Weeks must be a whole number from 4 to 16.' });
+    expect(parseWeeks('17', range)).toHaveProperty('error');
+    expect(parseWeeks('', range)).toEqual({ error: 'Enter the number of weeks (4–16).' });
+  });
 });

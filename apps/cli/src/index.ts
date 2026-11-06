@@ -98,8 +98,9 @@ program
   .command('plan')
   .description('Generate a periodized training plan')
   .option('--demo', 'use bundled demo data (no credentials needed)')
+  .option('--build', 'a no-race "build my fitness" plan from your recent training (4-16 weeks)')
   .option('--race <race>', 'goal race: 5k | 10k | half | marathon')
-  .option('--weeks <n>', 'plan length in weeks (default 8)')
+  .option('--weeks <n>', 'plan length in weeks (default 8; 4-16 with --build)')
   .option('--start <date>', 'plan start date (YYYY-MM-DD)')
   .option('--date <date>', 'goal race date (YYYY-MM-DD)')
   .option('--note <text>', 'how you feel (screened for safety red flags, e.g. "chest pain")')
@@ -108,6 +109,7 @@ program
     run(
       (opts: {
         demo?: boolean;
+        build?: boolean;
         race?: string;
         weeks?: string;
         start?: string;

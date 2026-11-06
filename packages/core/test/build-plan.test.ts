@@ -11,6 +11,7 @@ import {
   validatePlan,
 } from '../src/coach/index';
 import { DEMO_PROFILE, demoHistory, demoNowIso } from '../src/fixtures';
+import { seedSummary } from '../src/science/index';
 
 /** MVP-026: the no-race "build my fitness" plan kind. */
 
@@ -180,5 +181,13 @@ describe('generatePlan with kind build', () => {
       startDate: START,
     });
     expect(result.plan.weeks).toHaveLength(16);
+  });
+});
+
+describe('seedSummary', () => {
+  it('formats hours per week and the longest run', () => {
+    expect(seedSummary(seed(192, 74.6))).toBe(
+      'Based on your last 4 weeks: 3.2 h/week, longest run 75 min',
+    );
   });
 });
