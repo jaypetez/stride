@@ -1,5 +1,17 @@
 # @stride/core
 
+## 0.2.17
+
+### Patch Changes
+
+- f23763d: Dependency maintenance: vitest and @vitest/coverage-v8 5.1.0, @vitejs/plugin-react 6.2.1, @types/node 26.6.6, @hono/node-server 2.1.6; setup-gradle pinned to the v6.4.1 commit.
+- abeec57: Android: optional Garmin wellness endpoints no longer abort a sync, and a sync that stops partway still computes fitness metrics for the runs it imported.
+- abeec57: Android: fix Garmin key connect failing with HTTP 406 by sending `Accept: */*` on the token exchange, and send a User-Agent on every Garmin request.
+- e13e1f5: Android: Fitness fills in as soon as runs import, recomputing load after each Garmin sync window instead of only after the whole first sync (MVP-024).
+- 75065cc: Plans now start from your last 4 weeks of training (MVP-025). A new `fitnessSeed` summarizes recent running (weekly minutes, longest run, recent VDOT, run count); `buildPlanSkeleton` takes it as an optional `seed` that sets week-1 volume, the first long run and paces, then grows at most 10% per loading week within the guardrails. `generatePlan` seeds from the coach context and returns the seed alongside the plan. The Android engine mirrors it, pinned by new science goldens.
+- b0d99cd: Add a no-race "build my fitness" plan mode (MVP-026). `buildPlanSkeleton` and `generatePlan` take `kind: 'build'` for a 4-16 week block of base then build phases with a recovery week every 4th week and no peak, taper or race session, seeded from your last 4 weeks of training when available. The API (`POST /plan {kind: 'build', weeks}`), CLI (`stride plan --build --weeks N`), MCP `generate_plan` (`kind`) and the web plan card (Race | Build fitness toggle) can all create one, and the Android Plan tab offers the same toggle. Golden cases pin build-plan output in both engines.
+- @stride/schemas@0.2.17
+
 ## 0.2.16
 
 ### Patch Changes

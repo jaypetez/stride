@@ -1,5 +1,18 @@
 # @stride/mcp
 
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies [f23763d]
+- Updated dependencies [abeec57]
+- Updated dependencies [abeec57]
+- Updated dependencies [e13e1f5]
+- Updated dependencies [75065cc]
+- Updated dependencies [b0d99cd]
+  - @stride/core@0.2.17
+  - @stride/schemas@0.2.17
+
 ## 0.2.16
 
 ### Patch Changes
