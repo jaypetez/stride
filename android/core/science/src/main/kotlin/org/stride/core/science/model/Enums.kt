@@ -140,6 +140,19 @@ enum class WorkoutType {
     CROSS_TRAINING
 }
 
+/**
+ * Plan kind (MVP-026). [RACE] periodizes toward a goal race; [BUILD] is a no-race fitness block (4-16 weeks,
+ * base then build, no peak, taper or race session). Mirrors packages/schemas/src/coach.ts#PlanKind.
+ */
+@Serializable
+enum class PlanKind {
+    @SerialName("race")
+    RACE,
+
+    @SerialName("build")
+    BUILD
+}
+
 /** Mesocycle phase. Mirrors packages/schemas/src/enums.ts#PlanPhase. */
 @Serializable
 enum class PlanPhase {

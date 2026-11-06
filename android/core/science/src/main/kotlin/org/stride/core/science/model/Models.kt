@@ -213,7 +213,9 @@ data class TrainingPlan(
     val startDate: String,
     val endDate: String? = null,
     val summary: String? = null,
-    val weeks: List<PlanWeek>
+    val weeks: List<PlanWeek>,
+    /** Plan kind (MVP-026); null = a race plan. Only build plans set it. Last so positional callers keep working. */
+    val kind: PlanKind? = null
 )
 
 /** Mirrors packages/schemas/src/coach.ts#GuardrailViolation. [severity] is "error" or "warning". */

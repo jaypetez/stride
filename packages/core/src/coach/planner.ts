@@ -5,6 +5,7 @@ import type {
   IntensityLabel,
   LlmPlanProposal,
   PlanDay,
+  PlanKind,
   PlanPhase,
   PlanWeek,
   RaceGoal,
@@ -238,7 +239,29 @@ function impliedIntensity(tss: number, durationSec: number): number {
 
 // --- Plan skeleton (deterministic, periodized) ---
 
-function phaseForWeek(week: number, weeks: number): PlanPhase {
+/** A build plan (MVP-026) lasts at least this many weeks... */
+export const BUILD_MIN_WEEKS = 4;
+/** ...and at most this many. */
+export const BUILD_MAX_WEEKS = 16;
+/** Share of a build plan's weeks spent in the base phase (the rest is build). */
+export const BUILD_BASE_SHARE = 0.4;
+
+/** Clamp a requested build-plan length to {@link BUILD_MIN_WEEKS}..{@link BUILD_MAX_WEEKS}. */
+export function clampBuildWeeks(weeks: number): number {
+  const w = Number.isFinite(weeks) ? Math.round(weeks) : BUILD_MIN_WEEKS;
+  return Math.min(BUILD_MAX_WEEKS, Math.max(BUILD_MIN_WEEKS, w));
+}
+
+/**
+ * The phase of a week. A race plan is base (~35%) -> build -> peak -> taper; a
+ * build plan (MVP-026) is base (~40%, at least 1 week) then build, with no peak
+ * and no taper.
+ */
+function phaseForWeek(week: number, weeks: number, kind: PlanKind = 'race'): PlanPhase {
+  if (kind === 'build') {
+    const baseWeeks = Math.max(1, Math.round(weeks * BUILD_BASE_SHARE));
+    return week > baseWeeks ? 'build' : 'base';
+  }
   const taperWeeks = weeks >= 6 ? 2 : weeks >= 3 ? 1 : 0;
   const baseWeeks = Math.max(1, Math.round(weeks * 0.35));
   const peakWeeks = weeks >= 6 && weeks - taperWeeks - baseWeeks >= 2 ? 1 : 0;
@@ -379,7 +402,7 @@ interface WeekShape {
  * week is 0.65 and a taper week 0.5 of the last loading week's volume. The
  * weekly templates are the unseeded ones, scaled.
  */
-function seededShapes(seed: FitnessSeed, weeks: number): WeekShape[] {
+function seededShapes(seed: FitnessSeed, weeks: number, kind: PlanKind = 'race'): WeekShape[] {
   const start = Math.max(SEED_MIN_WEEKLY_MIN, seed.weeklyMinutes);
   const cap = Math.max(start, Math.min(start * SEED_MAX_GROWTH, SEED_MAX_WEEKLY_MIN));
   const shapes: WeekShape[] = [];
@@ -387,7 +410,7 @@ function seededShapes(seed: FitnessSeed, weeks: number): WeekShape[] {
   let loadLong = 0;
   let loadPhase: PlanPhase | undefined;
   for (let w = 1; w <= weeks; w++) {
-    const phase = phaseForWeek(w, weeks);
+    const phase = phaseForWeek(w, weeks, kind);
     const recovery = w % 4 === 0 && phase !== 'taper';
     const key: TemplateKey = recovery ? 'recovery' : phase;
     let volume: number;
@@ -496,6 +519,14 @@ export interface PlanSkeletonParams {
    * the fixed-minute skeleton.
    */
   seed?: FitnessSeed | null;
+  /**
+   * Plan kind (MVP-026). `race` (the default) periodizes toward the goal race:
+   * base -> build -> peak -> taper, aligned so the last week ends on race day.
+   * `build` is a no-race fitness block: {@link BUILD_MIN_WEEKS}..{@link BUILD_MAX_WEEKS}
+   * weeks (clamped), base then build only, a recovery week every 4th week, no
+   * peak, no taper, no race session and no race-date alignment.
+   */
+  kind?: PlanKind;
 }
 
 /** Threshold speed for a plan: from the seed's recent VDOT when known, else the profile's. */
@@ -510,15 +541,23 @@ function planThreshold(profile: AthleteProfile, seed: FitnessSeed | null | undef
  */
 export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
   const { profile, goal, planId, createdAt, seed } = params;
+  const kind: PlanKind = params.kind ?? 'race';
   const threshold = planThreshold(profile, seed);
-  // With a goal date the last week ends on race day (start/length derived from it).
-  const { startDate: start, weeks, raceDate } = alignToRace(params.startDate, params.weeks, goal);
+  // A race plan with a goal date ends on race day (start/length derived from it);
+  // a build plan keeps the requested start and a clamped length, with no race.
+  const {
+    startDate: start,
+    weeks,
+    raceDate,
+  }: RaceAlignment = kind === 'build'
+    ? { startDate: toDateKey(params.startDate), weeks: clampBuildWeeks(params.weeks) }
+    : alignToRace(params.startDate, params.weeks, goal);
   const planWeeks: PlanWeek[] = [];
-  const shapes = seed ? seededShapes(seed, weeks) : undefined;
+  const shapes = seed ? seededShapes(seed, weeks, kind) : undefined;
 
   let longMin = 60;
   for (let w = 1; w <= weeks; w++) {
-    const phase = phaseForWeek(w, weeks);
+    const phase = phaseForWeek(w, weeks, kind);
     const recovery = w % 4 === 0 && phase !== 'taper';
     const key: TemplateKey = recovery ? 'recovery' : phase;
     if (phase === 'taper') longMin = Math.max(40, longMin * 0.6);
@@ -562,6 +601,18 @@ export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     });
   }
 
+  if (kind === 'build') {
+    return {
+      id: planId,
+      createdAt,
+      kind,
+      goal,
+      startDate: start,
+      endDate: addDays(start, weeks * 7 - 1),
+      summary: buildPlanSummary(weeks),
+      weeks: planWeeks,
+    };
+  }
   return {
     id: planId,
     createdAt,
@@ -571,6 +622,11 @@ export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     summary: `A ${weeks}-week ${goal.name ?? goal.distance} plan: base → build → peak → taper, with a recovery week every 4th week.`,
     weeks: planWeeks,
   };
+}
+
+/** The deterministic summary of a build plan (MVP-026). */
+export function buildPlanSummary(weeks: number): string {
+  return `A ${weeks}-week fitness build: base → build, with a recovery week every 4th week. No race, no peak, no taper.`;
 }
 
 /** Deterministic per-type session durations (minutes). The LLM never sets these. */

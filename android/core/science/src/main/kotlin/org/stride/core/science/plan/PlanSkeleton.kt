@@ -10,6 +10,7 @@ import org.stride.core.science.coach.resolveRaceDistanceM
 import org.stride.core.science.coach.thresholdOf
 import org.stride.core.science.model.AthleteProfile
 import org.stride.core.science.model.PlanDay
+import org.stride.core.science.model.PlanKind
 import org.stride.core.science.model.PlanPhase
 import org.stride.core.science.model.PlanWeek
 import org.stride.core.science.model.RaceGoal
@@ -34,10 +35,35 @@ data class PlanSkeletonParams(
     /** ISO timestamp stored on the plan. */
     val createdAt: String,
     /** Recent training (MVP-025, see [fitnessSeed]); null = the fixed-minute skeleton. */
-    val seed: FitnessSeed? = null
+    val seed: FitnessSeed? = null,
+    /**
+     * Plan kind (MVP-026). [PlanKind.BUILD] = a no-race fitness block: weeks clamped to 4..16, base then build,
+     * a recovery week every 4th week, no peak, taper, race session or race-date alignment.
+     */
+    val kind: PlanKind = PlanKind.RACE
 )
 
-private fun phaseForWeek(week: Int, weeks: Int): PlanPhase {
+/** A build plan (MVP-026) lasts at least this many weeks... */
+const val BUILD_MIN_WEEKS = 4
+
+/** ...and at most this many. */
+const val BUILD_MAX_WEEKS = 16
+
+/** Share of a build plan's weeks spent in the base phase (the rest is build). */
+const val BUILD_BASE_SHARE = 0.4
+
+/** Clamps a requested build-plan length to 4..16 weeks. Mirrors planner.ts#clampBuildWeeks. */
+fun clampBuildWeeks(weeks: Int): Int = weeks.coerceIn(BUILD_MIN_WEEKS, BUILD_MAX_WEEKS)
+
+/** The deterministic summary of a build plan. Mirrors planner.ts#buildPlanSummary. */
+fun buildPlanSummary(weeks: Int): String =
+    "A $weeks-week fitness build: base → build, with a recovery week every 4th week. No race, no peak, no taper."
+
+private fun phaseForWeek(week: Int, weeks: Int, kind: PlanKind = PlanKind.RACE): PlanPhase {
+    if (kind == PlanKind.BUILD) {
+        val baseWeeks = max(1, jsRound(weeks * BUILD_BASE_SHARE).toInt())
+        return if (week > baseWeeks) PlanPhase.BUILD else PlanPhase.BASE
+    }
     val taperWeeks = if (weeks >= 6) {
         2
     } else if (weeks >= 3) {
@@ -179,14 +205,14 @@ private data class WeekShape(val longMin: Double, val scale: Double)
  * long run x1.08 within the share and 140 caps (110 in a peak week); recovery = 0.65 and taper = 0.5 x the last
  * loading volume. Mirrors planner.ts#seededShapes.
  */
-private fun seededShapes(seed: FitnessSeed, weeks: Int): List<WeekShape> {
+private fun seededShapes(seed: FitnessSeed, weeks: Int, kind: PlanKind): List<WeekShape> {
     val start = max(SEED_MIN_WEEKLY_MIN, seed.weeklyMinutes)
     val cap = max(start, min(start * SEED_MAX_GROWTH, SEED_MAX_WEEKLY_MIN))
     var loadVolume = start
     var loadLong = 0.0
     var loadPhase: PlanPhase? = null
     return (1..weeks).map { w ->
-        val phase = phaseForWeek(w, weeks)
+        val phase = phaseForWeek(w, weeks, kind)
         val recovery = w % 4 == 0 && phase != PlanPhase.TAPER
         val key = if (recovery) PlanPhase.RECOVERY else phase
         val volume: Double
@@ -278,15 +304,22 @@ private fun sessionsTotal(days: List<PlanDay>, field: (WorkoutSuggestion) -> Dou
  * 1 when >= 3), with every 4th non-taper week a recovery week. The long run grows 8 min per loading week
  * (cap 140) and shrinks x0.6 (min 40) per taper week; it can be fractional and is rounded inside makeSession.
  * Week targetTss is the session sum to 0 dp, targetDistanceKm to 1 dp. Satisfies the guardrails by construction.
+ * [PlanSkeletonParams.kind] = BUILD (MVP-026): no race alignment, weeks clamped to 4..16, base (~40%) then build,
+ * recovery every 4th week, no peak, taper or race session.
  * Mirrors packages/core/src/coach/planner.ts#buildPlanSkeleton.
  */
 fun buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
     val threshold = planThreshold(params.profile, params.seed)
-    val (start, weeks, raceDate) = alignToRace(params.startDate, params.weeks, params.goal)
-    val shapes = params.seed?.let { seededShapes(it, weeks) }
+    val kind = params.kind
+    val (start, weeks, raceDate) = if (kind == PlanKind.BUILD) {
+        RaceAlignment(DateKeys.toDateKey(params.startDate), clampBuildWeeks(params.weeks))
+    } else {
+        alignToRace(params.startDate, params.weeks, params.goal)
+    }
+    val shapes = params.seed?.let { seededShapes(it, weeks, kind) }
     var longMin = 60.0
     val planWeeks = (1..weeks).map { w ->
-        val phase = phaseForWeek(w, weeks)
+        val phase = phaseForWeek(w, weeks, kind)
         val recovery = w % 4 == 0 && phase != PlanPhase.TAPER
         val key = if (recovery) PlanPhase.RECOVERY else phase
         if (phase == PlanPhase.TAPER) {
@@ -321,13 +354,19 @@ fun buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
         )
     }
     val goalName = params.goal.name ?: params.goal.distance.wire
+    val isBuild = kind == PlanKind.BUILD
     return TrainingPlan(
         id = params.planId,
         createdAt = params.createdAt,
+        kind = if (isBuild) PlanKind.BUILD else null,
         goal = params.goal,
         startDate = start,
         endDate = DateKeys.addDays(start, weeks * 7 - 1),
-        summary = "A $weeks-week $goalName plan: base → build → peak → taper, with a recovery week every 4th week.",
+        summary = if (isBuild) {
+            buildPlanSummary(weeks)
+        } else {
+            "A $weeks-week $goalName plan: base → build → peak → taper, with a recovery week every 4th week."
+        },
         weeks = planWeeks
     )
 }

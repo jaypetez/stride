@@ -215,7 +215,11 @@ export function buildPlanSummaryPrompt(plan: TrainingPlan, ctx: CoachContext): s
     )
     .join('\n');
   return [
-    `Write a short, motivating 3-4 sentence overview of this ${plan.weeks.length}-week plan for the athlete. Explain the arc (base → build → peak → taper) and how it serves their goal. Do not invent numbers beyond what is given.`,
+    `Write a short, motivating 3-4 sentence overview of this ${plan.weeks.length}-week plan for the athlete. ${
+      plan.kind === 'build'
+        ? 'It is a no-race fitness build: explain the arc (base → build, a recovery week every 4th week, no peak or taper) and how it grows their fitness from where they are now.'
+        : 'Explain the arc (base → build → peak → taper) and how it serves their goal.'
+    } Do not invent numbers beyond what is given.`,
     '',
     'GOAL & CONTEXT:',
     formatContext(ctx),

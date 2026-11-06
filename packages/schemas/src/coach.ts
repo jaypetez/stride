@@ -5,6 +5,15 @@ import { IntensityLabel, LoadMethod, PlanPhase, SportType, WorkoutType } from '.
 import { AcwrPoint, PmcPoint, ZoneDistribution } from './metrics';
 
 /**
+ * The kind of plan (MVP-026). `race` periodizes toward a goal race (base ->
+ * build -> peak -> taper, race on the last day); `build` is a no-race fitness
+ * block of 4-16 weeks (base then build, recovery every 4th week, no peak,
+ * taper or race session). Absent means `race`, so older plans stay valid.
+ */
+export const PlanKind = z.enum(['race', 'build']);
+export type PlanKind = z.infer<typeof PlanKind>;
+
+/**
  * What the athlete has actually been doing lately, used to seed a new plan's
  * starting volume, long run and paces (MVP-026 shows it in the UI). Computed in
  * core by `fitnessSeed`: running only, the 28 days ending on the reference day
@@ -98,6 +107,8 @@ export type PlanWeek = z.infer<typeof PlanWeek>;
 export const TrainingPlan = z.object({
   id: z.string(),
   createdAt: z.string(),
+  /** Plan kind (MVP-026); absent = `race`. Only build plans set it. */
+  kind: PlanKind.optional(),
   goal: RaceGoal,
   startDate: z.string(),
   endDate: z.string().optional(),
