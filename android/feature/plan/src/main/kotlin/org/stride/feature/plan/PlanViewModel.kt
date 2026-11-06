@@ -18,8 +18,8 @@ import kotlinx.coroutines.launch
 import org.stride.core.common.Retryable
 import org.stride.core.common.StrideClock
 import org.stride.core.data.insights.dates
-import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.DEFAULT_BUILD_WEEKS
+import org.stride.core.data.plan.PlanRepository
 import org.stride.core.data.plan.PlanRequest
 import org.stride.core.data.plan.PlanResult
 import org.stride.core.data.plan.earliestRaceDate
