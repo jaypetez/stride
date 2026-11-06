@@ -55,6 +55,9 @@ interface ActivityDao {
 
     @Query("SELECT COUNT(*) FROM activity")
     suspend fun count(): Int
+
+    @Query("SELECT EXISTS(SELECT 1 FROM activity)")
+    fun observeHasAny(): Flow<Boolean>
 }
 
 @Dao

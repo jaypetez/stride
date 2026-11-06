@@ -58,6 +58,17 @@ class FitnessScreenshotTest {
     @Test
     fun empty() = snap("empty", FitnessUiState(isLoading = false))
 
+    /** MVP-024: the backfill is still running; the PMC so far plus a note. */
+    @Test
+    fun importingHistory() = snap(
+        "importing_history",
+        demoState(FitnessRange.THREE_MONTHS).copy(hasActivities = true, importingHistory = true)
+    )
+
+    /** MVP-024: runs are stored but their fitness has not been computed yet. */
+    @Test
+    fun calculating() = snap("calculating", FitnessUiState(isLoading = false, hasActivities = true, importingHistory = true))
+
     /** AUD-032: the insights could not be computed. */
     @Test
     fun error() = snap("error", FitnessUiState(isLoading = false, loadFailed = true))

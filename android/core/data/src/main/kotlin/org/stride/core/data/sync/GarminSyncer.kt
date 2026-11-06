@@ -42,6 +42,10 @@ sealed interface SyncOutcome {
  * 2. **Backfill:** newest-first ≤ 28-day windows back to the configured window
  *    (default 180 days), resuming from a cursor stored in Room after each window.
  * 3. **FIT:** laps and streams for runs that don't have them yet.
+ *
+ * Metrics are recomputed after the incremental week and after each backfill window from
+ * summary-level load (MVP-024), so Fitness fills in while the sync is still running; a final
+ * recompute after the FIT downloads refines them with streams.
  * Every write is an idempotent upsert, so re-running a window never duplicates.
  *
  * Runs are serialised by [SyncLock], and every run settles the status
@@ -111,19 +115,14 @@ class GarminSyncer @Inject constructor(
         }
         db.syncStateDao().upsert(state)
 
-        val newIds = mutableSetOf<Long>()
-        var earliestChanged: LocalDate? = null
-        fun noteChanged(activities: List<Activity>) {
-            activities.forEach { a ->
-                val d = LocalDate.parse(a.localDate(clock.zone()))
-                if (earliestChanged == null || d < earliestChanged) earliestChanged = d
-            }
-        }
+        val changes = ChangeTracker()
 
         // 1. Incremental: the recent week (cheap; catches edits and late uploads).
         status.update(SyncProgress.Running(SyncPhase.CHECKING, 0, 1))
         val recentStart = maxOf(target, today.minusDays(INCREMENTAL_DAYS - 1L))
-        fetchWindow(recentStart, today, newIds, ::noteChanged)
+        fetchWindow(recentStart, today, changes)
+        // Summary-level load (duration + HR) needs no FIT file: show fitness now (MVP-024).
+        recomputeCheckpoint(changes)
 
         // 2. Backfill, resumable.
         if (!state.backfillComplete) {
@@ -131,8 +130,10 @@ class GarminSyncer @Inject constructor(
             val windows = dateWindows(target, cursor.minusDays(1), WINDOW_DAYS)
             windows.forEachIndexed { i, w ->
                 status.update(SyncProgress.Running(SyncPhase.IMPORTING, i, windows.size))
-                fetchWindow(w.start, w.end, newIds, ::noteChanged)
+                fetchWindow(w.start, w.end, changes)
                 db.syncStateDao().upsert(state.copy(backfillCursorDate = w.start.toString(), backfillComplete = w.start <= target))
+                // At most one recompute per window, so fitness fills in as older runs arrive.
+                recomputeCheckpoint(changes)
             }
             db.syncStateDao().upsert(
                 (db.syncStateDao().get() ?: state).copy(backfillCursorDate = target.toString(), backfillComplete = true)
@@ -155,8 +156,7 @@ class GarminSyncer @Inject constructor(
                                 db.streamDao().upsert(parsed.value.streams.toEntity())
                                 db.activityDao().markHasStreams(id)
                             }
-                            newIds += id
-                            db.activityDao().get(id)?.let { e -> noteChanged(listOf(e.toModel())) }
+                            db.activityDao().get(id)?.let { e -> changes.note(listOf(e.toModel()), newIds = setOf(id)) }
                         }
 
                         // An unparseable FIT is skipped: summary-level metrics still work.
@@ -166,8 +166,12 @@ class GarminSyncer @Inject constructor(
             }
         }
 
+        // Final pass: FIT streams refine the summary-level metrics computed above.
         status.update(SyncProgress.Running(SyncPhase.COMPUTING, 0, 1))
-        recomputer.recompute(changedActivityIds = newIds, fromDate = earliestChanged?.toString())
+        val (ids, from) = changes.drain()
+        // Without a checkpoint recompute, a null date keeps the old full rebuild; otherwise only what FIT changed.
+        recomputer.recompute(changedActivityIds = ids, fromDate = (from ?: today.takeIf { changes.checkpoints > 0 })?.toString())
+        val newIds = changes.newIds
         val now = clock.now().epochSecond
         db.syncStateDao().upsert((db.syncStateDao().get() ?: state).copy(lastSuccessEpochSec = now))
         prefs.setLastSync(now)
@@ -177,7 +181,7 @@ class GarminSyncer @Inject constructor(
         return SyncOutcome.Success(newIds.size)
     }
 
-    private suspend fun fetchWindow(start: LocalDate, end: LocalDate, newIds: MutableSet<Long>, noteChanged: (List<Activity>) -> Unit) {
+    private suspend fun fetchWindow(start: LocalDate, end: LocalDate, changes: ChangeTracker) {
         val db = holder.db
         val activities = when (val r = client.activities(start, end)) {
             is StrideResult.Err -> throw Abort(r.error)
@@ -196,8 +200,46 @@ class GarminSyncer @Inject constructor(
             db.activityDao().upsert(withStreamFlag.map { it.toEntity(clock.zone()) })
             db.wellnessDao().upsert(wellness.map { it.toEntity() })
         }
-        newIds += activities.map { it.id }.filterNot { it in existing }
-        noteChanged(activities)
+        changes.note(activities, newIds = activities.map { it.id }.filterNot { it in existing }.toSet())
+    }
+
+    /**
+     * Mid-sync recompute (MVP-024): refreshes per-activity metrics and the daily load series for
+     * what changed since the last checkpoint, so Fitness renders long before the backfill and FIT
+     * downloads finish. Skipped when nothing changed, so the work stays bounded by the window count.
+     */
+    private suspend fun recomputeCheckpoint(changes: ChangeTracker) {
+        if (!changes.dirty) return
+        val (ids, from) = changes.drain()
+        recomputer.recompute(changedActivityIds = ids, fromDate = from?.toString())
+        changes.checkpoints++
+    }
+
+    /** What changed since the last recompute, plus the cumulative new ids for the outcome. */
+    private inner class ChangeTracker {
+        val newIds = mutableSetOf<Long>()
+        private val pendingIds = mutableSetOf<Long>()
+        private var pendingFrom: LocalDate? = null
+        var checkpoints = 0
+
+        val dirty: Boolean get() = pendingFrom != null
+
+        fun note(activities: List<Activity>, newIds: Set<Long>) {
+            this.newIds += newIds
+            pendingIds += newIds
+            activities.forEach { a ->
+                val d = LocalDate.parse(a.localDate(clock.zone()))
+                if (pendingFrom?.let { d < it } != false) pendingFrom = d
+            }
+        }
+
+        /** Returns and clears the pending ids and earliest changed date. */
+        fun drain(): Pair<Set<Long>, LocalDate?> {
+            val drained = pendingIds.toSet() to pendingFrom
+            pendingIds.clear()
+            pendingFrom = null
+            return drained
+        }
     }
 
     /**

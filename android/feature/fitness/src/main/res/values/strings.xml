@@ -3,6 +3,8 @@
     <string name="fitness_title">Fitness</string>
     <string name="fitness_empty_title">No fitness data yet</string>
     <string name="fitness_empty_message">Fitness, fatigue and form appear once a few runs have synced.</string>
+    <string name="fitness_calculating">Calculating fitness…</string>
+    <string name="fitness_importing_history">Still importing your history — fitness will fill in as older runs arrive.</string>
     <string name="fitness_range_6_weeks">6 weeks</string>
     <string name="fitness_range_3_months">3 months</string>
     <string name="fitness_range_6_months">6 months</string>

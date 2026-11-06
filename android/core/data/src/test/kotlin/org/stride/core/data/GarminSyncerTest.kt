@@ -102,6 +102,89 @@ class GarminSyncerTest {
         assertIs<SyncProgress.Failed>(env.status.progress.value)
     }
 
+    /** MVP-024: fitness appears while FIT downloads are still pending, not after the whole sync. */
+    @Test
+    fun fitnessIsComputedBeforeSlowFitDownloadsFinish() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val gate = CompletableDeferred<Unit>()
+        val client = FakeGarminClient(history, wellness).apply { fitGate = gate }
+        val sync = async { env.syncer(client).sync() }
+        client.fitEntered.await()
+        // Parked on the first FIT download: every imported run already has metrics, the PMC reaches today.
+        val imported = env.db.activityDao().count()
+        assertTrue(imported > 0)
+        assertEquals(imported, env.db.metricsDao().allActivityMetrics().size)
+        assertEquals(today.toString(), env.db.metricsDao().allDailyLoads().last().date)
+        assertTrue(env.db.syncStateDao().get()!!.backfillComplete)
+        assertIs<SyncProgress.Running>(env.status.progress.value)
+        gate.complete(Unit)
+        assertIs<SyncOutcome.Success>(sync.await())
+        assertIs<SyncProgress.Succeeded>(env.status.progress.value)
+    }
+
+    /** MVP-024: after the first backfill window, daily loads run through today even while a later window is in flight. */
+    @Test
+    fun dailyLoadsExistAfterTheFirstBackfillWindow() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        val client = FakeGarminClient(history, wellness)
+        var seenOnThirdCall: List<String>? = null
+        val probe = object : org.stride.core.garmin.GarminClient by client {
+            override suspend fun activities(start: LocalDate, end: LocalDate) = client.activities(start, end).also {
+                // Call 3 is the second backfill window: the first one has been recomputed by now.
+                if (client.activityCalls.size == 3) seenOnThirdCall = env.db.metricsDao().allDailyLoads().map { it.date }
+            }
+        }
+        assertIs<SyncOutcome.Success>(env.syncer(probe).sync())
+        val dates = seenOnThirdCall!!
+        assertEquals(today.toString(), dates.last())
+        // The first backfill window (days 7..34 back) is already in the series.
+        assertTrue(dates.first() <= today.minusDays(30).toString())
+    }
+
+    /** MVP-024: at most one recompute after the incremental week, one per backfill window and one at the end. */
+    @Test
+    fun recomputeWorkIsBounded() = runTest(UnconfinedTestDispatcher()) {
+        val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)
+        var calls = 0
+        val counting = org.stride.core.data.metrics.MetricsRecomputer { ids, from ->
+            calls++
+            env.recomputer.recompute(ids, from)
+        }
+        val client = FakeGarminClient(history, wellness)
+        val syncer = org.stride.core.data.sync.GarminSyncer(
+            client,
+            env.holder,
+            env.prefs,
+            env.clock,
+            env.status,
+            counting,
+            env.lock,
+            UnconfinedTestDispatcher(testScheduler)
+        )
+        assertIs<SyncOutcome.Success>(syncer.sync())
+        val backfillWindows = client.activityCalls.size - 1
+        assertTrue(calls in 2..backfillWindows + 2, "recomputed $calls times for $backfillWindows windows")
+        assertEquals(env.db.activityDao().count(), env.db.metricsDao().allActivityMetrics().size)
+
+        // A later window failing keeps what earlier windows computed and still recomputes at most once more.
+        calls = 0
+        env.db.syncStateDao().upsert(env.db.syncStateDao().get()!!.copy(backfillComplete = false, backfillCursorDate = null))
+        val failing = FakeGarminClient(history, wellness).apply { failActivitiesOnCall = 4 }
+        val failingSyncer = org.stride.core.data.sync.GarminSyncer(
+            failing,
+            env.holder,
+            env.prefs,
+            env.clock,
+            env.status,
+            counting,
+            env.lock,
+            UnconfinedTestDispatcher(testScheduler)
+        )
+        assertEquals(SyncOutcome.Retry(SyncFailure.OFFLINE), failingSyncer.sync())
+        // Incremental + 2 completed windows + the best-effort recompute after the failure.
+        assertTrue(calls <= 4, "recomputed $calls times")
+    }
+
     @Test
     fun interruptedBackfillResumesFromCursor() = runTest(UnconfinedTestDispatcher()) {
         val env = TestEnv(this, UnconfinedTestDispatcher(testScheduler), tmp.root)

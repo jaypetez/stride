@@ -37,9 +37,22 @@ data class FitnessUiState(
     val insights: FitnessInsights? = null,
     val units: UnitSystem = UnitSystem.METRIC,
     /** The insights could not be computed; the screen shows an error with "Try again" (AUD-032). */
-    val loadFailed: Boolean = false
+    val loadFailed: Boolean = false,
+    /** Runs are stored (MVP-024): an empty PMC then means "still calculating", not "no data". */
+    val hasActivities: Boolean = false,
+    /** The Garmin history backfill is still running; older runs are yet to arrive (MVP-024). */
+    val importingHistory: Boolean = false
 ) {
-    val isEmpty: Boolean get() = !isLoading && insights?.pmc.isNullOrEmpty()
+    private val noPmc: Boolean get() = !isLoading && insights?.pmc.isNullOrEmpty()
+
+    /** Nothing to show and no runs either: the "No fitness data yet" state. */
+    val isEmpty: Boolean get() = noPmc && !hasActivities
+
+    /** Runs exist but their daily loads have not been computed yet (a sync in flight). */
+    val isCalculating: Boolean get() = noPmc && hasActivities
+
+    /** Show the "still importing your history" note above the charts. */
+    val showImportingNote: Boolean get() = importingHistory && !noPmc && !isLoading
 }
 
 @HiltViewModel
@@ -49,13 +62,15 @@ class FitnessViewModel @Inject constructor(insights: InsightsRepository, prefs: 
     private val retryable = Retryable()
 
     val uiState: StateFlow<FitnessUiState> = retryable.flow(onError = { FitnessUiState(isLoading = false, loadFailed = true) }) {
-        combine(insights.observeFitness(), prefs.settings, range) { fitness, settings, r ->
+        combine(insights.observeFitness(), insights.observeImportProgress(), prefs.settings, range) { fitness, import, settings, r ->
             FitnessUiState(
                 isLoading = false,
                 range = r,
                 window = pmcWindow(fitness.pmc, r),
                 insights = fitness,
-                units = settings.unitSystem
+                units = settings.unitSystem,
+                hasActivities = import.hasActivities,
+                importingHistory = import.backfillInProgress
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FitnessUiState())

@@ -20,6 +20,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,6 +82,12 @@ fun FitnessScreen(
 
                 state.isLoading -> LoadingState(modifier = Modifier.padding(padding))
 
+                // Runs are stored but their fitness is still being computed (a sync in flight, MVP-024).
+                state.isCalculating -> LoadingState(
+                    modifier = Modifier.padding(padding),
+                    label = stringResource(R.string.fitness_calculating)
+                )
+
                 state.isEmpty || insights == null -> EmptyState(
                     title = stringResource(R.string.fitness_empty_title),
                     message = stringResource(R.string.fitness_empty_message),
@@ -93,6 +102,7 @@ fun FitnessScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (state.showImportingNote) ImportingHistoryNote()
                     RangeChips(state.range, onSelectRange)
                     PmcCard(state.window, insights.rampRatePerWeek)
                     AcwrCard(state.window)
@@ -105,6 +115,19 @@ fun FitnessScreen(
             }
         }
     }
+}
+
+/** The backfill is still running: older runs will extend the chart (MVP-024). */
+@Composable
+private fun ImportingHistoryNote(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.fitness_importing_history),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Polite }
+    )
 }
 
 @Composable
