@@ -11,7 +11,7 @@ const { mockApi, planResult } = vi.hoisted(() => {
       kind: 'build',
       goal: { distance: '10k' },
       startDate: '2026-07-13',
-      summary: 'A 8-week fitness build: base → build.',
+      summary: 'Fitness build, 8 weeks: base → build.',
       weeks: [],
     },
     validation: { valid: true, violations: [], repaired: false },

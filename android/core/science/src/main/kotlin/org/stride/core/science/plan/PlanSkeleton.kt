@@ -57,7 +57,7 @@ fun clampBuildWeeks(weeks: Int): Int = weeks.coerceIn(BUILD_MIN_WEEKS, BUILD_MAX
 
 /** The deterministic summary of a build plan. Mirrors planner.ts#buildPlanSummary. */
 fun buildPlanSummary(weeks: Int): String =
-    "A $weeks-week fitness build: base → build, with a recovery week every 4th week. No race, no peak, no taper."
+    "Fitness build, $weeks weeks: base → build, with a recovery week every 4th week. No race, no peak, no taper."
 
 private fun phaseForWeek(week: Int, weeks: Int, kind: PlanKind = PlanKind.RACE): PlanPhase {
     if (kind == PlanKind.BUILD) {

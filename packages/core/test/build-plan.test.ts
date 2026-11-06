@@ -67,7 +67,7 @@ describe('build plans (MVP-026)', () => {
     expect(TrainingPlan.parse(plan)).toEqual(plan);
     expect(plan.kind).toBe('build');
     expect(plan.weeks).toHaveLength(8);
-    expect(plan.summary).toContain('8-week fitness build');
+    expect(plan.summary).toContain('Fitness build, 8 weeks');
     const phases = plan.weeks.map((w) => w.phase);
     expect(phases).toEqual([
       'base',

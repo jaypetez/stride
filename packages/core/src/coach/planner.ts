@@ -626,7 +626,7 @@ export function buildPlanSkeleton(params: PlanSkeletonParams): TrainingPlan {
 
 /** The deterministic summary of a build plan (MVP-026). */
 export function buildPlanSummary(weeks: number): string {
-  return `A ${weeks}-week fitness build: base → build, with a recovery week every 4th week. No race, no peak, no taper.`;
+  return `Fitness build, ${weeks} weeks: base → build, with a recovery week every 4th week. No race, no peak, no taper.`;
 }
 
 /** Deterministic per-type session durations (minutes). The LLM never sets these. */
