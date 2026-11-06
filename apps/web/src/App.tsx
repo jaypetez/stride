@@ -1,14 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { api, type RaceOption } from './api';
+import { type FormEvent, useState } from 'react';
+import { api, errorMessage, errorStatus, type RaceOption } from './api';
 import { PmcChart } from './components/PmcChart';
 import { PoweredByStrava } from './components/PoweredByStrava';
+import { Disclaimer, SafetyFlags } from './components/SafetyFlags';
 import { formatDuration, formatKm, formatPace } from './format';
+import { parseWeeks } from './validate';
 
 type Mode = 'demo' | 'live';
 
 export function App() {
   const [mode, setMode] = useState<Mode>('demo');
+  const [note, setNote] = useState('');
   const demo = mode === 'demo';
 
   return (
@@ -20,14 +23,25 @@ export function App() {
           </h1>
           <p className="subtitle">Your Strava agentic coach</p>
         </div>
-        <div className="mode-toggle" role="tablist" aria-label="Data mode">
-          <button type="button" className={demo ? 'active' : ''} onClick={() => setMode('demo')}>
+        {/* Two toggle buttons, not a tablist: each one exposes its state via aria-pressed. */}
+        <fieldset className="mode-toggle" aria-label="Data mode">
+          <button
+            type="button"
+            className={demo ? 'active' : ''}
+            aria-pressed={demo}
+            onClick={() => setMode('demo')}
+          >
             Demo
           </button>
-          <button type="button" className={!demo ? 'active' : ''} onClick={() => setMode('live')}>
+          <button
+            type="button"
+            className={!demo ? 'active' : ''}
+            aria-pressed={!demo}
+            onClick={() => setMode('live')}
+          >
             My data
           </button>
-        </div>
+        </fieldset>
       </header>
 
       {!demo && (
@@ -38,16 +52,18 @@ export function App() {
         </p>
       )}
 
+      <NoteForm note={note} onSubmit={setNote} />
+
       <main className="grid">
         <FormCard demo={demo} />
-        <NextCard demo={demo} />
+        <NextCard demo={demo} note={note} />
         <section className="card wide">
           <h2>Fitness trend</h2>
           <FitnessTrend demo={demo} />
         </section>
-        <AnalysisCard demo={demo} />
+        <AnalysisCard demo={demo} note={note} />
         <ActivitiesCard demo={demo} />
-        <PlanCard demo={demo} />
+        <PlanCard demo={demo} note={note} />
       </main>
 
       <footer className="footer">
@@ -62,16 +78,61 @@ export function App() {
   );
 }
 
+/**
+ * "How do you feel?" check-in. The note is screened by core's deterministic
+ * red-flag rules on every coach call (next, analyze, plan) — the same as the
+ * CLI's `--note` — and any STOP/WARN flags render above the results.
+ */
+function NoteForm({ note, onSubmit }: { note: string; onSubmit: (note: string) => void }) {
+  const [draft, setDraft] = useState(note);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    onSubmit(draft.trim());
+  };
+  return (
+    <form className="note-form" onSubmit={submit}>
+      <label>
+        How do you feel today? (optional — screened for safety red flags)
+        <input
+          type="text"
+          value={draft}
+          placeholder="e.g. legs feel heavy"
+          onChange={(e) => setDraft(e.target.value)}
+        />
+      </label>
+      <button type="submit">Check in</button>
+    </form>
+  );
+}
+
+/** Loading placeholder announced politely to assistive tech. */
+function Loading() {
+  return (
+    <p className="muted" role="status" aria-busy="true">
+      Loading…
+    </p>
+  );
+}
+
+/** Error line using the API's own `error` message when it sent one. */
+function ErrorText({ error, fallback }: { error: unknown; fallback?: string }) {
+  return (
+    <p className="error" role="status">
+      {errorMessage(error, fallback)}
+    </p>
+  );
+}
+
 function FormCard({ demo }: { demo: boolean }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['pmc', demo],
     queryFn: () => api.pmc(demo),
   });
   return (
-    <section className="card">
+    <section className="card" aria-busy={isLoading}>
       <h2>Current form</h2>
-      {isLoading && <p className="muted">Loading…</p>}
-      {isError && <p className="muted">API unavailable.</p>}
+      {isLoading && <Loading />}
+      {error && <ErrorText error={error} />}
       {data?.latest && (
         <div className="stats">
           <Stat label="Fitness (CTL)" value={data.latest.ctl.toFixed(0)} />
@@ -90,18 +151,19 @@ function FormCard({ demo }: { demo: boolean }) {
   );
 }
 
-function NextCard({ demo }: { demo: boolean }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['next', demo],
-    queryFn: () => api.next(demo),
+function NextCard({ demo, note }: { demo: boolean; note: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['next', demo, note],
+    queryFn: () => api.next(demo, note),
   });
   return (
-    <section className="card">
+    <section className="card" aria-busy={isLoading}>
       <h2>Next workout</h2>
-      {isLoading && <p className="muted">Loading…</p>}
-      {isError && <p className="muted">API unavailable.</p>}
+      {isLoading && <Loading />}
+      {error && <ErrorText error={error} />}
       {data && (
         <div>
+          <SafetyFlags flags={data.flags} />
           <h3 className="workout-title">{data.workout.title}</h3>
           <div className="chips">
             {data.workout.targetDurationSec ? (
@@ -119,6 +181,7 @@ function NextCard({ demo }: { demo: boolean }) {
           </div>
           <p>{data.workout.description}</p>
           <p className="muted why">Why: {data.workout.rationale}</p>
+          <Disclaimer text={data.disclaimer} />
         </div>
       )}
     </section>
@@ -126,27 +189,32 @@ function NextCard({ demo }: { demo: boolean }) {
 }
 
 function FitnessTrend({ demo }: { demo: boolean }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['pmc', demo],
     queryFn: () => api.pmc(demo),
   });
-  if (isLoading) return <p className="muted">Loading…</p>;
-  if (isError || !data) return <p className="muted">API unavailable.</p>;
+  if (isLoading) return <Loading />;
+  if (error || !data) return <ErrorText error={error} />;
   return <PmcChart pmc={data.pmc} />;
 }
 
-function AnalysisCard({ demo }: { demo: boolean }) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['analyze', demo],
-    queryFn: () => api.analyze(demo ? 'demo' : 'last'),
+function AnalysisCard({ demo, note }: { demo: boolean; note: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['analyze', demo, note],
+    queryFn: () => api.analyze(demo ? 'demo' : 'last', note),
   });
+  // A 404 is the genuine empty state (nothing synced yet); anything else is a
+  // real failure and shows the API's own message.
+  const empty = error && errorStatus(error) === 404;
   return (
-    <section className="card">
+    <section className="card" aria-busy={isLoading}>
       <h2>Latest analysis</h2>
-      {isLoading && <p className="muted">Loading…</p>}
-      {isError && <p className="muted">No activity to analyze yet.</p>}
+      {isLoading && <Loading />}
+      {empty && <p className="muted">No activity to analyze yet.</p>}
+      {error && !empty && <ErrorText error={error} />}
       {data && (
         <div>
+          <SafetyFlags flags={data.flags} />
           <h3 className="workout-title">{data.analysis.headline}</h3>
           <div className="chips">
             <span className="chip">{data.metrics.tss} TSS</span>
@@ -159,6 +227,7 @@ function AnalysisCard({ demo }: { demo: boolean }) {
             ) : null}
           </div>
           <p>{data.analysis.explanation}</p>
+          <Disclaimer text={data.disclaimer} />
         </div>
       )}
     </section>
@@ -166,15 +235,15 @@ function AnalysisCard({ demo }: { demo: boolean }) {
 }
 
 function ActivitiesCard({ demo }: { demo: boolean }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['activities', demo],
     queryFn: () => api.activities(demo),
   });
   return (
-    <section className="card wide">
+    <section className="card wide" aria-busy={isLoading}>
       <h2>Recent activities</h2>
-      {isLoading && <p className="muted">Loading…</p>}
-      {isError && <p className="muted">API unavailable.</p>}
+      {isLoading && <Loading />}
+      {error && <ErrorText error={error} />}
       {data && data.length === 0 && <p className="muted">No activities.</p>}
       {data && data.length > 0 && (
         <table className="table">
@@ -184,7 +253,9 @@ function ActivitiesCard({ demo }: { demo: boolean }) {
               <th>Name</th>
               <th>Distance</th>
               <th>Time</th>
-              <th />
+              <th>
+                <span className="sr-only">Link</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -215,15 +286,32 @@ function ActivitiesCard({ demo }: { demo: boolean }) {
   );
 }
 
-function PlanCard({ demo }: { demo: boolean }) {
+function PlanCard({ demo, note }: { demo: boolean; note: string }) {
   const [race, setRace] = useState<RaceOption>('10k');
-  const [weeks, setWeeks] = useState(8);
-  const mutation = useMutation({ mutationFn: () => api.plan({ demo, race, weeks }) });
+  // Kept as the raw input text so an empty field is caught here (see parseWeeks).
+  const [weeksText, setWeeksText] = useState('8');
+  const [formError, setFormError] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: (weeks: number) => api.plan({ demo, race, weeks, note: note || undefined }),
+  });
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const parsed = parseWeeks(weeksText);
+    if ('error' in parsed) {
+      setFormError(parsed.error);
+      return;
+    }
+    setFormError(null);
+    mutation.mutate(parsed.weeks);
+  };
+
+  const violations = mutation.data?.validation.violations ?? [];
 
   return (
-    <section className="card wide">
+    <section className="card wide" aria-busy={mutation.isPending}>
       <h2>Training plan</h2>
-      <div className="plan-form">
+      <form className="plan-form" onSubmit={submit} noValidate>
         <label>
           Race
           <select value={race} onChange={(e) => setRace(e.target.value as RaceOption)}>
@@ -239,24 +327,46 @@ function PlanCard({ demo }: { demo: boolean }) {
             type="number"
             min={1}
             max={52}
-            value={weeks}
-            onChange={(e) => setWeeks(Number(e.target.value))}
+            step={1}
+            value={weeksText}
+            aria-invalid={formError ? true : undefined}
+            aria-describedby={formError ? 'plan-weeks-error' : undefined}
+            onChange={(e) => setWeeksText(e.target.value)}
           />
         </label>
-        <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+        <button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? 'Generating…' : 'Generate plan'}
         </button>
-      </div>
+      </form>
+      {formError && (
+        <p id="plan-weeks-error" className="error" role="alert">
+          {formError}
+        </p>
+      )}
       {mutation.isError && (
-        <p className="muted">Could not generate a plan (is the API running?).</p>
+        <ErrorText
+          error={mutation.error}
+          fallback="Could not generate a plan (is the API running?)."
+        />
       )}
       {mutation.data && (
         <>
+          <SafetyFlags flags={mutation.data.flags} />
           <p className="muted">{mutation.data.plan.summary}</p>
           {mutation.data.validation.valid ? (
             <p className="ok">✓ Passes all guardrails.</p>
           ) : (
-            <p className="warn">Guardrail issues: {mutation.data.validation.violations.length}</p>
+            <div className="warn">
+              <p>Guardrail issues: {violations.length}</p>
+              <ul className="violations">
+                {violations.map((v) => (
+                  <li key={`${v.rule}-${v.weekNumber ?? ''}-${v.message}`}>
+                    {v.weekNumber !== undefined ? `Week ${v.weekNumber}: ` : ''}
+                    {v.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <table className="table">
             <thead>
@@ -288,6 +398,7 @@ function PlanCard({ demo }: { demo: boolean }) {
               ))}
             </tbody>
           </table>
+          <Disclaimer text={mutation.data.disclaimer} />
         </>
       )}
     </section>

@@ -1,10 +1,11 @@
 import { serve } from '@hono/node-server';
 import { isLoopbackHost } from '@stride/core';
 import { buildApp } from './app';
+import { rateLimitsFromEnv } from './security';
 import { loadApiState } from './state';
 
 const state = loadApiState();
-const app = buildApp(state);
+const app = buildApp(state, { rateLimits: rateLimitsFromEnv(process.env) });
 const port = state.config.apiPort;
 // Loopback by default (STRIDE_API_HOST): owner data and the state-changing
 // routes (/sync, /plan) must not be reachable from the LAN unless asked for.
