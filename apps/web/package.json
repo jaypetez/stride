@@ -18,7 +18,7 @@
     "@stride/core": "workspace:*",
     "@stride/schemas": "workspace:*",
     "@tanstack/react-query": "^5.104.5",
-    "hono": "^4.13.14",
+    "hono": "^4.13.17",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
