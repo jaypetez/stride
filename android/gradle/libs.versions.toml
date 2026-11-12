@@ -1,7 +1,7 @@
 # Single source of truth for every Android/Kotlin dependency version.
 # Versions are snapshots (see docs/android/best-practices.md); Dependabot keeps them fresh.
 [versions]
-agp = "9.5.0"
+agp = "9.5.1"
 kotlin = "2.3.21"
 ksp = "2.3.13"
 androidxActivity = "1.13.0"
