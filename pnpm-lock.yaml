@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     dotenv:
-      specifier: ^18.0.9
-      version: 18.0.9
+      specifier: ^18.0.10
+      version: 18.0.10
     zod:
       specifier: ^4.6.6
       version: 4.6.7
@@ -81,7 +81,7 @@ importers:
         version: link:../../packages/schemas
       dotenv:
         specifier: 'catalog:'
-        version: 18.0.9
+        version: 18.0.10
       hono:
         specifier: ^4.13.14
         version: 4.13.16
@@ -105,7 +105,7 @@ importers:
         version: 15.0.0
       dotenv:
         specifier: 'catalog:'
-        version: 18.0.9
+        version: 18.0.10
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1
@@ -123,7 +123,7 @@ importers:
         version: link:../../packages/schemas
       dotenv:
         specifier: 'catalog:'
-        version: 18.0.9
+        version: 18.0.10
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -192,7 +192,7 @@ importers:
         version: link:../schemas
       dotenv:
         specifier: 'catalog:'
-        version: 18.0.9
+        version: 18.0.10
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -1439,8 +1439,8 @@ packages:
   dom-accessibility-api@0.6.3:
     resolution: {integrity: sha512-7ZgogeTnjuHbo+ct10G9Ffp0mif17idi0IyWNVA/wcwcm7NPOD/WEHVP3n7n3MhXqxoIYm8d6MuZohYWIZ4T3w==}
 
-  dotenv@18.0.9:
-    resolution: {integrity: sha512-3fVOW4cB02R066PUSwn8O4TJyz9NckQl7F81blIbaq9jKBm2tSmOKky7ZHIXzGvkVPXCSn6jkpziBPZdGFs8Tw==}
+  dotenv@18.0.10:
+    resolution: {integrity: sha512-89FAA1xchzK2mxVWdr5F/0rldwiueXs6zJM86rO66EzekR1iBdiXRthyG+m5GvkJaFH3C2LESzamTkgndmLT2A==}
     engines: {node: '>=12'}
     hasBin: true
 
@@ -3304,7 +3304,7 @@ snapshots:
 
   dom-accessibility-api@0.6.3: {}
 
-  dotenv@18.0.9: {}
+  dotenv@18.0.10: {}
 
   dunder-proto@1.0.1:
     dependencies:
