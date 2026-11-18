@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.17] - 2026-11-18
+
+Plans built from your own history. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Added
+
+- **"Build my fitness" plans** (MVP-026): a no-race 4–16 week block of base
+  then build phases, with a recovery week every 4th week and no peak, taper or
+  race session. Available from the API (`POST /plan {kind: 'build', weeks}`),
+  CLI (`stride plan --build --weeks N`), MCP `generate_plan` (`kind`), the web
+  plan card (Race | Build fitness toggle) and the Android Plan tab.
+- **Plans seeded from your last 4 weeks of training** (MVP-025): a new
+  `fitnessSeed` (weekly minutes, longest run, recent VDOT, run count) sets
+  week-1 volume, the first long run and paces, then grows at most 10% per
+  loading week within the guardrails. Mirrored in the Kotlin engine and pinned
+  by new science goldens.
+
+### Fixed
+
+- **Android**: Fitness fills in as soon as runs import, recomputing load after
+  each Garmin sync window (MVP-024); optional Garmin wellness endpoints no
+  longer abort a sync, and a partial sync still computes fitness for the runs
+  it imported; Garmin key connect no longer fails with HTTP 406.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 1.3.0 → 1.10.0, `hono` → 4.13.17,
+  `@hono/node-server` → 2.1.6, `commander` 15.0.0 → 15.1.0, `dotenv` → 18.0.10,
+  `@tanstack/react-query` → 5.107.1.
+- **Dev tooling**: `vitest`/`@vitest/coverage-v8` 5.1.0, `vite` 8.3.6,
+  `@vitejs/plugin-react` 6.3.0, `@playwright/test` 1.65, `@biomejs/biome` 2.6.8,
+  `@types/node` 26.6.6.
+- **Android**: Kotlin 2.4.21, AGP 9.5.1, Gradle 9.9.0, core-splashscreen 1.2.0,
+  roborazzi 1.78.0.
+- **CI**: `github/codeql-action` 4.39.3, `pnpm/action-setup` 6.1.1,
+  `setup-gradle` pinned to the v6.4.1 commit.
+
 ## [0.2.16] - 2026-11-05
 
 The Quality Audit release. A whole-repo audit
@@ -503,7 +541,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.16...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.17...HEAD
+[0.2.17]: https://github.com/jaypetez/stride/compare/v0.2.16...v0.2.17
 [0.2.16]: https://github.com/jaypetez/stride/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/jaypetez/stride/compare/v0.2.14...v0.2.15
 [0.2.14]: https://github.com/jaypetez/stride/compare/v0.2.13...v0.2.14
