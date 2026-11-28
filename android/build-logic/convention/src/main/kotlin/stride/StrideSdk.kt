@@ -5,6 +5,9 @@ import org.gradle.api.JavaVersion
 /** SDK levels are set once here (ADR 0007), never per module. */
 object StrideSdk {
     const val COMPILE_SDK = 37
+
+    /** Compose 1.13+ (BOM 2026.11) requires compiling against API 37.1. */
+    const val COMPILE_SDK_MINOR = 1
     const val TARGET_SDK = 36
     const val MIN_SDK = 28
 

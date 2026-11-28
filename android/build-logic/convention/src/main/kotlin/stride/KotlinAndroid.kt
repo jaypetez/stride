@@ -13,7 +13,9 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompilerOptions
 
 internal fun Project.configureApplication() {
     extensions.configure<ApplicationExtension> {
-        compileSdk = StrideSdk.COMPILE_SDK
+        compileSdk {
+            version = release(StrideSdk.COMPILE_SDK) { minorApiLevel = StrideSdk.COMPILE_SDK_MINOR }
+        }
         defaultConfig {
             minSdk = StrideSdk.MIN_SDK
             targetSdk = StrideSdk.TARGET_SDK
@@ -42,7 +44,9 @@ internal fun Project.configureApplication() {
 
 internal fun Project.configureLibrary() {
     extensions.configure<LibraryExtension> {
-        compileSdk = StrideSdk.COMPILE_SDK
+        compileSdk {
+            version = release(StrideSdk.COMPILE_SDK) { minorApiLevel = StrideSdk.COMPILE_SDK_MINOR }
+        }
         defaultConfig {
             minSdk = StrideSdk.MIN_SDK
             testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
