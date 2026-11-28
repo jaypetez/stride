@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.18] - 2026-11-27
+
+Dependency maintenance. Per-package details are in each package's
+`CHANGELOG.md`.
+
+### Changed
+
+- **Runtime deps**: `@anthropic-ai/sdk` 1.10.0 → 1.14.0, `hono` → 4.13.23,
+  `@hono/node-server` → 2.1.11, `@tanstack/react-query` → 5.108.4,
+  `@clack/prompts` 1.9.0.
+- **Dev tooling**: `vitest`/`@vitest/coverage-v8` 5.1.2,
+  `@testing-library/jest-dom` 8.0.0, `turbo` 2.11.13, `lint-staged` 17.6.2.
+- **Android**: Compose BOM 2026.11.01 (Compose 1.13), which needs
+  `compileSdk` 37.1, so the app now compiles against API 37 minor level 1
+  (targetSdk and minSdk unchanged); AGP 9.5.3, Gradle 9.9.2, KSP 2.3.14,
+  kotlinx-serialization 1.13.0, Robolectric 4.18, Roborazzi 1.79.0,
+  Spotless 8.12.0, Garmin FIT SDK 21.222.0.
+- **CI**: `github/codeql-action` 4.39.4, `actions/setup-java` 6.3.0,
+  `actions/dependency-review-action` 5.0.1, `ossf/scorecard-action` 2.6.0.
+
 ## [0.2.17] - 2026-11-18
 
 Plans built from your own history. Per-package details are in each package's
@@ -541,7 +561,8 @@ each package's `CHANGELOG.md`.
 
 - License changed from MIT to Apache-2.0 (adds an explicit patent grant).
 
-[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.17...HEAD
+[Unreleased]: https://github.com/jaypetez/stride/compare/v0.2.18...HEAD
+[0.2.18]: https://github.com/jaypetez/stride/compare/v0.2.17...v0.2.18
 [0.2.17]: https://github.com/jaypetez/stride/compare/v0.2.16...v0.2.17
 [0.2.16]: https://github.com/jaypetez/stride/compare/v0.2.15...v0.2.16
 [0.2.15]: https://github.com/jaypetez/stride/compare/v0.2.14...v0.2.15
