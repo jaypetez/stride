@@ -1,5 +1,12 @@
 # @stride/core
 
+## 0.2.18
+
+### Patch Changes
+
+- 7b33907: Dependency maintenance: @anthropic-ai/sdk 1.14.0, hono 4.13.23, @hono/node-server 2.1.11, @tanstack/react-query 5.108.4, @clack/prompts 1.9.0, @testing-library/jest-dom 8.0.0, vitest 5.1.2, turbo 2.11.13, lint-staged 17.6.2.
+- @stride/schemas@0.2.18
+
 ## 0.2.17
 
 ### Patch Changes

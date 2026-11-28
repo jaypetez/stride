@@ -1,5 +1,14 @@
 # @stride/web
 
+## 0.2.18
+
+### Patch Changes
+
+- Updated dependencies [7b33907]
+  - @stride/core@0.2.18
+  - @stride/api@0.2.18
+  - @stride/schemas@0.2.18
+
 ## 0.2.17
 
 ### Patch Changes
